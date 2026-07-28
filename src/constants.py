@@ -42,6 +42,23 @@ MAX_OUTPUT_TOKENS_LIMIT = 4096
 MAX_JOB_DESCRIPTION_CHARS = 8_000
 MAX_CANDIDATE_BACKGROUND_CHARS = 4_000
 MAX_ANSWER_CHARS = 6_000
+MAX_TARGET_ROLE_CHARS = 200
+MAX_INDUSTRY_CHARS = 200
+MAX_COMPANY_CONTEXT_CHARS = 4_000
+MAX_INSTRUCTION_CHARS = 2_000
+
+# --- Security guard thresholds -----------------------------------------------
+# The security guard (src/security.py) is a deterministic, best-effort layer,
+# not a perfect or production-grade filter. It scores untrusted text against
+# several weighted indicators and maps the total to one of three outcomes.
+# A single strong indicator (weight >= BLOCK) blocks; milder signals warn.
+
+INJECTION_WARN_SCORE = 2  # score at/above this warns
+INJECTION_BLOCK_SCORE = 4  # score at/above this blocks
+
+# Maximum size of a model response the output guard will accept before
+# treating it as anomalous.
+MAX_MODEL_OUTPUT_CHARS = 20_000
 
 # --- Enum-like allowed values ------------------------------------------------
 # These tuples are the single source of truth for every "choose one of a fixed

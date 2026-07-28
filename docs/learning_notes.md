@@ -212,3 +212,70 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 4 — Security and privacy guards
+
+### Concepts introduced
+
+- **Defence in depth, and honesty about limits.** The guard is deterministic
+  and best-effort — regexes, weights and length caps — not perfect or
+  production-grade. It reduces obvious risk; the real boundary is
+  architectural (untrusted text stays in the user message, wrapped as data).
+- **Sanitise vs validate.** `sanitize_text` cleans (null bytes, control and
+  zero-width characters, whitespace) without changing meaning; `validate_field`
+  enforces required-ness and named length limits.
+- **Reject, don't truncate.** Oversized input raises a safe error rather than
+  being silently shortened, so the user is never misled about what was sent.
+- **Normalise before matching.** Injection detection maps leetspeak and strips
+  the text to alphanumerics, so `i g n o r e`, `i.g.n.o.r.e` and `1gn0re` all
+  collapse to the same form — defeating simple obfuscation without relying on
+  exact phrases.
+- **Weighted scoring with three outcomes.** Multiple indicators contribute
+  weights; the total maps to allow / allow_with_warning / block. A single
+  strong signal blocks; milder ones accumulate.
+- **Avoiding false positives.** Indicators are phrase-shaped (`system` near
+  `prompt`), so benign technical words (*system*, *execute*, *administrator*)
+  score zero. This is why the guard was tuned and tested against false-positive
+  candidates, not only attacks.
+- **Scope defaults to allow.** Interview practice is broad, so the scope guard
+  blocks only clearly malicious intents and lets everything else through.
+- **Output is untrusted too.** The output guard checks JSON validity/schema,
+  size, system-prompt leakage markers and secret-like patterns before a
+  response is used.
+
+### Important files
+
+- `src/security.py` — all six controls (validation, injection detection, scope
+  guard, wrappers, output guard, privacy notices).
+- `tests/test_security.py` — required cases plus false-positive candidates.
+- `docs/security.md` — threat model, each control, and the stated limitations.
+- `src/constants.py` — per-field length limits, output cap and injection
+  thresholds.
+
+### Decisions made
+
+- **Thresholds and length limits live in `constants.py`**; indicator patterns
+  and weights live with the detector in `security.py`.
+- **The guard never claims to be complete.** The module docstring and
+  `docs/security.md` both state its limits explicitly.
+- **Wrappers frame, they do not sanitise.** They mark content as data-only;
+  cleaning is `validate_field`'s job — the layers are complementary.
+
+### Questions I should be able to answer
+
+1. Why is rejecting oversized input safer than truncating it?
+2. How does normalisation defeat obfuscated injection without exact-phrase
+   matching?
+3. Why does a single strong indicator block while others only warn?
+4. How does the guard avoid flagging benign technical language?
+5. Why does the scope guard default to allow?
+6. What can the output guard catch, and what can it not?
+7. Why is it important to state that this guard is not production-grade?
+
+### My reflections
+
+-
+-
+-
