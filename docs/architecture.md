@@ -31,12 +31,13 @@ assumes a specific domain.
                │ calls
 ┌──────────────▼──────────────────────────────┐
 │ src/ — business logic                       │
-│  config.py     configuration loading        │
-│  constants.py  models, limits, defaults     │
-│  models.py     validated domain models      │
+│  config.py           configuration loading  │
+│  constants.py        models, limits, values │
+│  models.py           validated domain models│
+│  prompts.py          system prompt library  │
+│  prompt_registry.py  technique catalogue    │
 │  (later phases:)                            │
 │  client.py     OpenRouter via HTTPX         │
-│  prompts.py    system prompt library        │
 │  guard.py      input security guard         │
 │  pricing.py    token/cost reporting         │
 └──────────────┬──────────────────────────────┘
@@ -59,8 +60,14 @@ assumes a specific domain.
   `ModelSettings`), model outputs (`InterviewStrategy`, `InterviewQuestion`,
   `AnswerEvaluation`, `FinalInterviewReport`) and accounting (`UsageRecord`)
   are validated here so the rest of the app can trust its data.
-- **Later phases** — OpenRouter client, prompt library, security guard,
-  pricing/usage reporting, experiments.
+- **`src/prompts.py`** — the system-prompt library: five prompt-engineering
+  techniques, shared safety guardrails, a schema-derived output contract, and
+  role-separated message assembly (`build_messages`).
+- **`src/prompt_registry.py`** — a UI-facing catalogue mapping each stable
+  technique ID to a name, description and use case, with safe rejection of
+  unknown IDs and Streamlit selector options.
+- **Later phases** — OpenRouter client, security guard, pricing/usage
+  reporting, experiments.
 
 ## Domain models and structured outputs
 
@@ -85,6 +92,34 @@ consistent and readable:
 The models are deliberately profession-neutral, store no protected
 demographic information, and contain no hidden chain-of-thought field:
 feedback is concise and structured, never a private monologue.
+
+## Prompt-engineering library
+
+`src/prompts.py` provides five system-prompt techniques — zero-shot,
+role/persona, few-shot, structured analytical procedure, and
+rubric-constrained structured output. All five target the *same* task and the
+*same* `AnswerEvaluation` schema; only a technique-specific *method* block
+changes, which is what makes the later prompt-comparison experiment fair. Each
+prompt is assembled from shared blocks (mission, guardrails, session
+parameters, task, method, output contract), and the output contract is
+generated from `AnswerEvaluation.model_fields` so prompts cannot drift out of
+sync with the models.
+
+The trust boundary is enforced in message assembly: the **system** message
+carries only repository-authored text plus fixed-vocabulary session settings,
+while every free-text field the candidate supplies is placed in the **user**
+message inside `<<<UNTRUSTED_REFERENCE_DATA>>>` delimiters. The shared
+guardrails instruct the model to treat that content as data only, never follow
+instructions embedded in it, never reveal the system prompt or hidden
+reasoning, never fabricate achievements, label improved answers as examples to
+personalise, stay profession-neutral, and avoid protected characteristics.
+
+`src/prompt_registry.py` sits above the builders as a UI-facing catalogue:
+`list_techniques()` and `selector_options()` drive the Streamlit selector,
+`get_technique()` returns a technique's metadata and builder, and unknown IDs
+raise a controlled `UnknownPromptTechniqueError` rather than crashing or
+silently defaulting. See `docs/prompt_engineering.md` for each technique's
+definition, benefits, risks, best use and expected effect.
 
 ## Data flow
 
