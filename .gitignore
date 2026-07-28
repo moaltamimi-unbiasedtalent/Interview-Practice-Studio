@@ -1,0 +1,32 @@
+# Secrets and local environment — never commit these
+.env
+.streamlit/secrets.toml
+
+# Virtual environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# IDE local settings
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+# Generated temporary files
+*.tmp
+*.log
+tmp/

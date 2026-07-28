@@ -1,0 +1,9 @@
+[project]
+name = "interview-practice-studio"
+version = "0.1.0"
+description = "Prepare for any role. Practise realistically. Improve every answer."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
