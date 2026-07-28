@@ -71,3 +71,74 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 2 — Validated domain models and structured-output schemas
+
+### Concepts introduced
+
+- **Validate at the edges.** Every value crossing a boundary (UI → logic,
+  model → app, request → accounting) is parsed into a Pydantic model first.
+  Once validated, the rest of the code can trust the data without repeated
+  defensive checks.
+- **Single source of truth for choices.** Enum-like values live only in
+  `src/constants.py`; `src/models.py` validates against those tuples instead
+  of re-listing allowed values. Change a set once and every model follows.
+- **Reusable `Annotated` field types.** `ShortText`, `FreeText`, `StrList`
+  and the enum types bundle their constraints once and are applied by name.
+  This keeps the models readable and the rules consistent.
+- **`str_strip_whitespace` + `min_length`.** Stripping happens before length
+  checks, so a whitespace-only string collapses to `""` and is rejected as
+  empty — one clean rule covers both "trim" and "reject blank".
+- **`extra="forbid"`.** Unknown keys raise an error rather than being ignored.
+  A typo, a stale field or an injected key surfaces immediately.
+- **Cross-field validation with `model_validator(mode="after")`.** Some rules
+  span fields — `total_tokens` must equal `prompt_tokens + completion_tokens`,
+  and a `reported` cost source requires a reported figure. These can't be
+  expressed on a single field.
+- **Avoiding mutable defaults.** Required lists have no default at all;
+  optional context fields default to the immutable empty string. No shared
+  mutable object can leak between instances.
+
+### Important files
+
+- `src/models.py` — the seven domain models and their shared validation base.
+- `src/constants.py` — now also the home of every enum-like value set, the
+  scoring bounds and the defensive size limits the models reference.
+- `tests/test_models.py` — boundary and invalid-input tests proving the
+  validation guarantees.
+
+### Decisions made
+
+- **Scores are integers with hard ranges** (0–100 overall, 1–10 rubric),
+  framed in field descriptions as practice feedback, never hiring decisions.
+- **Required list sections must be non-empty.** An empty section is treated
+  as an incomplete model response and rejected, so downstream code always has
+  something to show.
+- **USD-only cost records.** OpenRouter reports spend in US dollars, so
+  `UsageRecord` uppercases and accepts only `USD`.
+- **No chain-of-thought field.** `interviewer_intent` is a concise rubric
+  hint, not a hidden reasoning dump — consistent with the security rules.
+
+### Questions I should be able to answer
+
+1. Why validate data at the boundaries instead of checking it where it is
+   used?
+2. How does `str_strip_whitespace` combine with `min_length` to reject blank
+   required fields?
+3. Why do the models validate enum-like values against `constants.py` rather
+   than using `Literal`?
+4. What does `extra="forbid"` protect against, and when might it be too
+   strict?
+5. Why is a cross-field rule (token totals, reported cost) written as a
+   `model_validator` rather than a field constraint?
+6. Why are there no mutable default values, and what bug does that prevent?
+7. How do the models stay profession-neutral and avoid storing protected
+   demographic information?
+
+### My reflections
+
+-
+-
+-

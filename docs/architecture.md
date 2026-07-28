@@ -33,11 +33,11 @@ assumes a specific domain.
 │ src/ — business logic                       │
 │  config.py     configuration loading        │
 │  constants.py  models, limits, defaults     │
+│  models.py     validated domain models      │
 │  (later phases:)                            │
 │  client.py     OpenRouter via HTTPX         │
 │  prompts.py    system prompt library        │
 │  guard.py      input security guard         │
-│  schemas.py    structured JSON outputs      │
 │  pricing.py    token/cost reporting         │
 └──────────────┬──────────────────────────────┘
                │ HTTPS (HTTPX)
@@ -53,9 +53,38 @@ assumes a specific domain.
 - **`src/config.py`** — resolves the API key (Streamlit secrets first,
   environment fallback); returns a controlled result when missing.
 - **`src/constants.py`** — the single source of truth for approved models,
-  generation defaults and input length limits.
+  generation defaults, input length limits and every enum-like value set.
+- **`src/models.py`** — validated Pydantic domain models and
+  structured-output schemas. Inputs (`InterviewConfiguration`,
+  `ModelSettings`), model outputs (`InterviewStrategy`, `InterviewQuestion`,
+  `AnswerEvaluation`, `FinalInterviewReport`) and accounting (`UsageRecord`)
+  are validated here so the rest of the app can trust its data.
 - **Later phases** — OpenRouter client, prompt library, security guard,
-  structured output schemas, pricing/usage reporting, experiments.
+  pricing/usage reporting, experiments.
+
+## Domain models and structured outputs
+
+`src/models.py` defines seven Pydantic models on a shared `_StudioModel` base
+whose policy is applied everywhere: surrounding whitespace is stripped from
+strings, unknown fields are rejected (`extra="forbid"`), and assignment is
+validated as well as construction. Reusable field types keep the rules
+consistent and readable:
+
+- **Enum-like fields** (career level, interview type, persona, difficulty,
+  response detail, prompt technique, cost source, model) are validated
+  against the tuples in `src/constants.py` — models never hard-code allowed
+  values.
+- **Required text** rejects empty / whitespace-only content and is length
+  bounded; **required lists** must be non-empty and cannot contain blank
+  items.
+- **Scores** are range-checked: overall scores 0–100, rubric scores 1–10.
+- **`UsageRecord`** additionally enforces cross-field rules —
+  `total_tokens == prompt_tokens + completion_tokens`, USD-only currency, and
+  a reported cost whenever `cost_source == "reported"`.
+
+The models are deliberately profession-neutral, store no protected
+demographic information, and contain no hidden chain-of-thought field:
+feedback is concise and structured, never a private monologue.
 
 ## Data flow
 
