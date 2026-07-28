@@ -36,9 +36,9 @@ assumes a specific domain.
 │  models.py           validated domain models│
 │  prompts.py          system prompt library  │
 │  prompt_registry.py  technique catalogue    │
+│  security.py         security/privacy guards│
 │  (later phases:)                            │
 │  client.py     OpenRouter via HTTPX         │
-│  guard.py      input security guard         │
 │  pricing.py    token/cost reporting         │
 └──────────────┬──────────────────────────────┘
                │ HTTPS (HTTPX)
@@ -66,8 +66,11 @@ assumes a specific domain.
 - **`src/prompt_registry.py`** — a UI-facing catalogue mapping each stable
   technique ID to a name, description and use case, with safe rejection of
   unknown IDs and Streamlit selector options.
-- **Later phases** — OpenRouter client, security guard, pricing/usage
-  reporting, experiments.
+- **`src/security.py`** — deterministic, best-effort security and privacy
+  guards: input validation/normalisation, prompt-injection risk scoring, a
+  scope guard, untrusted-content wrappers, an output guard and UI-ready
+  privacy notices.
+- **Later phases** — OpenRouter client, pricing/usage reporting, experiments.
 
 ## Domain models and structured outputs
 
@@ -121,6 +124,32 @@ raise a controlled `UnknownPromptTechniqueError` rather than crashing or
 silently defaulting. See `docs/prompt_engineering.md` for each technique's
 definition, benefits, risks, best use and expected effect.
 
+## Security and privacy guards
+
+`src/security.py` is a deterministic, **best-effort** defence layer (not
+perfect or production-grade — the primary boundary is architectural). It
+provides six controls that wrap the data flow:
+
+- **Input validation** — `sanitize_text` removes null bytes, unsafe control
+  and zero-width characters and collapses excessive whitespace; `validate_field`
+  enforces named length limits and required-ness, rejecting oversized input
+  rather than truncating it, with safe user-facing errors.
+- **Injection detection** — `detect_injection` normalises text (defeating
+  spacing/punctuation/leetspeak obfuscation) and scores it against multiple
+  weighted indicators, returning one of three outcomes: `allow`,
+  `allow_with_warning`, `block`.
+- **Scope guard** — `check_scope` allows the full range of interview activities
+  and blocks only clearly malicious, off-scope requests.
+- **Untrusted-content wrappers** — `wrap_job_description`,
+  `wrap_candidate_background` and `wrap_candidate_answer` frame content as
+  data-only, reinforcing the message-separation boundary.
+- **Output guard** — `inspect_output` checks JSON/schema validity, response
+  size, system-prompt leakage markers and secret-like patterns.
+- **Privacy notices** — `PRIVACY_NOTICES` provides UI-ready guidance.
+
+See `docs/security.md` for the threat model, each control and the guard's
+stated limitations.
+
 ## Data flow
 
 User input (job description, background, answers) → input guard (length and
@@ -160,6 +189,8 @@ database, no persistence, no candidate data retention.
   demographic characteristics; no personality, health or psychological
   diagnoses; scores framed as practice feedback, never hiring decisions.
 - Tests never call the live API.
+- These controls are implemented deterministically in `src/security.py` and
+  documented in `docs/security.md`; they are best-effort, not production-grade.
 
 ## Explicitly excluded scope
 
