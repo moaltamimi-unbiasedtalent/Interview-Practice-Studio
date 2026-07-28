@@ -142,3 +142,73 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 3 — Prompt-engineering library
+
+### Concepts introduced
+
+- **One task, five techniques.** All five techniques target the same job —
+  produce an `AnswerEvaluation` for a question + answer. Only the *method*
+  block changes, which is what makes the later comparison fair.
+- **System vs user separation as a security boundary.** The system message
+  holds only trusted text plus fixed-vocabulary settings (persona, difficulty,
+  interview types). Every free-text field the candidate types goes in the user
+  message, wrapped in `<<<UNTRUSTED_REFERENCE_DATA>>>` delimiters.
+- **Prompt injection defence.** The guardrails tell the model to treat the
+  reference data as data only and never to follow instructions embedded in a
+  job description, background or answer. Because untrusted text never reaches
+  the system message, an injection string stays quarantined in the user turn.
+- **No hidden chain-of-thought.** Prohibiting the model from revealing private
+  reasoning is *not* the same as requesting reasoning. The structured
+  procedure lists a visible six-step method but emits only the final JSON.
+- **Prompts derived from the schema.** The output contract is generated from
+  `AnswerEvaluation.model_fields`, so the prompt can never drift out of sync
+  with the model — every schema key is listed automatically.
+- **A registry over the builders.** `prompt_registry.py` pairs each stable ID
+  with a name, description and use case, rejects unknown IDs with a controlled
+  `UnknownPromptTechniqueError`, and exposes `selector_options()` for the
+  Streamlit dropdown — the UI never touches prompt internals.
+
+### Important files
+
+- `src/prompts.py` — the five system-prompt builders, shared guardrails, the
+  schema-derived output contract, and role-separated message assembly.
+- `src/prompt_registry.py` — UI-facing catalogue and safe lookup.
+- `tests/test_prompts.py` — proves the guarantees (separation, injection
+  resistance, neutrality, no chain-of-thought requests, schema references,
+  safe rejection).
+- `docs/prompt_engineering.md` — definitions, benefits, risks, best use,
+  expected effect and the fair-comparison plan.
+
+### Decisions made
+
+- **All five techniques emit strict JSON**, not just the "structured" ones, so
+  the comparison holds the output constant and only the technique varies.
+- **The few-shot example is profession-neutral** (improving an intake process)
+  so the platform is not biased toward any discipline, and the improved answer
+  is labelled as an example to personalise.
+- **Technique IDs live in `constants.PROMPT_TECHNIQUES`** so models, prompts
+  and registry all validate against one source of truth.
+- **Unknown IDs raise** rather than silently defaulting — a wrong ID is a bug,
+  not something to paper over.
+
+### Questions I should be able to answer
+
+1. Why is untrusted candidate text kept out of the system message entirely?
+2. How do the prompts adapt to the session without letting free text inject
+   instructions?
+3. What is the difference between prohibiting chain-of-thought and requesting
+   it, and how does the structured procedure stay on the right side of it?
+4. Why do all five techniques produce the same schema, and how does that make
+   the comparison fair?
+5. How does the output contract stay in sync with `AnswerEvaluation`?
+6. What does the registry protect the UI from, and how does it reject bad IDs?
+7. Why is the few-shot example deliberately generic?
+
+### My reflections
+
+-
+-
+-

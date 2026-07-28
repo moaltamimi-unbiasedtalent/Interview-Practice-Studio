@@ -94,14 +94,16 @@ RESPONSE_DETAIL_LEVELS = (
 )
 
 # Five distinct prompting techniques (assignment requires at least five).
-# None of these names implies exposing hidden chain-of-thought: feedback is
-# always produced as concise, structured output, never a private monologue.
+# These are the stable technique IDs used by src/prompts.py and the prompt
+# registry. None of these names implies exposing hidden chain-of-thought:
+# feedback is always produced as concise, structured output, never a private
+# monologue.
 PROMPT_TECHNIQUES = (
-    "zero_shot",
-    "few_shot",
-    "role_prompting",
-    "structured_rubric",
-    "self_refine",
+    "zero_shot",  # Zero-shot instruction
+    "role_persona",  # Role and persona prompting
+    "few_shot",  # Few-shot prompting
+    "structured_procedure",  # Structured analytical procedure
+    "rubric_json",  # Rubric-constrained structured-output prompting
 )
 
 # How a usage record's cost was obtained.
