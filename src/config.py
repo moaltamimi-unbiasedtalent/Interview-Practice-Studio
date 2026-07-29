@@ -33,6 +33,14 @@ class AppConfig(BaseModel):
     temperature: float = constants.DEFAULT_TEMPERATURE
     max_output_tokens: int = constants.DEFAULT_MAX_OUTPUT_TOKENS
 
+    # OpenRouter connection settings (defaults from constants). These are not
+    # secrets and are safe to display or log.
+    base_url: str = constants.OPENROUTER_BASE_URL
+    connect_timeout_seconds: float = constants.CONNECT_TIMEOUT_SECONDS
+    read_timeout_seconds: float = constants.READ_TIMEOUT_SECONDS
+    app_referer: str = constants.OPENROUTER_APP_REFERER
+    app_title: str = constants.OPENROUTER_APP_TITLE
+
     @property
     def is_configured(self) -> bool:
         """Return ``True`` when a non-empty API key is available."""
@@ -40,6 +48,16 @@ class AppConfig(BaseModel):
             self.api_key is not None
             and self.api_key.get_secret_value().strip() != ""
         )
+
+    @property
+    def chat_completions_url(self) -> str:
+        """Full URL of the OpenRouter chat-completions endpoint."""
+        return f"{self.base_url.rstrip('/')}{constants.OPENROUTER_CHAT_COMPLETIONS_PATH}"
+
+    @property
+    def models_url(self) -> str:
+        """Full URL of the OpenRouter models-metadata endpoint."""
+        return f"{self.base_url.rstrip('/')}{constants.OPENROUTER_MODELS_PATH}"
 
 
 def _read_streamlit_secret() -> str | None:

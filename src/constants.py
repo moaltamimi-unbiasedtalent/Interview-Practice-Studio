@@ -158,3 +158,36 @@ MAX_LIST_ITEMS = 50
 
 DEFAULT_CURRENCY = "USD"
 SUPPORTED_CURRENCIES = ("USD",)
+
+# --- OpenRouter API ----------------------------------------------------------
+# The single OpenRouter host and the two endpoints this project uses. Kept here
+# so no module hard-codes a URL.
+
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_CHAT_COMPLETIONS_PATH = "/chat/completions"
+OPENROUTER_MODELS_PATH = "/models"
+
+# OpenRouter uses these optional headers for attribution/ranking. They are not
+# secrets and are safe to send and to log.
+OPENROUTER_APP_REFERER = (
+    "https://github.com/moaltamimi-unbiasedtalent/Interview-Practice-Studio"
+)
+OPENROUTER_APP_TITLE = APP_NAME
+
+# Explicit timeouts (seconds). A short connect timeout fails fast on network
+# problems; a longer read timeout tolerates slower model responses.
+CONNECT_TIMEOUT_SECONDS = 10.0
+READ_TIMEOUT_SECONDS = 60.0
+
+# The connection-test request is deliberately tiny.
+CONNECTION_TEST_MAX_TOKENS = 8
+
+# --- Pricing -----------------------------------------------------------------
+# Cost figures are computed with Decimal for precision, then rounded to this
+# many decimal places for display/storage. Prices themselves are always read
+# from OpenRouter model metadata, never hard-coded.
+
+PRICING_DECIMAL_PLACES = 10
+COST_ESTIMATE_DISCLAIMER = (
+    "Estimated from current model pricing — not a final billed amount."
+)

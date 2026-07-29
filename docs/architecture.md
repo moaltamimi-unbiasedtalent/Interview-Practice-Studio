@@ -24,28 +24,27 @@ assumes a specific domain.
 ## Proposed architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│ app.py — Streamlit UI (rendering only)      │
-│  session state: conversation, settings      │
-└──────────────┬──────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│ app.py — Streamlit UI (rendering only)       │
+│  session state: conversation, settings       │
+└──────────────┬───────────────────────────────┘
                │ calls
-┌──────────────▼──────────────────────────────┐
-│ src/ — business logic                       │
-│  config.py           configuration loading  │
-│  constants.py        models, limits, values │
-│  models.py           validated domain models│
-│  prompts.py          system prompt library  │
-│  prompt_registry.py  technique catalogue    │
-│  security.py         security/privacy guards│
-│  (later phases:)                            │
-│  client.py     OpenRouter via HTTPX         │
-│  pricing.py    token/cost reporting         │
-└──────────────┬──────────────────────────────┘
+┌──────────────▼───────────────────────────────┐
+│ src/ — business logic                        │
+│  config.py            configuration loading  │
+│  constants.py         limits, models, values │
+│  models.py            validated domain models│
+│  prompts.py           system prompt library  │
+│  prompt_registry.py   technique catalogue    │
+│  security.py          security/privacy guards│
+│  openrouter_client.py OpenRouter API client  │
+│  pricing_service.py   usage & cost accounting│
+└──────────────┬───────────────────────────────┘
                │ HTTPS (HTTPX)
-┌──────────────▼──────────────────────────────┐
-│ OpenRouter Chat Completions API             │
-│  openai/gpt-5-mini | gpt-5-nano | gpt-5     │
-└─────────────────────────────────────────────┘
+┌──────────────▼───────────────────────────────┐
+│ OpenRouter Chat Completions API              │
+│  openai/gpt-5-mini | gpt-5-nano | gpt-5      │
+└──────────────────────────────────────────────┘
 ```
 
 ## Main components
@@ -70,7 +69,14 @@ assumes a specific domain.
   guards: input validation/normalisation, prompt-injection risk scoring, a
   scope guard, untrusted-content wrappers, an output guard and UI-ready
   privacy notices.
-- **Later phases** — OpenRouter client, pricing/usage reporting, experiments.
+- **`src/openrouter_client.py`** — a typed, non-streaming OpenRouter
+  chat-completions client: Bearer auth, explicit timeouts, full error mapping,
+  a safe debug mode, and a connection-test helper.
+- **`src/pricing_service.py`** — usage accounting and pricing: reads live model
+  pricing/metadata (cached per session), resolves reported vs calculated vs
+  unavailable cost in USD, and tracks cumulative session usage.
+- **Later phases** — Streamlit conversational UI and the comparison /
+  jailbreak experiments.
 
 ## Domain models and structured outputs
 
@@ -149,6 +155,41 @@ provides six controls that wrap the data flow:
 
 See `docs/security.md` for the threat model, each control and the guard's
 stated limitations.
+
+## OpenRouter integration, usage and pricing
+
+`src/openrouter_client.py` is a typed, **non-streaming** client for
+`POST https://openrouter.ai/api/v1/chat/completions`. It:
+
+- reads `OPENROUTER_API_KEY` securely via `AppConfig` (a masked `SecretStr`)
+  and authenticates with a Bearer token;
+- accepts `model`, `messages`, `temperature` and `max_tokens`, and attaches
+  `response_format` only when the selected model supports it (otherwise it
+  raises `UnsupportedParameterError` before any network call);
+- uses explicit connection and read timeouts;
+- returns a typed `ChatResult` (assistant content, actual model, prompt/
+  completion/total tokens, reported cost, request duration, request ID);
+- maps every failure to a specific exception — missing key, 400/401/402/429,
+  5xx/upstream, timeout, network error, invalid JSON, empty choices — and
+  degrades gracefully when usage is missing;
+- logs nothing by default; a **safe debug mode** logs only request ID, model,
+  duration and a coarse status category — never headers, keys or content;
+- exposes `test_connection()`, a deliberately tiny request the UI runs only
+  when the user presses a "Test connection" button.
+
+`src/pricing_service.py` handles usage accounting and cost:
+
+- prices are **read from OpenRouter model metadata** (`/models`) and cached for
+  the session — never hard-coded;
+- cost precedence is **reported** (from usage data) → **calculated** (from
+  metadata, using `Decimal` for precision) → **unavailable**, and every
+  `UsageRecord` records which source was used;
+- all figures are in USD, and calculated figures are labelled estimates, not
+  final billed amounts;
+- `supported_parameters` from metadata drives the client's structured-output
+  decision;
+- cumulative session usage (tokens and cost) is tracked via
+  `SessionUsageTotals`.
 
 ## Data flow
 

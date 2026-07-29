@@ -45,6 +45,7 @@ __all__ = [
     "AnswerEvaluation",
     "FinalInterviewReport",
     "UsageRecord",
+    "ModelPricing",
 ]
 
 
@@ -435,3 +436,42 @@ class UsageRecord(_StudioModel):
                 "reported_cost is required when cost_source is 'reported'"
             )
         return self
+
+
+# --- Pricing metadata --------------------------------------------------------
+
+
+class ModelPricing(_StudioModel):
+    """Per-token pricing for one model, read from OpenRouter metadata.
+
+    Prices are in US dollars per token (OpenRouter reports them as strings; the
+    pricing service converts them). All prices must be non-negative. This is a
+    validated record of external metadata — it is never hard-coded.
+    """
+
+    model_id: ShortText = Field(description="Model identifier the pricing applies to.")
+    prompt_usd_per_token: float = Field(
+        ge=0, description="USD charged per prompt (input) token."
+    )
+    completion_usd_per_token: float = Field(
+        ge=0, description="USD charged per completion (output) token."
+    )
+    request_usd: float = Field(
+        default=0.0, ge=0, description="Flat USD charged per request, if any."
+    )
+    currency: str = Field(
+        default=constants.DEFAULT_CURRENCY,
+        description="ISO currency code; USD for OpenRouter.",
+    )
+
+    @field_validator("currency")
+    @classmethod
+    def _check_currency(cls, value: str) -> str:
+        """Only USD is supported (OpenRouter reports in US dollars)."""
+        value = value.upper()
+        if value not in constants.SUPPORTED_CURRENCIES:
+            raise ValueError(
+                f"currency must be one of {list(constants.SUPPORTED_CURRENCIES)}; "
+                f"got {value!r}"
+            )
+        return value

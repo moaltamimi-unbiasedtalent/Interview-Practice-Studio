@@ -279,3 +279,72 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 5 — OpenRouter integration, usage and pricing
+
+### Concepts introduced
+
+- **A thin, typed HTTP client.** `openrouter_client.py` wraps one endpoint. It
+  returns a `ChatResult` dataclass, so the rest of the app works with typed
+  fields, not raw dictionaries.
+- **Explicit timeouts.** A short connect timeout fails fast on network trouble;
+  a longer read timeout tolerates slow model responses. Both are set on an
+  `httpx.Timeout`.
+- **Exhaustive error mapping.** Every failure mode (missing key, 400/401/402/
+  429, 5xx, timeout, network, invalid JSON, empty choices, missing usage,
+  unsupported parameter) maps to its own exception with a safe message. The UI
+  can then explain exactly what happened.
+- **Graceful degradation.** If usage is missing, the content is still returned
+  with `usage_available=False` rather than throwing away a good answer.
+- **Privacy in logging.** By default the client logs nothing. Debug mode logs
+  only request ID, model, duration and a coarse status category — never
+  headers, keys or message content.
+- **Capability-aware requests.** `response_format` (structured output) is only
+  sent when the model's `supported_parameters` include it; otherwise the client
+  refuses before making a call.
+- **Testing HTTP without a network.** `httpx.MockTransport` lets tests script
+  responses (and raise timeouts/network errors) with no real request and no
+  live key.
+- **Cost precedence and Decimal.** Cost is reported → calculated → unavailable.
+  Calculations use `Decimal` so tiny per-token prices sum exactly; the value is
+  rounded only when converting to a float for storage/display.
+- **Pricing is data, not code.** Prices and `supported_parameters` come from the
+  live `/models` endpoint, cached once per session — never hard-coded.
+
+### Important files
+
+- `src/openrouter_client.py` — the typed client and its exceptions.
+- `src/pricing_service.py` — metadata fetch/cache, cost resolution, session
+  totals.
+- `src/models.py` — adds `ModelPricing`; reuses `UsageRecord`.
+- `src/config.py` — adds base URL, timeouts, referer/title and endpoint URLs.
+- `tests/test_openrouter_client.py`, `tests/test_pricing_service.py` — fully
+  mocked; no live calls.
+
+### Decisions made
+
+- **Non-streaming first**, as required — simpler to reason about and to test.
+- **Reported cost preferred** over our own estimate; estimates are clearly
+  labelled and never presented as the final bill.
+- **`test_connection()` is a real but tiny request**, meant to run only behind
+  a user-pressed button, so we never make surprise paid calls.
+- **The client never logs sensitive data**; the debug surface is a small,
+  explicit dataclass.
+
+### Questions I should be able to answer
+
+1. Why are explicit connect and read timeouts better than one overall timeout?
+2. How does the client keep credentials and content out of the logs?
+3. Why is `response_format` gated on `supported_parameters`?
+4. What is the cost precedence, and why prefer the reported cost?
+5. Why use `Decimal` for cost, and where is it converted to float?
+6. Why is pricing fetched from `/models` instead of hard-coded, and why cache?
+7. How do the tests exercise timeouts and errors without a network or API key?
+
+### My reflections
+
+-
+-
+-
