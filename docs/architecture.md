@@ -43,6 +43,7 @@ assumes a specific domain.
 │  interview_service.py  strategy + questions    │
 │  evaluation_service.py answer evaluation       │
 │  report_service.py     final report            │
+│  session_manager.py    conversational state    │
 └──────────────┬─────────────────────────────────┘
                │ HTTPS (HTTPX)
 ┌──────────────▼─────────────────────────────────┐
@@ -87,6 +88,8 @@ assumes a specific domain.
   strategy and next-question use cases.
 - **`src/evaluation_service.py`** — the answer-evaluation use case.
 - **`src/report_service.py`** — the final-report use case.
+- **`src/session_manager.py`** — the interview state machine and all
+  per-session data, over a namespaced Streamlit `session_state` store.
 - **Later phases** — Streamlit conversational UI and the comparison /
   jailbreak experiments.
 
@@ -246,6 +249,50 @@ Design properties:
   mission, guardrails and session parameters but targets the correct schema per
   task, keeping system/user separation and every safety rule intact.
 
+## Session and conversational state
+
+`src/session_manager.py` owns an explicit state machine and all per-session
+data. It is the only module that talks to Streamlit's `session_state`, and it
+does so through an **injected store** (a `MutableMapping`), so the whole state
+machine is testable with a plain `dict` and nothing is written to disk.
+
+States: `SETUP → STRATEGY_READY → INTERVIEW_IN_PROGRESS ⇄ AWAITING_ANSWER →
+EVALUATING → …`, ending at `INTERVIEW_COMPLETE → REPORT_READY`, with `ERROR` as
+a recoverable side-state.
+
+```
+SETUP ──start/save_strategy──▶ STRATEGY_READY ──add_question──▶ AWAITING_ANSWER
+  ▲                                                                   │
+  │reset                                                       add_answer
+  │                                                                   ▼
+REPORT_READY ◀─save_report─ INTERVIEW_COMPLETE ◀─advance/complete/  EVALUATING
+                                          end_early     ▲               │
+                                                        └─add_evaluation┘
+   any state ──enter_error──▶ ERROR ──recover_from_error──▶ (previous state)
+```
+
+Transitions:
+
+- **Guarded** — each operation declares the states it is legal from;
+  everything else raises `InvalidStateTransitionError`.
+- **Namespaced** — all data lives under a single key in the store, isolated
+  from Streamlit widget keys and other values.
+- **Rerun-safe** — `initialise_session` never clobbers an existing session, so
+  chat history and interview progress persist across Streamlit reruns. Button
+  presses are never stored as state; only domain facts drive behaviour.
+- **Duplicate-safe** — `begin_operation`/`end_operation` claim an in-flight
+  slot so a rerun cannot fire a second API call, and one answer per asked
+  question is enforced (`DuplicateSubmissionError`).
+- **Recoverable** — `enter_error` records a controlled message and the state to
+  return to; `recover_from_error` restores it.
+- **Resettable** — `reset_interview` clears all interview content but keeps
+  harmless developer preferences.
+
+The session data covers configuration, model settings, selected technique,
+strategy, chat messages, questions, answers, evaluations, current question
+number, usage records, cumulative session cost (USD), current state, a
+recoverable error, the interview start time and duplicate-submission control.
+
 ## Data flow
 
 User input (job description, background, answers) → input guard (length and
@@ -272,7 +319,10 @@ for the duration of the browser session only.
 Streamlit reruns the script on every interaction, so all conversational
 state (message history, settings, cumulative usage) is kept in
 `st.session_state`. State is per-browser-session and in-memory only — no
-database, no persistence, no candidate data retention.
+database, no persistence, no candidate data retention. This state is owned by
+`src/session_manager.py` (see [Session and conversational
+state](#session-and-conversational-state)), which enforces the explicit state
+machine and guards against duplicate reruns.
 
 ## Security approach
 

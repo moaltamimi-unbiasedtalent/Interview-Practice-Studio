@@ -418,3 +418,68 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 7 — Session management and conversational state
+
+### Concepts introduced
+
+- **An explicit state machine.** The interview moves through named states
+  (SETUP, STRATEGY_READY, INTERVIEW_IN_PROGRESS, AWAITING_ANSWER, EVALUATING,
+  INTERVIEW_COMPLETE, REPORT_READY, ERROR). Every operation declares which
+  states it is legal from, so an out-of-order call raises
+  `InvalidStateTransitionError` instead of corrupting the session.
+- **Injected store.** The manager talks to Streamlit `session_state` only
+  through an injected `MutableMapping`. Tests pass a plain `dict`, so the whole
+  machine is exercised without a running Streamlit app and without touching
+  disk.
+- **Namespacing.** All data lives under one key, so it never collides with
+  Streamlit's widget keys or other session values.
+- **Rerun safety.** Streamlit re-runs the whole script on every interaction.
+  `initialise_session` only creates data when it is missing, so chat history
+  and progress survive reruns; button presses are never stored — only domain
+  facts (asked / answered / evaluated / current state) drive behaviour.
+- **Duplicate-call protection.** `begin_operation`/`end_operation` claim an
+  in-flight slot, so a rerun cannot fire a second API call; and because
+  submitting an answer moves the state to EVALUATING, a re-submitted answer is
+  rejected. One answer per asked question is enforced.
+- **Recoverable errors.** `enter_error` records a safe message and the state to
+  return to; `recover_from_error` restores it — errors are a side-state, not a
+  dead end.
+- **Safe reset.** `reset_interview` builds fresh session data but carries over
+  harmless developer preferences (e.g., a debug flag), so a reset never leaks
+  old interview content but does not wipe the developer's settings.
+
+### Important files
+
+- `src/session_manager.py` — `SessionState`, `SessionData`, `SessionManager`.
+- `tests/test_session_manager.py` — valid/invalid transitions, duplicate
+  submissions, reset behaviour, rerun persistence, cost accumulation, recovery.
+
+### Decisions made
+
+- **A dataclass for session data** (not a dict) so fields are explicit and the
+  reset path is obvious; it is stored as one object under the namespace key.
+- **`start_new_interview` stays in SETUP**; strategy generation is a separate
+  step that transitions to STRATEGY_READY, keeping each operation single-purpose.
+- **Cumulative cost prefers the reported figure**, falling back to the
+  calculated estimate — matching the pricing service's precedence.
+- **No disk persistence** — everything is in-memory for the session only.
+
+### Questions I should be able to answer
+
+1. Why model the interview as an explicit state machine rather than flags?
+2. How does injecting the store make the manager testable and Streamlit-free?
+3. Why must `initialise_session` avoid clobbering existing data on a rerun?
+4. What are the two layers of duplicate-submission protection, and when does
+   each fire?
+5. Why is button state never stored as session state?
+6. How does reset keep developer preferences while clearing interview content?
+7. How does error recovery know which state to return to?
+
+### My reflections
+
+-
+-
+-
