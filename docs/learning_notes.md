@@ -635,8 +635,9 @@ I'd explain differently in my own words.)*
   content (typically a pasted job description).
 - **Guards are imperfect — and we say so.** The battery deliberately includes
   benign false-positive candidates (which must stay `allow`) and a base64
-  bypass the guard does not decode (a documented failure). The real defence is
-  architectural: untrusted text is framed as data in the prompt.
+  bypass which, at Phase 10, the guard did not decode (a documented failure;
+  **narrowed in Phase 11** with a bounded Base64 decoder — see below). The real
+  defence is architectural: untrusted text is framed as data in the prompt.
 - **Answers are flagged, never blocked.** Injection inside a candidate answer
   yields `allow_with_warning`, not `block`, because the answer must always be
   evaluated (as data). This exercises all three outcomes.
@@ -677,6 +678,69 @@ I'd explain differently in my own words.)*
 5. Why is the guard imperfect, and what is the primary defence instead?
 6. How is spreadsheet formula injection prevented without losing meaning?
 7. Why is live-assisted testing optional, and how is it gated?
+
+### My reflections
+
+-
+-
+-
+
+---
+
+## Phase 11 — Quality hardening
+
+### Concepts introduced
+
+- **A quality audit is a deliberate pass, not a vibe.** Fourteen areas
+  (functional, generic-profession, Streamlit, state machine, request
+  construction, structured output, security, pricing, prompts, accessibility,
+  code quality, dependencies, artefacts, docs) were each checked, with findings
+  recorded by severity in `docs/quality_report.md`.
+- **Bounded, explainable security improvement.** The Phase 10 Base64 gap was
+  narrowed — not by broadly decoding user content, but by decoding only
+  *high-confidence, standalone* Base64 segments (strict length window, valid
+  padding, printable UTF-8) and re-scanning them with the *same* injection
+  scanner. Decoded bytes are never executed. Benign Base64 (sentences, ids,
+  hashes, binary blobs) is not flagged, so there are no material false
+  positives — verified by tests.
+- **Strengthening ≠ gaming the pass rate.** JB-22 now blocks because the guard
+  genuinely improved, and the residual risk (other encodings, nested/split
+  Base64) is documented honestly. The guard is still not claimed to be perfect.
+- **Generic-profession proof.** A parametrised test drives ten professions
+  (developer, accountant, nurse, electrician, ops manager, marketing director,
+  teacher, compliance manager, sales manager, CEO) and asserts the system
+  prompt stays neutral while the role travels in the user message — evidence the
+  app hard-codes no single discipline.
+
+### Important files
+
+- `src/security.py` — bounded Base64 decode-and-rescan in `detect_injection`.
+- `scripts/run_jailbreak_tests.py` + regenerated `evaluations/jailbreak_*`
+  (JB-22 now blocks; 29/29).
+- `tests/test_security.py` (Base64 regression cases),
+  `tests/test_generic_professions.py` (new).
+- `docs/quality_report.md` (new), `docs/security.md`, `docs/learning_notes.md`.
+
+### Decisions made
+
+- **Improved the guard rather than retaining the gap**, because the improvement
+  met every safety criterion (bounded size, high-confidence only, no execution,
+  reuses the scanner, no material false positives, learner-understandable).
+- **No new lint/format tool was installed** just for appearance; static checks
+  used compile, import and manual AST scans already available.
+- **Existing security rules were not weakened** to raise any pass rate.
+
+### Questions I should be able to answer
+
+1. What did the quality audit cover, and how are defects triaged by severity?
+2. How does the bounded Base64 decoder avoid false positives, and why is it
+   safe (no execution, size-limited, high-confidence only)?
+3. Why is improving the guard different from weakening it to pass a test?
+4. What residual encoding risks remain after Phase 11?
+5. How do the tests prove the app is profession-neutral without live calls?
+6. Why keep the architectural (data-framing) defence as primary even after the
+   Base64 improvement?
+7. Why avoid installing extra tooling during a hardening pass?
 
 ### My reflections
 

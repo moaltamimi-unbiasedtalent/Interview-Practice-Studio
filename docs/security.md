@@ -172,12 +172,18 @@ The guard is deterministic pattern matching, not a model. It can produce:
   battery includes benign and legitimate-technical cases, e.g. a system
   administrator who "executes deployment scripts and rotates credentials", which
   must stay `allow`).
-- **Novel bypasses** — attacks it has no pattern for. The battery includes a
-  **base64-encoded** injection the guard does *not* decode (a documented known
-  limitation): it is not blocked by the deterministic layer, and the
+- **Novel bypasses** — attacks it has no pattern for. Encoding is one: the
+  guard now decodes **high-confidence, standalone Base64 segments** (strict
+  length window, valid padding, decodes to printable UTF-8) and re-scans the
+  decoded text with the *same* injection scanner — so the JB-22 Base64-wrapped
+  injection is caught (Phase 11). Decoded bytes are only ever treated as text,
+  never executed. This is deliberately narrow: it does **not** decode arbitrary
+  content, and **residual risk remains** for other encodings (URL/hex/ROT13),
+  nested or split Base64, and Base64 broken across whitespace. The
   **architectural** defence — untrusted text framed as data in the prompt, with
   the system prompt instructing the model to never follow embedded instructions
-  — is the real mitigation. **We do not claim the guard stops every jailbreak.**
+  — remains the primary mitigation. **We do not claim the guard stops every
+  jailbreak.**
 
 ### Why blocked inputs are not forwarded to the model
 

@@ -25,6 +25,8 @@ F. :data:`PRIVACY_NOTICES` / :func:`privacy_notices` — UI-ready privacy notice
 
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import re
 import unicodedata
@@ -277,21 +279,73 @@ class InjectionAssessment:
         return self.decision == BLOCK
 
 
-def detect_injection(text: str) -> InjectionAssessment:
-    """Score ``text`` for prompt-injection risk.
-
-    Normalises the text, sums the weights of every matched indicator, and maps
-    the total to one of three outcomes using the thresholds in
-    :mod:`src.constants`. Returns which indicators fired so the UI can explain a
-    warning or block.
-    """
-    condensed = _condense(text or "")
+def _score_condensed(condensed: str) -> tuple[int, list[str]]:
+    """Sum indicator weights matched in already-condensed text."""
     matched: list[str] = []
     score = 0
     for indicator in _INJECTION_INDICATORS:
         if indicator.pattern.search(condensed):
             matched.append(indicator.name)
             score += indicator.weight
+    return score, matched
+
+
+# Bounded Base64 handling. Only *high-confidence, standalone* Base64 segments
+# are decoded (strict length window, valid padding, decodes to printable text),
+# and the decoded text is re-scanned with the SAME injection scanner. Decoded
+# bytes are only ever treated as text — never executed. This narrows the
+# documented Base64 residual risk without broadly decoding user content.
+_B64_SEGMENT = re.compile(
+    r"(?<![A-Za-z0-9+/])[A-Za-z0-9+/]{20,256}={0,2}(?![A-Za-z0-9+/=])"
+)
+_MAX_B64_SEGMENTS = 5
+_MAX_B64_DECODED_CHARS = 1000
+
+
+def _decode_high_confidence_base64(text: str) -> list[str]:
+    """Return decoded text for standalone, high-confidence Base64 segments only."""
+    segments: list[str] = []
+    for match in _B64_SEGMENT.finditer(text or ""):
+        if len(segments) >= _MAX_B64_SEGMENTS:
+            break
+        token = match.group(0)
+        if len(token) % 4 != 0:  # not standard Base64 length
+            continue
+        try:
+            raw = base64.b64decode(token, validate=True)
+        except (binascii.Error, ValueError):
+            continue
+        try:
+            decoded = raw.decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if len(decoded) < 8:  # too short to be a meaningful instruction
+            continue
+        printable = sum(1 for ch in decoded if ch.isprintable() or ch.isspace())
+        if printable / len(decoded) < 0.9:  # looks like binary, not text
+            continue
+        segments.append(decoded[:_MAX_B64_DECODED_CHARS])
+    return segments
+
+
+def detect_injection(text: str) -> InjectionAssessment:
+    """Score ``text`` for prompt-injection risk.
+
+    Normalises the text, sums the weights of every matched indicator, and maps
+    the total to one of three outcomes using the thresholds in
+    :mod:`src.constants`. High-confidence Base64 segments are decoded (bounded)
+    and re-scanned with the same indicators, so a Base64-wrapped injection is
+    caught. Returns which indicators fired so the UI can explain a warning or
+    block; Base64-derived indicators are prefixed ``base64:``.
+    """
+    text = text or ""
+    score, matched = _score_condensed(_condense(text))
+
+    for decoded in _decode_high_confidence_base64(text):
+        seg_score, seg_matched = _score_condensed(_condense(decoded))
+        if seg_score:
+            score += seg_score
+            matched.extend(f"base64:{name}" for name in seg_matched)
 
     if score >= constants.INJECTION_BLOCK_SCORE:
         decision = BLOCK
