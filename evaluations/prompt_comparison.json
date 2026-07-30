@@ -1,0 +1,160 @@
+{
+  "experiment": "prompt_comparison",
+  "status": "pending",
+  "fixed_settings": {
+    "model": "openai/gpt-5-mini",
+    "temperature": 0.3,
+    "max_tokens": 1024
+  },
+  "scenario": {
+    "target_role": "Project Coordinator",
+    "industry_or_sector": "general business",
+    "career_level": "mid",
+    "interview_type": "behavioural",
+    "question": "Tell me about a time you improved how your team worked.",
+    "candidate_answer": "I noticed our weekly updates were slow, so I suggested a shorter format. People seemed to like it and things felt a bit smoother afterwards."
+  },
+  "evaluation_dimensions": [
+    "relevance",
+    "specificity",
+    "role_adaptation",
+    "structure",
+    "actionability",
+    "hallucination_risk",
+    "json_reliability"
+  ],
+  "techniques": [
+    {
+      "technique": "zero_shot",
+      "technique_name": "Zero-shot instruction",
+      "status": "pending",
+      "valid_json": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null,
+      "cost_source": null,
+      "latency_seconds": null,
+      "overall_score": null,
+      "output": null,
+      "output_summary": "PENDING \u2014 run the experiment",
+      "manual_observations": "PENDING",
+      "evaluation": {
+        "relevance": "PENDING",
+        "specificity": "PENDING",
+        "role_adaptation": "PENDING",
+        "structure": "PENDING",
+        "actionability": "PENDING",
+        "hallucination_risk": "PENDING",
+        "json_reliability": "PENDING"
+      }
+    },
+    {
+      "technique": "role_persona",
+      "technique_name": "Role and persona prompting",
+      "status": "pending",
+      "valid_json": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null,
+      "cost_source": null,
+      "latency_seconds": null,
+      "overall_score": null,
+      "output": null,
+      "output_summary": "PENDING \u2014 run the experiment",
+      "manual_observations": "PENDING",
+      "evaluation": {
+        "relevance": "PENDING",
+        "specificity": "PENDING",
+        "role_adaptation": "PENDING",
+        "structure": "PENDING",
+        "actionability": "PENDING",
+        "hallucination_risk": "PENDING",
+        "json_reliability": "PENDING"
+      }
+    },
+    {
+      "technique": "few_shot",
+      "technique_name": "Few-shot prompting",
+      "status": "pending",
+      "valid_json": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null,
+      "cost_source": null,
+      "latency_seconds": null,
+      "overall_score": null,
+      "output": null,
+      "output_summary": "PENDING \u2014 run the experiment",
+      "manual_observations": "PENDING",
+      "evaluation": {
+        "relevance": "PENDING",
+        "specificity": "PENDING",
+        "role_adaptation": "PENDING",
+        "structure": "PENDING",
+        "actionability": "PENDING",
+        "hallucination_risk": "PENDING",
+        "json_reliability": "PENDING"
+      }
+    },
+    {
+      "technique": "structured_procedure",
+      "technique_name": "Structured analytical procedure",
+      "status": "pending",
+      "valid_json": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null,
+      "cost_source": null,
+      "latency_seconds": null,
+      "overall_score": null,
+      "output": null,
+      "output_summary": "PENDING \u2014 run the experiment",
+      "manual_observations": "PENDING",
+      "evaluation": {
+        "relevance": "PENDING",
+        "specificity": "PENDING",
+        "role_adaptation": "PENDING",
+        "structure": "PENDING",
+        "actionability": "PENDING",
+        "hallucination_risk": "PENDING",
+        "json_reliability": "PENDING"
+      }
+    },
+    {
+      "technique": "rubric_json",
+      "technique_name": "Rubric-constrained structured output",
+      "status": "pending",
+      "valid_json": null,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "cost_usd": null,
+      "cost_source": null,
+      "latency_seconds": null,
+      "overall_score": null,
+      "output": null,
+      "output_summary": "PENDING \u2014 run the experiment",
+      "manual_observations": "PENDING",
+      "evaluation": {
+        "relevance": "PENDING",
+        "specificity": "PENDING",
+        "role_adaptation": "PENDING",
+        "structure": "PENDING",
+        "actionability": "PENDING",
+        "hallucination_risk": "PENDING",
+        "json_reliability": "PENDING"
+      }
+    }
+  ],
+  "notes": [
+    "Identical model, temperature and token limit across all techniques.",
+    "Identical user input (question + candidate answer) across all techniques.",
+    "Costs are in USD; reported where available, otherwise a calculated estimate \u2014 never a final bill.",
+    "Do not treat the longest response as the best; judge on the evaluation dimensions.",
+    "Manual dimensions are scored by a human after reviewing the outputs; they are not auto-generated."
+  ]
+}
