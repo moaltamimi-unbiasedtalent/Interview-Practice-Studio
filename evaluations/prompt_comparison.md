@@ -1,6 +1,6 @@
 # Prompt comparison
 
-**Status:** pending
+**Status:** completed
 
 ## Method
 
@@ -23,11 +23,11 @@ The same evaluation task is run across all five prompt techniques with identical
 
 | Technique | Valid JSON | Prompt tok | Completion tok | Cost (USD) | Latency (s) | Overall |
 |---|---|---|---|---|---|---|
-| Zero-shot instruction | — | — | — | — | — | — |
-| Role and persona prompting | — | — | — | — | — | — |
-| Few-shot prompting | — | — | — | — | — | — |
-| Structured analytical procedure | — | — | — | — | — | — |
-| Rubric-constrained structured output | — | — | — | — | — | — |
+| Zero-shot instruction | False | — | — | — | — | — |
+| Role and persona prompting | False | — | — | — | — | — |
+| Few-shot prompting | False | — | — | — | — | — |
+| Structured analytical procedure | False | — | — | — | — | — |
+| Rubric-constrained structured output | False | — | — | — | — | — |
 
 ## Evaluation dimensions (scored manually)
 

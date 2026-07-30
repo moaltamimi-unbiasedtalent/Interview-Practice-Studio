@@ -1,6 +1,6 @@
 {
   "experiment": "prompt_comparison",
-  "status": "pending",
+  "status": "completed",
   "fixed_settings": {
     "model": "openai/gpt-5-mini",
     "temperature": 0.3,
@@ -27,8 +27,8 @@
     {
       "technique": "zero_shot",
       "technique_name": "Zero-shot instruction",
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -37,7 +37,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "evaluation": {
         "relevance": "PENDING",
@@ -52,8 +52,8 @@
     {
       "technique": "role_persona",
       "technique_name": "Role and persona prompting",
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -62,7 +62,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "evaluation": {
         "relevance": "PENDING",
@@ -77,8 +77,8 @@
     {
       "technique": "few_shot",
       "technique_name": "Few-shot prompting",
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -87,7 +87,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "evaluation": {
         "relevance": "PENDING",
@@ -102,8 +102,8 @@
     {
       "technique": "structured_procedure",
       "technique_name": "Structured analytical procedure",
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -112,7 +112,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "evaluation": {
         "relevance": "PENDING",
@@ -127,8 +127,8 @@
     {
       "technique": "rubric_json",
       "technique_name": "Rubric-constrained structured output",
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -137,7 +137,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "evaluation": {
         "relevance": "PENDING",

@@ -1,6 +1,6 @@
 {
   "experiment": "model_settings_comparison",
-  "status": "pending",
+  "status": "completed",
   "fixed_settings": {
     "model": "openai/gpt-5-mini",
     "prompt_technique": "rubric_json"
@@ -21,7 +21,7 @@
         "max_tokens": 1024
       }
     ],
-    "temperature_supported": true
+    "temperature_supported": false
   },
   "scenario": {
     "target_role": "Project Coordinator",
@@ -36,11 +36,11 @@
   ],
   "combinations": [
     {
-      "temperature": 0.1,
+      "temperature": 0.3,
       "token_setting": "concise",
       "max_tokens": 256,
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -49,7 +49,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "dimensions": {
         "completeness": "PENDING",
@@ -59,11 +59,11 @@
       }
     },
     {
-      "temperature": 0.1,
+      "temperature": 0.3,
       "token_setting": "detailed",
       "max_tokens": 1024,
-      "status": "pending",
-      "valid_json": null,
+      "status": "error",
+      "valid_json": false,
       "prompt_tokens": null,
       "completion_tokens": null,
       "total_tokens": null,
@@ -72,99 +72,7 @@
       "latency_seconds": null,
       "overall_score": null,
       "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
-      "manual_observations": "PENDING",
-      "dimensions": {
-        "completeness": "PENDING",
-        "specificity": "PENDING",
-        "consistency": "PENDING",
-        "structured_output_validity": "PENDING"
-      }
-    },
-    {
-      "temperature": 0.5,
-      "token_setting": "concise",
-      "max_tokens": 256,
-      "status": "pending",
-      "valid_json": null,
-      "prompt_tokens": null,
-      "completion_tokens": null,
-      "total_tokens": null,
-      "cost_usd": null,
-      "cost_source": null,
-      "latency_seconds": null,
-      "overall_score": null,
-      "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
-      "manual_observations": "PENDING",
-      "dimensions": {
-        "completeness": "PENDING",
-        "specificity": "PENDING",
-        "consistency": "PENDING",
-        "structured_output_validity": "PENDING"
-      }
-    },
-    {
-      "temperature": 0.5,
-      "token_setting": "detailed",
-      "max_tokens": 1024,
-      "status": "pending",
-      "valid_json": null,
-      "prompt_tokens": null,
-      "completion_tokens": null,
-      "total_tokens": null,
-      "cost_usd": null,
-      "cost_source": null,
-      "latency_seconds": null,
-      "overall_score": null,
-      "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
-      "manual_observations": "PENDING",
-      "dimensions": {
-        "completeness": "PENDING",
-        "specificity": "PENDING",
-        "consistency": "PENDING",
-        "structured_output_validity": "PENDING"
-      }
-    },
-    {
-      "temperature": 0.9,
-      "token_setting": "concise",
-      "max_tokens": 256,
-      "status": "pending",
-      "valid_json": null,
-      "prompt_tokens": null,
-      "completion_tokens": null,
-      "total_tokens": null,
-      "cost_usd": null,
-      "cost_source": null,
-      "latency_seconds": null,
-      "overall_score": null,
-      "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
-      "manual_observations": "PENDING",
-      "dimensions": {
-        "completeness": "PENDING",
-        "specificity": "PENDING",
-        "consistency": "PENDING",
-        "structured_output_validity": "PENDING"
-      }
-    },
-    {
-      "temperature": 0.9,
-      "token_setting": "detailed",
-      "max_tokens": 1024,
-      "status": "pending",
-      "valid_json": null,
-      "prompt_tokens": null,
-      "completion_tokens": null,
-      "total_tokens": null,
-      "cost_usd": null,
-      "cost_source": null,
-      "latency_seconds": null,
-      "overall_score": null,
-      "output": null,
-      "output_summary": "PENDING \u2014 run the experiment",
+      "output_summary": "error: ModelResponseError",
       "manual_observations": "PENDING",
       "dimensions": {
         "completeness": "PENDING",

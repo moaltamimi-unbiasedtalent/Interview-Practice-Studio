@@ -1,6 +1,6 @@
 # Model-setting comparison
 
-**Status:** pending
+**Status:** completed
 
 ## Method
 
@@ -10,7 +10,7 @@ Temperature and the token limit are swept while the model and prompt technique s
 - **Prompt technique:** rubric_json
 - **Temperatures:** [0.1, 0.5, 0.9]
 - **Token settings:** concise (256), detailed (1024)
-- **Temperature supported by model:** True
+- **Temperature supported by model:** False
 
 ## Fixed scenario (profession-neutral)
 
@@ -22,23 +22,15 @@ Temperature and the token limit are swept while the model and prompt technique s
 
 | Temp | Tokens | Valid JSON | Prompt tok | Completion tok | Cost (USD) | Latency (s) | Overall |
 |---|---|---|---|---|---|---|---|
-| 0.1 | concise (256) | — | — | — | — | — | — |
-| 0.1 | detailed (1024) | — | — | — | — | — | — |
-| 0.5 | concise (256) | — | — | — | — | — | — |
-| 0.5 | detailed (1024) | — | — | — | — | — | — |
-| 0.9 | concise (256) | — | — | — | — | — | — |
-| 0.9 | detailed (1024) | — | — | — | — | — | — |
+| 0.3 | concise (256) | False | — | — | — | — | — |
+| 0.3 | detailed (1024) | False | — | — | — | — | — |
 
 ## Qualitative dimensions (scored manually)
 
 | Temp | Tokens | completeness | specificity | consistency | structured output validity | Observations |
 |---|---|---|---|---|---|---|
-| 0.1 | concise | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 0.1 | detailed | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 0.5 | concise | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 0.5 | detailed | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 0.9 | concise | PENDING | PENDING | PENDING | PENDING | PENDING |
-| 0.9 | detailed | PENDING | PENDING | PENDING | PENDING | PENDING |
+| 0.3 | concise | PENDING | PENDING | PENDING | PENDING | PENDING |
+| 0.3 | detailed | PENDING | PENDING | PENDING | PENDING | PENDING |
 
 ## Notes
 - Model and prompt technique are held constant; only temperature and the token limit vary.
