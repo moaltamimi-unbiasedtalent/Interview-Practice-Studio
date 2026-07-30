@@ -747,3 +747,109 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+# Consolidated learner summary (Phase 12)
+
+A single-page recap of the whole project, followed by reflection prompts you
+must answer **in your own words** before submission. This section deliberately
+contains no personal reflections written for you.
+
+## Main concepts learned
+
+- Building an LLM application as small, testable layers rather than one script.
+- Prompt engineering: five techniques over one task and schema.
+- Structured output with Pydantic validation and safe parsing.
+- Deterministic, best-effort security guarding vs architectural defence.
+- Streamlit session-state and an explicit interview state machine.
+- Token/cost accounting with a reported→calculated→unavailable precedence.
+- Reproducible, gated experiments and honest evaluation artefacts.
+
+## Architecture decisions
+
+- Thin UI (`app.py`) vs logic in `src/`; dependency injection for testability.
+- A prompt registry as the single catalogue for UI and experiments.
+- Secrets via Streamlit secrets → env fallback, masked, never a default key.
+- No LangChain/RAG/agents/DB in Sprint 1 — simpler is clearer and explainable.
+
+## Prompt-engineering lessons
+
+- Same task + schema + inputs is what makes a technique comparison fair.
+- A "visible procedure" is not the same as hidden chain-of-thought.
+- Improved answers must be labelled examples, never fabricated achievements.
+
+## Model-setting lessons
+
+- Temperature and max tokens are session settings; only send supported params.
+- gpt-5-mini metadata did not advertise `temperature`, so the sweep collapsed —
+  a real, recorded observation, not an assumption.
+
+## Structured-output lessons
+
+- Validate, never trust; reject invalid scores and missing fields.
+- One repair attempt, then a controlled error — no `eval`/`exec`, no loops.
+
+## Security lessons
+
+- Direct vs indirect injection; blocked input is never sent to the model.
+- Answers are warned, not blocked, because they must still be evaluated.
+- Bounded Base64 decode-and-rescan narrows — but does not close — encoding risk.
+- Spreadsheet formula injection is a real export risk with a simple mitigation.
+
+## Testing lessons
+
+- Deterministic, mocked tests keep the suite fast, free and network-safe.
+- Live behaviour needs explicit, gated, chargeable paths.
+
+## Streamlit state-management lessons
+
+- Reruns re-execute the whole script; state must persist and calls must be
+  de-duplicated (state machine + in-flight guard).
+
+## Cost-reporting lessons
+
+- Prefer the provider's reported cost; label estimates; never double-count.
+
+## Mistakes / issues encountered and how they were resolved
+
+- **Base64 injection gap (JB-22):** documented at Phase 10, then narrowed at
+  Phase 11 with a bounded decoder + tests. Resolution: strengthen the guard, do
+  not weaken the test.
+- **Experiment run captured no metrics:** the committed comparison files show a
+  completed-but-errored run. Resolution: documented honestly; re-run with a
+  funded key to populate figures (not fabricated).
+- **Config tests not hermetic:** a local secret leaked into `load_config` tests;
+  resolution: the tests neutralise the secret readers.
+
+## Concepts I should be able to explain
+
+Roles (system/user/assistant); temperature; max tokens; model choice;
+structured JSON; Pydantic validation; Streamlit session state; prompt
+injection; secret management; usage/cost; deterministic vs live tests; the
+state machine; why scores are advisory; duplicate-call prevention; and why
+Sprint 1 excludes RAG/LangChain.
+
+---
+
+## Reflection prompts — *Complete this in your own words before submission*
+
+Write your own answers below each prompt. Keep them honest and specific; the
+reviewer wants **your** understanding, not a generated summary.
+
+1. In one paragraph, what does this app do and who is it for? *(Complete this in
+   your own words before submission.)*
+2. Which part of the codebase did you find hardest to understand, and how did
+   you get comfortable with it? *(Complete this in your own words.)*
+3. Explain, without looking, how a single answer flows from the chat box to a
+   validated `AnswerEvaluation`. *(Complete this in your own words.)*
+4. Which prompt technique would you choose for production and why? What evidence
+   would you want first? *(Complete this in your own words.)*
+5. Describe one security limitation you can explain confidently to a reviewer.
+   *(Complete this in your own words.)*
+6. What did you learn about testing code that calls an external API?
+   *(Complete this in your own words.)*
+7. If you had one more week, what would you change and why? *(Complete this in
+   your own words.)*
+8. What did AI assistance help with, and what did you make sure you understood
+   yourself? *(Complete this in your own words.)*

@@ -277,6 +277,22 @@ REPORT_READY ◀─save_report─ INTERVIEW_COMPLETE ◀─advance/complete/  EV
    any state ──enter_error──▶ ERROR ──recover_from_error──▶ (previous state)
 ```
 
+The same machine as a Mermaid state diagram (renders on GitHub):
+
+```mermaid
+stateDiagram-v2
+    [*] --> SETUP
+    SETUP --> STRATEGY_READY: save_strategy
+    STRATEGY_READY --> AWAITING_ANSWER: add_question
+    AWAITING_ANSWER --> EVALUATING: add_candidate_answer
+    EVALUATING --> INTERVIEW_IN_PROGRESS: add_evaluation
+    INTERVIEW_IN_PROGRESS --> AWAITING_ANSWER: add_question
+    INTERVIEW_IN_PROGRESS --> INTERVIEW_COMPLETE: complete / advance / end_early
+    INTERVIEW_COMPLETE --> REPORT_READY: save_final_report
+    REPORT_READY --> SETUP: reset_interview
+    ERROR --> SETUP: recover_from_error
+```
+
 Transitions:
 
 - **Guarded** — each operation declares the states it is legal from;
@@ -401,11 +417,43 @@ machine and guards against duplicate reruns.
 - These controls are implemented deterministically in `src/security.py` and
   documented in `docs/security.md`; they are best-effort, not production-grade.
 
+## Testing architecture
+
+Tests live in `tests/`, mirror `src/`, and make **no live network calls**:
+
+- **Domain/unit** — models, prompts, security, response parser, pricing,
+  session machine, UI helpers, taxonomy.
+- **Service** — the four use cases with an injected **fake client** returning
+  canned model results and an injected pricing fetcher (no network).
+- **Client** — `httpx.MockTransport` scripts success and every error/timeout.
+- **UI smoke** — `streamlit.testing.v1.AppTest` runs `app.py` offline and
+  pre-seeds later states; a headless `streamlit run` boot is verified
+  separately.
+- **Experiments** — the comparison/jailbreak runners are exercised via fake
+  services and dry-run/refusal CLI paths.
+
+Determinism is achieved by dependency injection (client, pricing service,
+session store, clocks) and by gating every chargeable path behind explicit
+flags/confirmation.
+
+## Error flow
+
+Failures never surface as stack traces, secrets or system-prompt text. The
+OpenRouter client maps transport/API failures to typed errors
+(`AuthenticationError`, `RateLimitError`, `InsufficientCreditsError`,
+`RequestTimeoutError`, `NetworkError`, …); the services convert these — and
+parse failures — into controlled `ServiceInputError` / `ModelResponseError`
+with safe messages; the session manager records the error via `enter_error`
+(with a recovery target) and the UI shows the message plus a "Try again" path.
+The response parser adds exactly one repair round before giving up with a
+controlled error.
+
 ## Explicitly excluded scope
 
 LangChain, LangGraph, RAG, embeddings, vector databases, autonomous agents,
 databases, authentication, persistent candidate data, and production
-deployment infrastructure are all out of scope for Sprint 1.
+deployment infrastructure are all out of scope for Sprint 1. This application
+does **not** use any of them.
 
 ## Definition of done
 

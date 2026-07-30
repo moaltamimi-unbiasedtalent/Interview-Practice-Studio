@@ -231,3 +231,27 @@ warnings, allowed, model calls prevented, false-positive candidates, pass rate),
 and the Detailed results sheet documents every case with its expected/actual
 outcome and rationale — a reproducible, inspectable record of what the guard
 does and, honestly, where it does not.
+
+### Current recorded results
+
+From the committed `evaluations/jailbreak_test_results.xlsx` (Summary sheet):
+
+| Metric | Value |
+| --- | --- |
+| Total tests | 29 |
+| Passed | 29 |
+| Failed | 0 |
+| Blocked | 21 |
+| Warnings | 1 |
+| Allowed | 7 |
+| Model calls prevented | 21 |
+| False-positive candidates | 5 |
+| Pass rate | 1.0 |
+
+At the Phase 10 baseline, JB-22 (a Base64-wrapped injection) was **not**
+detected (28/29). Phase 11 added the bounded Base64 decode-and-rescan, so
+JB-22 now blocks and the battery is **29/29**. This is a genuine improvement to
+the guard, not a relaxation of any rule. Separately, the wider automated test
+suite stands at **450 tests** passing with no live network calls. These are the
+figures recorded in the repository; if they ever diverge from a regenerated
+run, the generated files are the source of truth.

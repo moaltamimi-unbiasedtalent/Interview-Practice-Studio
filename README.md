@@ -2,78 +2,105 @@
 
 **Prepare for any role. Practise realistically. Improve every answer.**
 
-An LLM-powered interview practice app for candidates in **any profession** —
-software, engineering, finance, sales, healthcare, legal, trades, public
-sector, education and beyond — at any career level and for any interview
-type. Built with Python, Streamlit and the OpenRouter Chat Completions API
-as a Turing College Sprint 1 project.
+## Project overview
 
-> **Status: Phase 1 — foundation.** The app currently displays the product
-> shell and configuration status. It makes no API requests yet. Interview
-> practice features arrive in later phases.
+Interview Practice Studio is an LLM-powered interview practice application for
+candidates in **any profession** — technology, healthcare, finance, skilled
+trades, education, public service and beyond — at any career level and for any
+interview type. It is a Turing College Sprint 1 project built with Python,
+Streamlit and the OpenRouter Chat Completions API.
 
-## Requirements
+The app conducts a realistic, multi-turn mock interview: it analyses the target
+role, asks one question at a time, evaluates each answer against a transparent
+rubric, offers a personalisable improved-answer example and a follow-up
+question, and finishes with a readiness report you can download.
 
-- Python 3.10+
-- An [OpenRouter](https://openrouter.ai) API key (for later phases)
+## Problem being solved
 
-## Setup
+Interview practice is usually generic, hard to get feedback on, and biased
+toward a single discipline. Candidates rarely get structured, role-relevant
+feedback on *how* they answered. This app gives realistic, profession-neutral
+practice with concrete, evidence-based feedback — framed as practice guidance,
+never as a hiring decision.
 
-```bash
-git clone https://github.com/moaltamimi-unbiasedtalent/Interview-Practice-Studio.git
-cd Interview-Practice-Studio
+## Target users
 
-python3 -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-```
+Job candidates preparing for interviews in any field and at any level, plus
+learners exploring prompt engineering and LLM application patterns. It is a
+learning/practice tool, not a recruitment or assessment system.
 
-## Configure the API key
+## Supported role types
 
-Preferred — Streamlit secrets:
+The taxonomy is deliberately generic. Career levels: internship/apprenticeship,
+entry, professional, senior professional, manager, director, executive.
+Interview types: recruiter screening, behavioural, technical/functional,
+case/problem-solving, leadership, culture and values, stakeholder/client, panel,
+and executive/board. Interviewer personas: friendly recruiter, neutral hiring
+manager, challenging functional expert, sceptical executive, fast-paced panel.
 
-```bash
-cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# edit .streamlit/secrets.toml and add your key
-```
+## Core features
 
-Local development fallback — environment variable:
+- Interview setup form (role, sector, career level, company context, job
+  description, background, interview types, persona, difficulty, question count,
+  response detail).
+- Role analysis (an interview **strategy**).
+- Multi-turn mock interview using a real chat interface.
+- Rubric-based answer evaluation (overall score + seven criteria).
+- Improved-answer example (labelled to personalise) and a follow-up question.
+- Final readiness report with **JSON** and **Markdown** downloads.
+- Token and cost reporting (USD).
+- **Prompt Lab** for developer experimentation (kept separate from the
+  candidate flow).
+- Five prompt-engineering techniques and three approved models.
+- A deterministic security guard and an exported jailbreak evaluation.
 
-```bash
-cp .env.example .env
-# edit .env and add your key
-```
+## Application workflow
 
-`.streamlit/secrets.toml` and `.env` are gitignored. **Never commit a key.**
-The app never uses a default key and shows a controlled message when no key
-is configured.
+`SETUP` → generate strategy (`STRATEGY_READY`) → ask a question
+(`AWAITING_ANSWER`) → submit answer (`EVALUATING`) → show feedback
+(`INTERVIEW_IN_PROGRESS`) → next question or finish → `INTERVIEW_COMPLETE` →
+final report (`REPORT_READY`). `ERROR` is a recoverable side-state. See
+[docs/architecture.md](docs/architecture.md).
 
-## Run
+## Architecture
 
-```bash
-streamlit run app.py
-```
+A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:
+domain models, a prompt library and registry, a security layer, an OpenRouter
+client, a pricing service, a response parser, four interview services and a
+session-state machine. Full details and diagram in
+[docs/architecture.md](docs/architecture.md).
 
-## Test
+## Technology stack
 
-```bash
-pytest
-```
+Python, Streamlit, OpenRouter Chat Completions API, HTTPX, Pydantic v2, Pytest,
+openpyxl, python-dotenv. No LangChain, LangGraph, RAG, embeddings, vector
+databases, agents, or databases — see [Known limitations](#known-limitations).
 
-Tests never make live API calls.
+## OpenRouter integration
 
-## Project structure
+`src/openrouter_client.py` is a typed, non-streaming client for
+`POST https://openrouter.ai/api/v1/chat/completions`. It uses Bearer
+authentication (the key is a masked `SecretStr`, never logged), explicit connect
+and read timeouts, correct `system` / `user` / `assistant` role separation, and
+maps every failure (missing key, 400/401/402/429, 5xx, timeout, network, invalid
+JSON, empty choices, missing usage, unsupported parameter) to a controlled
+error. It logs nothing by default; a safe debug mode logs only request ID,
+model, duration and a coarse status category.
 
-```
-app.py                  Streamlit UI (rendering only)
-src/                    Business logic
-  config.py             Configuration loading (secrets → env fallback)
-  constants.py          Approved models, safe defaults, input limits
-tests/                  Pytest suite (no live API calls)
-docs/                   Architecture and learning notes
-.streamlit/             Streamlit config + secrets example
-CLAUDE.md               Development rules for AI-assisted work
-```
+## Prompt-engineering techniques
+
+Five techniques, all producing the same `AnswerEvaluation` schema so they can be
+compared fairly: **zero-shot instruction**, **role and persona prompting**,
+**few-shot prompting**, **structured analytical procedure**, and
+**rubric-constrained structured output**. Full explanations in
+[docs/prompt_engineering.md](docs/prompt_engineering.md).
+
+## Model settings
+
+Adjustable per session: model, prompt technique, temperature and maximum output
+tokens (bounds in `src/constants.py`). Structured output (`response_format`) and
+temperature are sent only when the selected model's metadata reports support for
+them.
 
 ## Approved models
 
@@ -83,8 +110,198 @@ CLAUDE.md               Development rules for AI-assisted work
 | `openai/gpt-5-nano` | Lower cost |
 | `openai/gpt-5` | Higher capability |
 
+## Structured JSON outputs
+
+Validated Pydantic v2 models (`src/models.py`): `InterviewStrategy`,
+`InterviewQuestion`, `AnswerEvaluation`, `FinalInterviewReport`, plus
+`UsageRecord` and `ModelPricing`. Model output is parsed safely (fences
+stripped, `json.loads` only — never `eval`/`exec`), validated, and given exactly
+**one** repair attempt before a controlled error.
+
+## Security and privacy controls
+
+A deterministic, best-effort guard (`src/security.py`): input normalisation and
+length limits; weighted prompt-injection scoring with `allow` /
+`allow_with_warning` / `block`; a scope guard; untrusted-content wrapping;
+output leakage and secret-like output detection; bounded Base64 decode-and-
+rescan; and spreadsheet formula-injection protection. Full details in
+[docs/security.md](docs/security.md). **This is not perfect jailbreak
+protection.**
+
+## Token and cost reporting
+
+`src/pricing_service.py` reads live model pricing from OpenRouter and caches it
+per session. Cost precedence is **reported → calculated → unavailable**, always
+in USD; calculated figures are labelled estimates, not final bills. Cumulative
+session cost is tracked without double-counting across Streamlit reruns.
+
+## Prompt comparison
+
+`scripts/compare_prompts.py` runs the five techniques on one fixed
+profession-neutral scenario with the model, temperature and token limit held
+constant. Dry run by default (no network); a live run needs `--run --confirm`.
+Results write to `evaluations/prompt_comparison.{md,json}`. See
+[docs/prompt_engineering.md](docs/prompt_engineering.md) for the current
+recorded state.
+
+## Model-setting comparison
+
+`scripts/compare_model_settings.py` sweeps temperature (0.1/0.5/0.9) and
+concise/detailed token limits with the model and technique held constant, only
+sweeping parameters the model supports. Results write to
+`evaluations/model_settings_comparison.{md,json}`.
+
+## Jailbreak and invalid-input testing
+
+`scripts/run_jailbreak_tests.py` runs a fixed battery of **29 deterministic
+cases across 16 categories** through the guard and exports an Excel workbook
+(Summary + Detailed sheets) and CSV. Current recorded result:
+**29/29 passed, 21 blocked, 1 warning, 7 allowed, 21 model calls prevented,
+5 false-positive candidates** (`evaluations/jailbreak_test_results.xlsx`). Dry
+run by default; live-assisted mode needs `--run-live --confirm`.
+
+## Installation
+
+macOS / Linux:
+
+```bash
+git clone https://github.com/moaltamimi-unbiasedtalent/Interview-Practice-Studio.git
+cd Interview-Practice-Studio
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+```
+
+Requires Python 3.10+ (developed and tested on 3.12).
+
+## Configuration
+
+Add your OpenRouter key to `.streamlit/secrets.toml` (preferred) or a `.env`
+file (local fallback). Both are gitignored; **never commit a key**. The app
+never uses a default key and shows a controlled message when none is configured.
+
+`.streamlit/secrets.toml`:
+
+```toml
+OPENROUTER_API_KEY = "your-key-here"
+```
+
+## Running the Streamlit application
+
+```bash
+streamlit run app.py
+```
+
+## Running automated tests
+
+```bash
+pytest -q
+```
+
+The suite (450 tests) makes **no live network calls**; all model and pricing
+requests are mocked.
+
+## Running prompt comparison
+
+```bash
+python scripts/compare_prompts.py                 # dry run (no network)
+python scripts/compare_prompts.py --run --confirm # live, chargeable
+```
+
+## Running model-setting experiments
+
+```bash
+python scripts/compare_model_settings.py                 # dry run
+python scripts/compare_model_settings.py --run --confirm # live, chargeable
+```
+
+## Running the jailbreak experiment
+
+```bash
+python scripts/run_jailbreak_tests.py                       # dry run (no network)
+python scripts/run_jailbreak_tests.py --run-live --confirm  # optional live-assisted
+```
+
+## Repository structure
+
+```
+app.py                      Streamlit UI (single page, routed on session state)
+src/
+  config.py                 API-key resolution (secrets -> env), timeouts, URLs
+  constants.py              Approved models, limits, taxonomies, thresholds
+  models.py                 Validated Pydantic domain models
+  prompts.py                Five techniques + task-aware message assembly
+  prompt_registry.py        Technique catalogue for the UI/experiments
+  security.py               Deterministic security & privacy guards
+  openrouter_client.py      Typed OpenRouter Chat Completions client
+  pricing_service.py        Usage accounting & pricing (USD)
+  response_parser.py        Safe JSON parse + one repair round
+  interview_service.py      Base service + strategy & next-question use cases
+  evaluation_service.py     Answer-evaluation use case
+  report_service.py         Final-report use case
+  session_manager.py        Interview state machine over session_state
+  ui_helpers.py             UI label<->id maps, formatting, report serialization
+scripts/
+  compare_prompts.py        Prompt-comparison experiment
+  compare_model_settings.py Model-setting experiment
+  run_jailbreak_tests.py    Jailbreak / invalid-input battery -> xlsx + csv
+evaluations/                Generated experiment artefacts
+tests/                      Pytest suite (no live API calls)
+docs/                       Architecture, prompts, security, review docs
+.streamlit/                 Streamlit config + secrets example
+CLAUDE.md                   Development rules for AI-assisted work
+```
+
+## Known limitations
+
+LLM feedback can be inaccurate; scores are advisory, not hiring decisions; the
+security guard is best-effort (not perfect); estimated cost is not the final
+bill; user content is processed by OpenRouter and the selected provider; there
+is no persistence, authentication or user database; and Sprint 1 does **not**
+include LangChain, LangGraph, RAG, embeddings, vector databases, agents or a
+database. Full list: [docs/limitations.md](docs/limitations.md).
+
+## Future improvements
+
+Sprint 2 could add retrieval-augmented context (RAG) over a candidate's CV and
+the job description, richer accessibility validation, persistence with explicit
+consent, and live-model regression tests behind the gated experiment paths.
+
+## Academic integrity and use of AI tools
+
+AI tools — including Claude Code and ChatGPT — were used for planning,
+implementation support, debugging, testing and documentation support. The
+learner is responsible for reviewing, understanding and being able to explain
+the submitted implementation; AI assistance does not replace personal
+understanding, and external assistance is acknowledged honestly here. No private
+conversation transcripts are included.
+
+## Screenshots
+
+No screenshots are committed yet. Capture the following (suggested path
+`docs/screenshots/`) and add them here before submission:
+
+| Filename | Should demonstrate |
+| --- | --- |
+| `01_setup_form.png` | The interview setup form with a role and job description |
+| `02_role_analysis.png` | A generated interview strategy |
+| `03_mock_interview.png` | The chat interview with a question and answer |
+| `04_feedback.png` | Structured feedback (overall + seven scores) |
+| `05_final_report.png` | The final report with JSON/Markdown download buttons |
+| `06_usage_panel.png` | The sidebar usage & cost panel |
+| `07_prompt_lab.png` | The Prompt Lab with the confirmation gate |
+| `08_jailbreak_workbook.png` | The jailbreak results workbook (Summary sheet) |
+
+Do not fabricate screenshots; only claim they exist once the files are added.
+
+## Repository information
+
+- **Repository:** `moaltamimi-unbiasedtalent/Interview-Practice-Studio`
+- **Branch:** `main`
+
 ## A note on feedback
 
-Interview scores and feedback produced by this app are **practice guidance
-only** — not objective hiring decisions, and not assessments of personality
-or psychology.
+Interview scores and feedback are **practice guidance only** — not objective
+hiring decisions, and not assessments of personality or psychology.

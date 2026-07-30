@@ -172,13 +172,34 @@ Because each run makes chargeable requests, **nothing runs automatically**:
 - Prompt Lab: a confirmation checkbox gates a "Run" button; results and a JSON
   download appear only after an explicit, confirmed run.
 
-The deliverables in `evaluations/` (`prompt_comparison.{md,json}` and
-`model_settings_comparison.{md,json}`) ship with **placeholder** values marked
-`PENDING` — no results are fabricated. The recorded metrics (valid JSON,
-prompt/completion tokens, cost in USD, latency, overall score) are captured
-automatically; the seven evaluation dimensions (relevance, specificity, role
-adaptation, structure, actionability, hallucination risk, JSON reliability) are
-scored **manually** after reviewing the outputs.
+The automatic metrics (valid JSON, prompt/completion tokens, cost in USD,
+latency, overall score) are captured by the run; the seven evaluation
+dimensions (relevance, specificity, role adaptation, structure, actionability,
+hallucination risk, JSON reliability) are scored **manually** after reviewing
+the outputs. No results are fabricated.
+
+### Recorded results (current state — honest)
+
+The committed evaluation files reflect a run that was executed but did **not**
+capture usable comparative metrics, so **no data-backed conclusion about a best
+technique is claimed**. Read the files themselves as the source of truth:
+
+- `evaluations/prompt_comparison.json` — status `completed`, but every technique
+  row has `valid_json = false` with no tokens/cost/latency/overall recorded.
+  This indicates the live model calls in that run did not return usable
+  structured output (for example, an unfunded or unavailable key), not that a
+  technique "lost". The controlled variables (same scenario, model, temperature,
+  token limit; only the technique changed) are recorded correctly.
+- `evaluations/model_settings_comparison.json` — status `completed`, with
+  `temperature_supported = false` (the gpt-5-mini metadata did not advertise
+  `temperature`, so the sweep correctly collapsed to the default). Both
+  combinations recorded `status = error` with no metrics.
+
+To populate real comparative figures, re-run with a funded key:
+`python scripts/compare_prompts.py --run --confirm` and
+`python scripts/compare_model_settings.py --run --confirm`. Until then, the
+default technique is `rubric_json` for reliable, schema-valid JSON — a design
+choice, not an experimental result.
 
 ### Model-setting experiment
 
@@ -187,7 +208,8 @@ temperature (0.1, 0.5, 0.9) against concise vs detailed token limits, recording
 output, tokens, cost, latency, completeness, specificity, consistency and
 structured-output validity. It only sweeps parameters the selected model
 supports: if the model's metadata does not list `temperature`, the temperature
-sweep collapses to a single default value and the report records that.
+sweep collapses to a single default value and the report records that (as the
+current recorded run shows).
 
 ### Reading the results fairly
 
@@ -195,3 +217,6 @@ sweep collapses to a single default value and the report records that.
   length; judge each on the evaluation dimensions.
 - **Costs are estimates unless reported.** Figures are USD, reported by
   OpenRouter where available and otherwise calculated — never a final bill.
+- **A failed run is not a result.** If a run records `error`/`valid_json:false`
+  with no metrics, that is a data-collection gap to re-run, not a comparison
+  outcome.
