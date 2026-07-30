@@ -520,10 +520,19 @@ I'd explain differently in my own words.)*
 
 ### Decisions made
 
-- **Extended the interview-type and persona vocabularies** in `constants` so
-  the specified UI taxonomy (leadership, culture, stakeholder, executive/board;
-  sceptical executive, fast-paced panel) maps to real domain ids rather than
-  being squashed into unrelated ones; added matching persona tones in `prompts`.
+- **Extended the shared domain taxonomy rather than remapping.** The specified
+  UI taxonomy (leadership, culture and values, stakeholder or client, executive
+  or board; sceptical executive, fast-paced panel) had no honest match in the
+  existing ids. Extending `constants` (and adding matching persona tones in
+  `prompts`) was **more accurate than mapping distinct user selections onto
+  unrelated existing ids** — squashing "Executive or board" into "panel" would
+  have misrepresented the candidate's choice to the model. The change is
+  append-only: no id was renamed, removed or repurposed, so every prior config,
+  prompt and test still holds. The two new persona tones are materially distinct
+  (the sceptical executive challenges unsupported claims and asks for evidence;
+  the fast-paced panel simulates multiple viewpoints with concise, fast
+  questions), and `tests/test_taxonomy_extension.py` locks in validation, prompt
+  mapping, tone behaviour, round-trip serialization and backward compatibility.
 - **The improved example answer is shown in its own expander**, clearly
   labelled to personalise — separating it from the scored feedback.
 - **Reset is confirm-gated** and rebuilds the session via the manager, so no

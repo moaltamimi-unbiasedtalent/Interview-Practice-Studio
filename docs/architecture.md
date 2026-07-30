@@ -330,6 +330,32 @@ Key UI properties:
   brand-neutral theme in `.streamlit/config.toml`, no external branding, no
   animations, and no promise of any hiring outcome.
 
+### Taxonomy extension (Phase 8)
+
+The required interface introduced interview types (Leadership, Culture and
+values, Stakeholder or client, Executive or board) and interviewer personas
+(Sceptical executive, Fast-paced panel) with no honest mapping to the existing
+domain vocabulary. **Extending the shared taxonomy was more accurate than
+mapping distinct user selections onto unrelated existing ids** — squashing, say,
+"Executive or board" into "panel" would misrepresent the candidate's choice to
+the model and corrupt the prompt.
+
+The extension is deliberately **append-only**:
+
+- New interview-type ids: `leadership`, `culture_values`, `stakeholder`,
+  `executive_board`. New persona ids: `sceptical_executive`, `fast_paced_panel`.
+- No existing id was renamed, removed or repurposed, so every prior config,
+  prompt and test remains valid.
+- UI labels stay separate from these stable ids (`ui_helpers`), so wording can
+  change without touching the domain.
+- Each new persona has a **materially distinct** tone in `prompts._PERSONA_TONE`:
+  the sceptical executive challenges unsupported claims and requests concrete
+  evidence; the fast-paced panel simulates multiple interviewer viewpoints with
+  concise questions and quick transitions. New interview types flow into the
+  system prompt's session parameters like every other type.
+- `tests/test_taxonomy_extension.py` locks in distinctness, validation, prompt
+  mapping, tone behaviour, round-trip serialization and backward compatibility.
+
 ## Data flow
 
 User input (job description, background, answers) → input guard (length and
