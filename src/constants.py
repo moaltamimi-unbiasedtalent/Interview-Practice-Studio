@@ -89,6 +89,10 @@ INTERVIEW_TYPES = (
     "case_study",
     "portfolio",
     "panel",
+    "leadership",
+    "culture_values",
+    "stakeholder",
+    "executive_board",
 )
 
 INTERVIEWER_PERSONAS = (
@@ -96,6 +100,8 @@ INTERVIEWER_PERSONAS = (
     "neutral",
     "formal",
     "challenging",
+    "sceptical_executive",
+    "fast_paced_panel",
 )
 
 DIFFICULTY_LEVELS = (

@@ -483,3 +483,66 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 8 — Streamlit candidate experience
+
+### Concepts introduced
+
+- **A thin, state-routed UI.** `app.py` renders only; it reads the session
+  state and calls services. Every rerun draws the view for the current state,
+  so the interface is always consistent and never fires a duplicate API call.
+- **Labels vs domain ids.** The UI shows friendly, profession-neutral labels;
+  `ui_helpers` maps them to the validated domain ids. Keeping that mapping (and
+  the report serialization) pure means it is unit-testable without Streamlit.
+- **Chat as history + state.** `st.chat_message`/`st.chat_input` render the
+  persisted `chat_messages`, while the real interview state lives in the
+  session manager — the chat is a view, not the source of truth.
+- **No network on load.** Clients and services construct lazily and model
+  metadata is fetched only on an explicit connection test, so the page (and the
+  AppTest smoke test) start offline and fast.
+- **Testing a Streamlit app.** `streamlit.testing.v1.AppTest` runs the script
+  in-process with no browser; pre-seeding `session_state` lets later states
+  (strategy, report, error) be rendered and asserted offline.
+- **Safe error surface.** The services already return controlled messages, so
+  the UI shows those — never a stack trace, secret or system prompt — with a
+  recovery path.
+
+### Important files
+
+- `app.py` — the single-page experience and its state router.
+- `src/ui_helpers.py` — label↔id catalogues, cost formatting, report
+  serialization.
+- `.streamlit/config.toml` — a calm, brand-neutral theme.
+- `tests/test_app_smoke.py` — AppTest startup/state smoke plus helper unit
+  tests.
+
+### Decisions made
+
+- **Extended the interview-type and persona vocabularies** in `constants` so
+  the specified UI taxonomy (leadership, culture, stakeholder, executive/board;
+  sceptical executive, fast-paced panel) maps to real domain ids rather than
+  being squashed into unrelated ones; added matching persona tones in `prompts`.
+- **The improved example answer is shown in its own expander**, clearly
+  labelled to personalise — separating it from the scored feedback.
+- **Reset is confirm-gated** and rebuilds the session via the manager, so no
+  interview content lingers while developer preferences survive.
+- **Downloads are generated in-memory** (JSON + Markdown); nothing is written to
+  disk by the app.
+
+### Questions I should be able to answer
+
+1. Why does the UI route on session state instead of tracking button clicks?
+2. How do reruns avoid duplicate API calls and preserve chat history?
+3. Why keep the label↔id mapping and serialization in `ui_helpers`?
+4. How is a Streamlit app smoke-tested without a browser or network?
+5. Why fetch model metadata only on a connection test?
+6. How does the UI avoid leaking stack traces, secrets or the system prompt?
+7. Why were the interview-type and persona vocabularies extended?
+
+### My reflections
+
+-
+-
+-

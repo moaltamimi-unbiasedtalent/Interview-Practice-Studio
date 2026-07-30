@@ -124,6 +124,10 @@ _PERSONA_TONE = {
     "neutral": "calm, balanced and professional",
     "formal": "precise, structured and businesslike",
     "challenging": "probing and rigorous, while remaining fair and respectful",
+    "sceptical_executive": "concise and outcome-focused, pressing for impact "
+    "and evidence, while remaining fair",
+    "fast_paced_panel": "brisk and varied, moving quickly across topics, while "
+    "remaining fair and clear",
 }
 _DIFFICULTY_RIGOUR = {
     "easy": "Set a gentle bar suitable for early practice; reward clear basics.",

@@ -25,8 +25,8 @@ assumes a specific domain.
 
 ```
 ┌────────────────────────────────────────────────┐
-│ app.py — Streamlit UI (rendering only)         │
-│  session state: conversation, settings         │
+│ app.py — Streamlit UI (single page, routed)    │
+│  header · setup · chat · report · usage        │
 └──────────────┬─────────────────────────────────┘
                │ calls
 ┌──────────────▼─────────────────────────────────┐
@@ -44,6 +44,7 @@ assumes a specific domain.
 │  evaluation_service.py answer evaluation       │
 │  report_service.py     final report            │
 │  session_manager.py    conversational state    │
+│  ui_helpers.py         UI labels/serialization │
 └──────────────┬─────────────────────────────────┘
                │ HTTPS (HTTPX)
 ┌──────────────▼─────────────────────────────────┐
@@ -90,8 +91,13 @@ assumes a specific domain.
 - **`src/report_service.py`** — the final-report use case.
 - **`src/session_manager.py`** — the interview state machine and all
   per-session data, over a namespaced Streamlit `session_state` store.
-- **Later phases** — Streamlit conversational UI and the comparison /
-  jailbreak experiments.
+- **`src/ui_helpers.py`** — pure UI helpers: the label↔domain-id catalogues,
+  cost formatting and report (JSON/Markdown) serialization, kept out of
+  `app.py` so they can be unit-tested without Streamlit.
+- **`app.py`** — the full single-page Streamlit experience (header, setup form,
+  developer sidebar, role analysis, chat interview, feedback, final report with
+  downloads, usage panel and reset), routed on the session state.
+- **Later phases** — the prompt-comparison and jailbreak experiments.
 
 ## Domain models and structured outputs
 
@@ -292,6 +298,37 @@ The session data covers configuration, model settings, selected technique,
 strategy, chat messages, questions, answers, evaluations, current question
 number, usage records, cumulative session cost (USD), current state, a
 recoverable error, the interview start time and duplicate-submission control.
+
+## Streamlit candidate experience
+
+`app.py` is a single page that **routes on the session state** and calls the
+services; it holds no business logic. Sections: a header with a privacy and
+limitations notice; an interview setup form; a developer-settings sidebar
+(model, technique, temperature, max tokens, usage toggle, connection test); the
+role-analysis (strategy) view; a chat mock interview using `st.chat_message`
+and `st.chat_input`; structured feedback (overall + seven rubric scores, with
+the improved example shown separately); a final report with JSON and Markdown
+downloads; a usage panel; and a confirm-gated reset.
+
+Key UI properties:
+
+- **State-routed and rerun-safe.** Each rerun renders the view for the current
+  state; chat history persists in session; the session manager's
+  `begin_operation` guard plus the state machine prevent duplicate API calls on
+  reruns.
+- **Labels vs ids.** The UI shows human-readable, profession-neutral labels;
+  `ui_helpers` maps them to the validated domain ids (extended interview-type
+  and persona vocabularies live in `constants`).
+- **No network on load.** Services and clients construct lazily; model metadata
+  is fetched only on an explicit connection test, so the app (and its AppTest
+  smoke test) start offline.
+- **Safe errors.** Failures surface the services' controlled messages — no
+  stack traces, secrets or system-prompt text — with a "Try again" recovery
+  path. Missing-key, timeout, rate-limit and insufficient-credit cases each
+  produce a clear message.
+- **Native components, minimal CSS.** Standard Streamlit widgets, a calm
+  brand-neutral theme in `.streamlit/config.toml`, no external branding, no
+  animations, and no promise of any hiring outcome.
 
 ## Data flow
 

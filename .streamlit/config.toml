@@ -1,5 +1,16 @@
+# Streamlit configuration for Interview Practice Studio.
+# A calm, professional, brand-neutral theme. No external branding.
+
 [browser]
 gatherUsageStats = false
 
 [server]
 headless = true
+
+[theme]
+base = "light"
+primaryColor = "#2563eb"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f4f6"
+textColor = "#111827"
+font = "sans serif"
