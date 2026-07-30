@@ -348,3 +348,73 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 6 — Application services and interview orchestration
+
+### Concepts introduced
+
+- **Services as thin orchestrators.** Each use case (strategy, next question,
+  evaluation, report) wires together existing modules — registry, prompts,
+  security, client, parser, pricing — and returns a validated object plus a
+  `UsageRecord`. The services hold no business rules the models don't.
+- **A shared generation pipeline.** `BaseGenerationService._generate` runs the
+  same steps for every task; subclasses only choose the task, schema and
+  message context. Less duplication, one place to reason about safety.
+- **Dependency injection.** The client and pricing service are constructor
+  arguments, so tests pass fakes with canned model results — no live key, no
+  network — and there is no global mutable state.
+- **Controlled domain errors.** `ServiceInputError` and `ModelResponseError`
+  wrap every failure (bad input, blocked injection, API error, unparseable
+  output) so callers never see a raw exception or stack trace.
+- **Safe parsing with one repair round.** `response_parser` strips code fences,
+  parses JSON with `json.loads` (never `eval`/`exec`), validates through the
+  right Pydantic model, and — only once — lets an injected repair callable ask
+  the model to fix its JSON before giving up. Missing values are never invented;
+  validation rejects them.
+- **Task-aware prompts.** `prompts.build_task_messages` reuses the mission,
+  guardrails and session parameters but swaps in a task instruction, a technique
+  directive and the correct schema, so all four outputs share the same safety
+  posture and system/user separation.
+- **Screening context but not the answer.** Injection screening runs on context
+  fields (job description, company context, background); a candidate's own
+  answer is never blocked — it must always be evaluated — and is protected by
+  being framed as untrusted data.
+
+### Important files
+
+- `src/interview_service.py` — base service + strategy and next-question cases.
+- `src/evaluation_service.py`, `src/report_service.py` — the other two cases.
+- `src/response_parser.py` — safe parse/validate with one repair round.
+- `src/prompts.py` — extended with the task-aware API (backward compatible).
+- `tests/test_*_service.py`, `tests/test_response_parser.py` — mocked model
+  results only.
+
+### Decisions made
+
+- **Extended `prompts.py` rather than duplicating prompt logic** in each
+  service; the Phase 3 evaluation techniques and their tests are untouched.
+- **The primary and repair calls are summed into one `UsageRecord`**, so cost
+  accounting reflects everything a use case spent.
+- **`response_format` is requested only when the model supports it**, using the
+  pricing service's metadata; otherwise the prompt-only JSON contract applies.
+- **Made the config tests hermetic.** A real key now lives in
+  `.streamlit/secrets.toml`; the `load_config` tests neutralise the Streamlit
+  and `.env` lookups so they test the environment path in isolation.
+
+### Questions I should be able to answer
+
+1. What are the responsibilities of a service versus the modules it calls?
+2. How does dependency injection make the services testable without a network?
+3. Why is a candidate's answer screened differently from context fields?
+4. How does the one-repair-round rule work, and why stop after the second try?
+5. Why must the parser never use `eval`/`exec` or invent missing values?
+6. How do all four tasks stay safe while producing four different schemas?
+7. Why return domain errors instead of letting exceptions propagate?
+
+### My reflections
+
+-
+-
+-

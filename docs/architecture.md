@@ -24,27 +24,31 @@ assumes a specific domain.
 ## Proposed architecture
 
 ```
-┌──────────────────────────────────────────────┐
-│ app.py — Streamlit UI (rendering only)       │
-│  session state: conversation, settings       │
-└──────────────┬───────────────────────────────┘
+┌────────────────────────────────────────────────┐
+│ app.py — Streamlit UI (rendering only)         │
+│  session state: conversation, settings         │
+└──────────────┬─────────────────────────────────┘
                │ calls
-┌──────────────▼───────────────────────────────┐
-│ src/ — business logic                        │
-│  config.py            configuration loading  │
-│  constants.py         limits, models, values │
-│  models.py            validated domain models│
-│  prompts.py           system prompt library  │
-│  prompt_registry.py   technique catalogue    │
-│  security.py          security/privacy guards│
-│  openrouter_client.py OpenRouter API client  │
-│  pricing_service.py   usage & cost accounting│
-└──────────────┬───────────────────────────────┘
+┌──────────────▼─────────────────────────────────┐
+│ src/ — business logic                          │
+│  config.py             configuration loading   │
+│  constants.py          limits, models, values  │
+│  models.py             validated domain models │
+│  prompts.py            system prompt library   │
+│  prompt_registry.py    technique catalogue     │
+│  security.py           security/privacy guards │
+│  openrouter_client.py  OpenRouter API client   │
+│  pricing_service.py    usage & cost accounting │
+│  response_parser.py    safe response parsing   │
+│  interview_service.py  strategy + questions    │
+│  evaluation_service.py answer evaluation       │
+│  report_service.py     final report            │
+└──────────────┬─────────────────────────────────┘
                │ HTTPS (HTTPX)
-┌──────────────▼───────────────────────────────┐
-│ OpenRouter Chat Completions API              │
-│  openai/gpt-5-mini | gpt-5-nano | gpt-5      │
-└──────────────────────────────────────────────┘
+┌──────────────▼─────────────────────────────────┐
+│ OpenRouter Chat Completions API                │
+│  openai/gpt-5-mini | gpt-5-nano | gpt-5        │
+└────────────────────────────────────────────────┘
 ```
 
 ## Main components
@@ -75,6 +79,14 @@ assumes a specific domain.
 - **`src/pricing_service.py`** — usage accounting and pricing: reads live model
   pricing/metadata (cached per session), resolves reported vs calculated vs
   unavailable cost in USD, and tracks cumulative session usage.
+- **`src/response_parser.py`** — turns raw model text into a validated domain
+  object: strips code fences, parses JSON safely (never `eval`/`exec`),
+  validates through the correct Pydantic model, allows one repair round, and
+  raises a controlled error otherwise.
+- **`src/interview_service.py`** — the shared generation base plus the
+  strategy and next-question use cases.
+- **`src/evaluation_service.py`** — the answer-evaluation use case.
+- **`src/report_service.py`** — the final-report use case.
 - **Later phases** — Streamlit conversational UI and the comparison /
   jailbreak experiments.
 
@@ -190,6 +202,49 @@ stated limitations.
   decision;
 - cumulative session usage (tokens and cost) is tracked via
   `SessionUsageTotals`.
+
+## Application services and orchestration
+
+The service layer turns the building blocks into four use cases, each returning
+a validated domain object **and** a `UsageRecord`:
+
+1. **Generate strategy** (`InterviewService.generate_strategy`) →
+   `InterviewStrategy`.
+2. **Generate the next question** (`InterviewService.generate_next_question`) →
+   `InterviewQuestion`, adapting to profession, seniority, interview types and
+   any job description, avoiding previously-asked questions, and never assuming
+   experience the candidate did not state.
+3. **Evaluate an answer** (`EvaluationService.evaluate_answer`) →
+   `AnswerEvaluation` for the answer actually submitted, with a follow-up
+   question.
+4. **Generate the final report** (`ReportService.generate_report`) →
+   `FinalInterviewReport`, grounded only in the completed evidence.
+
+All services share `BaseGenerationService`, which wires one structured request
+through the same pipeline:
+
+```
+select technique (prompt_registry)  →  build role-separated messages (prompts,
+task-aware)  →  screen context for injection (security)  →  call the model
+(openrouter_client)  →  safety-scan the raw text (security.inspect_output)  →
+parse + validate with one repair round (response_parser)  →  account usage
+(pricing_service)  →  return (domain object, UsageRecord)
+```
+
+Design properties:
+
+- **Streamlit-independent** — no UI imports; services are plain classes.
+- **Dependency-injected** — the OpenRouter client and pricing service are
+  constructor arguments, so tests pass fakes with canned model results (no live
+  key, no network).
+- **No global mutable state** — session usage lives on the injected pricing
+  service instance.
+- **Controlled domain errors** — `ServiceInputError` (bad/blocked input) and
+  `ModelResponseError` (call failed, unsafe, or unparseable) replace raw
+  exceptions and stack traces.
+- **Task-aware prompts** — `prompts.build_task_messages` reuses the shared
+  mission, guardrails and session parameters but targets the correct schema per
+  task, keeping system/user separation and every safety rule intact.
 
 ## Data flow
 

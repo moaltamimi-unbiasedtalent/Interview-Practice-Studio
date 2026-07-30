@@ -48,6 +48,18 @@ class TestConstants:
 class TestLoadConfig:
     """Configuration loading is controlled and never crashes on a missing key."""
 
+    @pytest.fixture(autouse=True)
+    def _isolate_from_local_secrets(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Keep these tests hermetic.
+
+        A developer's machine may have a real key in ``.streamlit/secrets.toml``
+        or a ``.env`` file. These tests exercise the environment-variable path,
+        so the Streamlit-secret lookup and ``.env`` loading are neutralised to
+        avoid reading (or depending on) a real local key.
+        """
+        monkeypatch.setattr("src.config._read_streamlit_secret", lambda: None)
+        monkeypatch.setattr("src.config.load_dotenv", lambda *a, **k: None)
+
     def test_missing_key_returns_unconfigured_result(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
