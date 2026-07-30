@@ -619,3 +619,67 @@ I'd explain differently in my own words.)*
 -
 -
 -
+
+---
+
+## Phase 10 — Jailbreak and input-security evaluation
+
+### Concepts introduced
+
+- **Reproducible security testing.** A fixed battery of 29 cases across 16
+  categories runs through the deterministic guard and records, per case, the
+  expected vs actual outcome, pass/fail, risk severity, whether a model call was
+  prevented, and notes — exported to an Excel workbook and a CSV.
+- **Direct vs indirect injection.** Direct injection targets the assistant
+  head-on; indirect injection hides the same intent inside otherwise-legitimate
+  content (typically a pasted job description).
+- **Guards are imperfect — and we say so.** The battery deliberately includes
+  benign false-positive candidates (which must stay `allow`) and a base64
+  bypass the guard does not decode (a documented failure). The real defence is
+  architectural: untrusted text is framed as data in the prompt.
+- **Answers are flagged, never blocked.** Injection inside a candidate answer
+  yields `allow_with_warning`, not `block`, because the answer must always be
+  evaluated (as data). This exercises all three outcomes.
+- **Blocked ⇒ no model call.** A `block` outcome rejects the input locally, so
+  no chargeable request is made and hostile content never reaches the model.
+- **Spreadsheet formula injection.** Cells beginning with `=`, `+`, `-`, `@`
+  (or tab/CR) are prefixed with a quote so Excel/LibreOffice treat them as text;
+  control characters are escaped so no null byte reaches the file.
+- **Safe by default.** The runner is dry-run by default (deterministic, no
+  network); live-assisted mode needs `--run-live --confirm` and only sends
+  non-blocked cases. Fixtures use dummy `TEST_API_KEY`/`TEST_SECRET`; no real
+  key or secret is used, printed or logged.
+
+### Important files
+
+- `scripts/run_jailbreak_tests.py` — the battery, guard evaluation, summary and
+  writers (xlsx + csv), with formula-injection sanitisation.
+- `evaluations/jailbreak_test_results.{xlsx,csv}` — the generated evidence.
+- `tests/test_jailbreak_runner.py` — offline tests (no network).
+- `docs/security.md` — the concepts, how-to-run and limitations.
+
+### Decisions made
+
+- **Guard outcomes were not weakened to raise the pass rate.** One case fails
+  honestly (base64), documented as a known limitation, rather than tuning the
+  guard around it.
+- **The runner reuses `src.security`** so the evaluation measures the real
+  guard, and takes a fixed date so results are deterministic for tests.
+- **Outputs are regenerated (overwritten), not appended**, so re-running is
+  idempotent.
+
+### Questions I should be able to answer
+
+1. What is prompt injection, and how do direct and indirect injection differ?
+2. What exactly does the deterministic guard check, and in what order?
+3. Why is a candidate answer flagged rather than blocked?
+4. Why are blocked inputs never sent to the model?
+5. Why is the guard imperfect, and what is the primary defence instead?
+6. How is spreadsheet formula injection prevented without losing meaning?
+7. Why is live-assisted testing optional, and how is it gated?
+
+### My reflections
+
+-
+-
+-
