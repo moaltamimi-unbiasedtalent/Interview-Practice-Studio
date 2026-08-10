@@ -949,3 +949,47 @@ results and screenshots are recorded by the learner.
 
 - Explain, in your own words, why branching keeps the main interview intact and
   how you would demo that to a reviewer. *(Complete this in your own words.)*
+
+---
+
+## Fix — Control reasoning in normal interview generation
+
+### The defect (demonstrated live)
+
+A running interview reached the error view with:
+*"OpenRouter response contained no assistant content (finish_reason: length)."*
+
+The cause is the same reasoning-token behaviour already handled for the
+connection test: GPT-5 models spend output tokens on internal reasoning before
+emitting visible text. With reasoning left at the model default, a structured
+call (e.g. strategy generation) exhausted its completion budget on reasoning
+and returned an empty message with `finish_reason=length`. This is exactly the
+risk flagged earlier; the screenshot proved it, so the fix was applied to
+normal generation, not just the connection test.
+
+### The fix
+
+- `BaseGenerationService._call_model` now requests
+  `reasoning={"effort": constants.DEFAULT_REASONING_EFFORT}` (`"minimal"`) on
+  every model call (primary and JSON-repair), for all use cases (strategy,
+  question, evaluation, report, branch).
+- The OpenRouter client already gates `reasoning` on the model's advertised
+  `supported_parameters`, so it is sent only to reasoning-capable models and
+  silently dropped for the rest. The service passes the model's supported
+  parameters into the call, so no non-reasoning model ever receives it.
+- New constant `DEFAULT_REASONING_EFFORT = "minimal"` documents the intent in
+  one place.
+
+### Trade-off
+
+Minimal reasoning slightly reduces the depth of internal deliberation, but the
+prior behaviour returned *no answer at all* on long structured tasks. A
+reliable, budget-respecting answer is strictly better here; users can still
+raise the max-output-tokens setting for longer outputs.
+
+### Questions I should be able to answer
+
+1. Why does a reasoning model return empty content with `finish_reason=length`?
+2. Where is `reasoning` gated so non-reasoning models never receive it?
+3. Why apply the effort control in the service rather than the client?
+4. What is the trade-off of forcing `effort=minimal`, and why is it acceptable?

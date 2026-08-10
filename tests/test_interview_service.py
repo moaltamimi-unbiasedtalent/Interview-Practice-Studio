@@ -8,6 +8,7 @@ import json
 
 import pytest
 
+from src import constants
 from src.interview_service import (
     InterviewService,
     ModelResponseError,
@@ -150,6 +151,18 @@ class TestGenerateStrategy:
         service = InterviewService(FakeClient([_strategy_json()]), _pricing())
         strategy, _ = service.generate_strategy(_config(job_description=""), _settings())
         assert isinstance(strategy, InterviewStrategy)
+
+    def test_requests_minimal_reasoning(self) -> None:
+        # Normal generation must ask reasoning models (e.g. GPT-5) for the
+        # smallest reasoning allocation, otherwise the whole token budget is
+        # spent on internal reasoning and the model returns no visible content
+        # (finish_reason=length). The client gates the parameter on the model's
+        # advertised support; the service always requests it.
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, _pricing())
+        service.generate_strategy(_config(), _settings())
+        assert client.calls[0]["reasoning"] == {"effort": "minimal"}
+        assert client.calls[0]["reasoning"]["effort"] == constants.DEFAULT_REASONING_EFFORT
 
 
 # --- Next question -----------------------------------------------------------

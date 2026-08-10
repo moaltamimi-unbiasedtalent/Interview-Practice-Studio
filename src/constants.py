@@ -211,6 +211,13 @@ CONNECTION_TEST_PROMPT = "Reply with exactly: OK"
 # The connection test alone may retry once on an empty (no-text) generation.
 CONNECTION_TEST_MAX_RETRIES = 1
 
+# Reasoning models (e.g. GPT-5) spend output tokens on internal reasoning before
+# producing visible content, which can exhaust the completion budget and return
+# no text (finish_reason=length). For structured interview generation we request
+# the smallest reasoning allocation so the token budget goes to the JSON answer.
+# Sent only to models whose metadata advertises "reasoning"; omitted otherwise.
+DEFAULT_REASONING_EFFORT = "minimal"
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

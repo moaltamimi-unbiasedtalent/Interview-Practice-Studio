@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from src import prompts, security
+from src import constants, prompts, security
 from src import prompt_registry as registry
 from src.models import (
     AnswerEvaluation,
@@ -175,6 +175,13 @@ class BaseGenerationService:
                 max_tokens=settings.max_tokens,
                 response_format=response_format,
                 supported_parameters=supported,
+                # Reasoning models (e.g. GPT-5) otherwise spend the whole output
+                # budget on internal reasoning and return no text
+                # (finish_reason=length). Request the smallest reasoning
+                # allocation so the token budget goes to the structured answer.
+                # The client only forwards this to models that advertise
+                # "reasoning" in their metadata; it is dropped for the rest.
+                reasoning={"effort": constants.DEFAULT_REASONING_EFFORT},
             )
         except OpenRouterError as exc:
             # Convert transport/API errors into a controlled domain error.
