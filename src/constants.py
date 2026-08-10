@@ -31,7 +31,13 @@ MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 1.0
 
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
-MIN_OUTPUT_TOKENS = 64
+# Floor for the output budget. Every use case produces a structured JSON object
+# (a strategy or final report can be ~600-900 tokens plus a repair round), so a
+# very small budget truncates the response mid-object and it cannot be parsed.
+# 512 keeps short outputs (a single question/evaluation) working while removing
+# the sub-512 range that cannot reliably hold a structured answer; the default
+# (1024) is the recommended value for the larger strategy and report tasks.
+MIN_OUTPUT_TOKENS = 512
 MAX_OUTPUT_TOKENS_LIMIT = 4096
 
 # --- Input length limits ------------------------------------------------------

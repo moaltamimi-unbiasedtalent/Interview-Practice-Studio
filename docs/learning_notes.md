@@ -993,3 +993,19 @@ raise the max-output-tokens setting for longer outputs.
 2. Where is `reasoning` gated so non-reasoning models never receive it?
 3. Why apply the effort control in the service rather than the client?
 4. What is the trade-off of forcing `effort=minimal`, and why is it acceptable?
+
+### Follow-up — output-budget floor
+
+A second run failed with *"The model response could not be parsed after one
+repair attempt"* because **Maximum output tokens** had been set to 256. With
+reasoning now controlled the model *does* produce text, but 256 tokens is too
+small to hold a full strategy/report JSON, so the object was truncated and the
+(equally capped) repair round also failed.
+
+Fix: raised `MIN_OUTPUT_TOKENS` from 64 to 512 so the app can no longer be put
+into a guaranteed-to-truncate state; the default (1024) remains the recommended
+value for the larger strategy and report tasks. The model-settings experiment
+grid now derives its "concise" budget from `MIN_OUTPUT_TOKENS`.
+
+Reviewer question: why is a single global token budget a foot-gun across tasks
+of very different output sizes, and what would a per-task budget look like?

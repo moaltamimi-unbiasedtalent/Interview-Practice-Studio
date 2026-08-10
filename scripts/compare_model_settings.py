@@ -36,8 +36,10 @@ FIXED_MODEL = constants.DEFAULT_MODEL
 FIXED_TECHNIQUE = "rubric_json"
 
 TEMPERATURES = [0.1, 0.5, 0.9]
-# (label, max_tokens) — both within the constant bounds.
-TOKEN_SETTINGS = [("concise", 256), ("detailed", 1024)]
+# (label, max_tokens) — both within the constant bounds. The lower value uses
+# MIN_OUTPUT_TOKENS so the "concise" setting is the smallest budget the app
+# permits (a smaller budget truncates structured JSON and cannot be parsed).
+TOKEN_SETTINGS = [("concise", constants.MIN_OUTPUT_TOKENS), ("detailed", 1024)]
 
 # Dimensions recorded per combination (several scored manually).
 DIMENSIONS = [
