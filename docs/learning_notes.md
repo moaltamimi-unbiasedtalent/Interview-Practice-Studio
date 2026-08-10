@@ -853,3 +853,47 @@ reviewer wants **your** understanding, not a generated summary.
    your own words.)*
 8. What did AI assistance help with, and what did you make sure you understood
    yourself? *(Complete this in your own words.)*
+
+---
+
+## Phase 13 — Manual browser acceptance testing (preparation)
+
+### What this phase is
+
+Preparation and structure for **human** acceptance testing in a real browser —
+not automated. It produces a reproducible test plan; the actual PASS/FAIL
+results and screenshots are recorded by the learner.
+
+### Concepts introduced
+
+- **Acceptance testing vs unit testing.** Automated tests prove components work
+  in isolation (mocked, offline); acceptance testing proves the whole app works
+  for a real user in a browser, including the live model path.
+- **Test IDs and evidence.** Each of the 107 cases has an ID, exact steps, an
+  expected outcome, a status (starting at NOT RUN) and an evidence slot, so a
+  reviewer can reproduce and audit each result.
+- **Requirement tagging.** Every case is tagged `[live]`, `[browser]`,
+  `[offline]`, `[auto]` or `[mock]`, which shows which results need spend, which
+  are already backed by automation, and which are pure inspection.
+- **Cost- and safety-aware testing.** Failure cases (401/402/429/timeout) are
+  verified with existing tests or a temporary invalid key — never by exhausting
+  or overloading a real account.
+- **Honest evaluation status.** The prompt/model-setting experiment files still
+  record errored runs; this is preserved as a documented gap, not fabricated.
+
+### Important files
+
+- `docs/manual_acceptance_test.md` — the 107-case plan + "instructions for Mo".
+- `docs/screenshots/README.md` — the eight-screenshot checklist.
+
+### Questions I should be able to answer
+
+1. What is the difference between the automated suite and acceptance testing?
+2. Which acceptance tests need live API access and why?
+3. How is failure behaviour verified without abusing the provider?
+4. Why do product fixes belong in a later phase, not the testing phase?
+
+### Reflection prompt — *Complete this in your own words before submission*
+
+- After running the browser tests, summarise what worked, what failed, and what
+  you would fix first. *(Complete this in your own words before submission.)*
