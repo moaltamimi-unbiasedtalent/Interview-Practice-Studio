@@ -36,6 +36,8 @@ __all__ = [
     "RequestTimeoutError",
     "NetworkError",
     "InvalidResponseError",
+    "EmptyContentError",
+    "ProviderError",
     "UnsupportedParameterError",
     "ChatResult",
     "RequestDebugInfo",
@@ -102,6 +104,20 @@ class NetworkError(OpenRouterError):
 
 class InvalidResponseError(OpenRouterError):
     """The response was not valid or was missing required content."""
+
+
+class EmptyContentError(InvalidResponseError):
+    """A valid HTTP response whose model generated no visible assistant text.
+
+    A subclass of :class:`InvalidResponseError` so existing broad handling still
+    catches it, while callers (the connection test) can distinguish a genuine
+    no-content generation — which may be worth one retry — from a malformed
+    response or a provider error.
+    """
+
+
+class ProviderError(OpenRouterError):
+    """The upstream provider reported an error inside an otherwise-2xx response."""
 
 
 class UnsupportedParameterError(OpenRouterError):
@@ -378,17 +394,30 @@ class OpenRouterClient:
 
         choices = body.get("choices")
         if not choices:
+            # A genuinely malformed response — no choices at all.
             raise InvalidResponseError(
                 "OpenRouter returned no choices in the response.",
                 category="invalid_response",
             )
-        message = (choices[0] or {}).get("message") or {}
+        first_choice = choices[0] or {}
+        message = first_choice.get("message") or {}
         content = message.get("content")
-        finish_reason = (choices[0] or {}).get("finish_reason")
-        if content is None:
-            raise InvalidResponseError(
-                "OpenRouter response contained no assistant content.",
-                category="invalid_response",
+        finish_reason = first_choice.get("finish_reason")
+
+        if content is None or (isinstance(content, str) and not content.strip()):
+            # Valid HTTP response but no visible text. Distinguish a provider
+            # error (do not retry) from a genuine empty generation (retryable
+            # for the connection test only).
+            provider_detail = _provider_error_detail(body, first_choice)
+            if provider_detail is not None:
+                raise ProviderError(
+                    f"The model provider reported an error: {provider_detail}",
+                    category="provider_error",
+                )
+            raise EmptyContentError(
+                "OpenRouter response contained no assistant content "
+                f"(finish_reason: {finish_reason or 'unknown'}).",
+                category="empty_content",
             )
 
         usage = body.get("usage")
@@ -436,17 +465,55 @@ class OpenRouterClient:
     # -- connection test ------------------------------------------------------
 
     def test_connection(self) -> ChatResult:
-        """Make a tiny request to verify connectivity and authentication.
+        """Make a small request to verify connectivity, auth and visible output.
 
-        Intended to run only when the user presses a "Test connection" button —
-        it is a real (but minimal) request that consumes a few tokens.
+        Intended to run only when the user presses a "Test connection" button.
+        It proves authentication works, the selected model is reachable, and the
+        model can return visible text. The output budget is deliberately small
+        but large enough for reasoning models (e.g. GPT-5) that spend tokens
+        reasoning before emitting content.
+
+        Because a reasoning model can occasionally return an empty (no-text)
+        generation, the connection test — and *only* the connection test —
+        retries once on :class:`EmptyContentError`. Authentication (401),
+        credit (402), rate-limit (429) and provider errors are never retried;
+        they propagate as their specific errors. Normal interview generation
+        does not gain any retry behaviour from this.
         """
-        return self.create_chat_completion(
-            model=self._config.model,
-            messages=[{"role": "user", "content": "ping"}],
-            temperature=0.0,
-            max_tokens=constants.CONNECTION_TEST_MAX_TOKENS,
+        messages = [{"role": "user", "content": constants.CONNECTION_TEST_PROMPT}]
+        attempts = constants.CONNECTION_TEST_MAX_RETRIES + 1
+        for attempt in range(attempts):
+            try:
+                return self.create_chat_completion(
+                    model=self._config.model,
+                    messages=messages,
+                    temperature=0.0,
+                    max_tokens=constants.CONNECTION_TEST_MAX_TOKENS,
+                )
+            except EmptyContentError:
+                # Retry once (last attempt falls through to the controlled error).
+                if attempt >= attempts - 1:
+                    break
+        raise EmptyContentError(
+            "OpenRouter connected successfully, but the selected model returned "
+            "no text. Please retry once or try another model.",
+            category="empty_content",
         )
+
+
+def _provider_error_detail(body: dict[str, Any], choice: dict[str, Any]) -> str | None:
+    """Return a short, safe provider-error message if one is present, else None.
+
+    OpenRouter can return a 2xx response that still carries a provider error at
+    the top level or on the choice. Never returns headers or credentials.
+    """
+    for source in (choice, body):
+        error = source.get("error") if isinstance(source, dict) else None
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return error["message"][:200]
+        if isinstance(error, str) and error.strip():
+            return error[:200]
+    return None
 
 
 def _safe_error_detail(response: httpx.Response) -> str:

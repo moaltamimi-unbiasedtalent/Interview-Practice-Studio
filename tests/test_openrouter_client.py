@@ -11,16 +11,19 @@ import httpx
 import pytest
 from pydantic import SecretStr
 
+from src import constants
 from src.config import AppConfig
 from src.openrouter_client import (
     AuthenticationError,
     ChatResult,
+    EmptyContentError,
     InsufficientCreditsError,
     InvalidRequestError,
     InvalidResponseError,
     MissingAPIKeyError,
     NetworkError,
     OpenRouterClient,
+    ProviderError,
     RateLimitError,
     RequestTimeoutError,
     ServerError,
@@ -257,8 +260,32 @@ class TestKeyAndParameters:
 # --- Connection test ---------------------------------------------------------
 
 
+def _empty_body(finish_reason: str = "length", **overrides) -> dict:
+    """A valid 2xx response whose model produced no visible text."""
+    body = {
+        "id": "gen-empty",
+        "model": MODEL,
+        "choices": [{"message": {"content": ""}, "finish_reason": finish_reason}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 128, "total_tokens": 133},
+    }
+    body.update(overrides)
+    return body
+
+
+def _sequence_client(bodies) -> tuple[OpenRouterClient, dict]:
+    """A client that returns each body in turn; records the call count."""
+    state = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = bodies[state["n"]]
+        state["n"] += 1
+        return httpx.Response(200, json=body)
+
+    return _client(handler), state
+
+
 class TestConnectionTest:
-    def test_connection_test_makes_a_tiny_request(self) -> None:
+    def test_connection_test_uses_realistic_budget_and_prompt(self) -> None:
         captured: dict = {}
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -267,10 +294,119 @@ class TestConnectionTest:
 
         result = _client(handler).test_connection()
         assert isinstance(result, ChatResult)
-        assert captured["body"]["max_tokens"] <= 8
+        # Realistic for reasoning models, but still intentionally cheap.
+        assert captured["body"]["max_tokens"] == constants.CONNECTION_TEST_MAX_TOKENS
+        assert captured["body"]["max_tokens"] == 128
+        assert captured["body"]["max_tokens"] <= 256
         assert captured["body"]["messages"][0]["role"] == "user"
+        assert captured["body"]["messages"][0]["content"] == constants.CONNECTION_TEST_PROMPT
+
+    def test_successful_ok_response(self) -> None:
+        body = _success_body(
+            choices=[{"message": {"content": "OK"}, "finish_reason": "stop"}]
+        )
+        result = _client(lambda req: httpx.Response(200, json=body)).test_connection()
+        assert result.content == "OK"
+
+    def test_first_empty_then_success_retries_once(self) -> None:
+        client, state = _sequence_client([_empty_body(), _success_body()])
+        result = client.test_connection()
+        assert result.content == "Hello"
+        assert state["n"] == 2  # exactly one retry
+
+    def test_both_empty_returns_controlled_error(self) -> None:
+        client, state = _sequence_client([_empty_body(), _empty_body()])
+        with pytest.raises(EmptyContentError) as raised:
+            client.test_connection()
+        assert state["n"] == 2  # no more than one retry
+        assert "no text" in raised.value.message.lower()
+        assert "test-key-not-real" not in str(raised.value)
+
+    def test_provider_error_is_not_retried_as_empty(self) -> None:
+        provider_body = {
+            "id": "gen",
+            "model": MODEL,
+            "choices": [
+                {
+                    "message": {"content": None},
+                    "finish_reason": "error",
+                    "error": {"message": "upstream provider timeout"},
+                }
+            ],
+        }
+        client, state = _sequence_client([provider_body, _success_body()])
+        with pytest.raises(ProviderError):
+            client.test_connection()
+        assert state["n"] == 1  # provider error stops immediately, no retry
 
     def test_connection_test_propagates_auth_error(self) -> None:
-        client = _client(lambda req: httpx.Response(401, json={"error": "bad"}))
+        client, state = _sequence_client([])  # handler overridden below
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            state["n"] += 1
+            return httpx.Response(401, json={"error": "bad"})
+
+        client = _client(handler)
         with pytest.raises(AuthenticationError):
             client.test_connection()
+        assert state["n"] == 1  # 401 is not retried
+
+    def test_connection_test_propagates_insufficient_credits(self) -> None:
+        client = _client(lambda req: httpx.Response(402, json={"error": "no credit"}))
+        with pytest.raises(InsufficientCreditsError):
+            client.test_connection()
+
+    def test_connection_test_propagates_rate_limit(self) -> None:
+        client = _client(lambda req: httpx.Response(429, json={"error": "slow down"}))
+        with pytest.raises(RateLimitError):
+            client.test_connection()
+
+
+class TestEmptyContentHandling:
+    def test_empty_content_raises_empty_content_error(self) -> None:
+        client = _client(lambda req: httpx.Response(200, json=_empty_body()))
+        with pytest.raises(EmptyContentError):
+            _call(client)
+
+    def test_empty_content_is_invalid_response_subclass(self) -> None:
+        # Back-compatible: broad InvalidResponseError handling still catches it.
+        assert issubclass(EmptyContentError, InvalidResponseError)
+        client = _client(lambda req: httpx.Response(200, json=_empty_body()))
+        with pytest.raises(InvalidResponseError):
+            _call(client)
+
+    def test_provider_error_in_2xx_raises_provider_error(self) -> None:
+        body = {
+            "id": "gen",
+            "model": MODEL,
+            "choices": [{"message": {"content": None}, "finish_reason": "error"}],
+            "error": {"message": "provider unavailable"},
+        }
+        client = _client(lambda req: httpx.Response(200, json=body))
+        with pytest.raises(ProviderError):
+            _call(client)
+
+    def test_normal_generation_does_not_retry_on_empty(self) -> None:
+        # A single create_chat_completion must not retry; it fails once.
+        client, state = _sequence_client([_empty_body(), _success_body()])
+        with pytest.raises(EmptyContentError):
+            _call(client)
+        assert state["n"] == 1  # exactly one call — no automatic retry
+
+
+class TestNoKeyInLogs:
+    def test_api_key_never_appears_in_logs(self, caplog) -> None:
+        import logging
+
+        transport = httpx.MockTransport(
+            lambda req: httpx.Response(200, json=_success_body())
+        )
+        client = OpenRouterClient(
+            _config(), debug=True, http_client=httpx.Client(transport=transport)
+        )
+        with caplog.at_level(logging.DEBUG, logger="interview_practice_studio.openrouter"):
+            client.test_connection()
+        combined = " ".join(record.getMessage() for record in caplog.records)
+        assert "test-key-not-real" not in combined
+        assert "Authorization" not in combined
+        assert "Bearer" not in combined

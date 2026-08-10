@@ -202,8 +202,14 @@ OPENROUTER_APP_TITLE = APP_NAME
 CONNECT_TIMEOUT_SECONDS = 10.0
 READ_TIMEOUT_SECONDS = 60.0
 
-# The connection-test request is deliberately tiny.
-CONNECTION_TEST_MAX_TOKENS = 8
+# The connection-test request is deliberately small but must leave enough
+# output budget for reasoning models (e.g. GPT-5) that spend tokens on internal
+# reasoning before emitting visible content — an 8-token budget can otherwise
+# return a valid response with no visible text.
+CONNECTION_TEST_MAX_TOKENS = 128
+CONNECTION_TEST_PROMPT = "Reply with exactly: OK"
+# The connection test alone may retry once on an empty (no-text) generation.
+CONNECTION_TEST_MAX_RETRIES = 1
 
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
