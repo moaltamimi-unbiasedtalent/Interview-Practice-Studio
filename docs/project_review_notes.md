@@ -364,6 +364,43 @@ call. Cost is recorded once per completed operation. Inspect
 
 ---
 
+## Part 2b — Interview Deep Dive (branching)
+
+**Why did you implement branching?** Real interviews are not purely linear.
+Strong interviewers probe an answer, challenge assumptions, request evidence or
+explore consequences. Interview Deep Dive models that behaviour while keeping the
+main interview sequence intact.
+
+- **How does branching differ from a normal follow-up?** A follow-up is the
+  single next main question; a Deep Dive is a *bounded side-thread* (up to two
+  levels) anchored to a specific parent question and the candidate's actual
+  answer, that returns to the main interview without advancing its progress.
+- **How do you prevent infinite branching?** `MAX_BRANCH_DEPTH = 2`;
+  `add_branch_question` refuses beyond the cap and the UI disables "Go deeper".
+- **How is branch state represented?** Dedicated fields on `SessionData`
+  (`branch_active`, `branch_questions`, …) and two sub-states
+  (`BRANCH_AWAITING_ANSWER`, `BRANCH_EVALUATING`) in the same state machine.
+- **Why don't branch questions increment interview progress?** The branch never
+  touches `current_question_number` or the main lists, and the main progress
+  operations are blocked while a branch is active — so "Question 2 of 6" stays
+  correct after any number of deep dives.
+- **How are branch costs tracked?** Each branch model call returns a
+  `UsageRecord` recorded once (guarded by `begin_operation` against reruns), the
+  same as the main flow.
+- **How does security apply to a branch?** Branch answers are untrusted data
+  (framed, never executed); context is injection-screened; output is inspected —
+  identical to the main interview, so a branch cannot become a chatbot.
+- **How would this evolve in a later agentic version?** Sprint 2 could let the
+  model *decide* when and how to branch (dynamic depth, retrieval-augmented
+  follow-ups), with guardrails and a budget — but Sprint 1 keeps it explicit,
+  candidate-controlled and bounded.
+- **What prevents arbitrary encoded content from being decoded?** *(Deep Dive
+  reuses the same parser/guard as the rest of the app — see Part 2, Q8.)*
+
+*Inspect:* `src/session_manager.py`, `src/interview_service.py`
+(`generate_branch_question`), `src/models.py` (`BranchQuestion`), `app.py`,
+`tests/test_branching.py`.
+
 ## Part 3 — Rehearsal checklist
 
 - [ ] I can give the two-minute intro without notes.

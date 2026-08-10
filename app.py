@@ -436,6 +436,115 @@ def _handle_answer(session: SessionManager, answer: str) -> None:
         client.close()
 
 
+def _run_branch_generation(session: SessionManager) -> None:
+    """Generate the next deep-dive question (level 1 or deeper)."""
+    if not session.begin_operation("branch_question"):
+        return
+    config = load_config()
+    if not config.is_configured:
+        session.end_operation()
+        st.error("No OpenRouter API key is configured; cannot deep-dive.")
+        return
+    pricing = get_pricing_service()
+    interview_service, _, _, client = build_services(config, pricing)
+    data = session.data
+    depth = len(data.branch_questions) + 1
+    try:
+        with st.spinner("Preparing a deeper question…"):
+            branch_question, usage = interview_service.generate_branch_question(
+                data.config,
+                data.settings,
+                parent_question=data.questions[-1],
+                candidate_answer=data.answers[-1],
+                evaluation=data.evaluations[-1],
+                branch_mode=data.branch_mode,
+                depth=depth,
+                branch_id=session.next_branch_id(),
+                previous_branch_questions=[q.question for q in data.branch_questions],
+                previous_branch_answers=list(data.branch_answers),
+            )
+        session.add_branch_question(branch_question)
+        session.record_usage(usage)
+        mode_label = ui_helpers.label_for_id(
+            ui_helpers.BRANCH_MODES, data.branch_mode
+        )
+        session.add_chat_message(
+            "assistant",
+            f"🔎 **Deep Dive — Level {branch_question.depth} of "
+            f"{constants.MAX_BRANCH_DEPTH}** · {mode_label}\n\n"
+            f"{branch_question.question}",
+        )
+    except ServiceError as exc:
+        session.enter_error(
+            exc.message, recover_to=SessionState.INTERVIEW_IN_PROGRESS
+        )
+    finally:
+        session.end_operation()
+        client.close()
+
+
+def _handle_start_branch(session: SessionManager, mode: str) -> None:
+    session.start_branch(mode)
+    _run_branch_generation(session)
+
+
+def _handle_branch_answer(session: SessionManager, answer: str) -> None:
+    if not session.begin_operation("branch_evaluate"):
+        return
+    config = load_config()
+    if not config.is_configured:
+        session.end_operation()
+        st.error("No OpenRouter API key is configured; cannot evaluate.")
+        return
+    pricing = get_pricing_service()
+    _, evaluation_service, _, client = build_services(config, pricing)
+    data = session.data
+    branch_question = data.branch_questions[-1].question
+    try:
+        session.add_branch_answer(answer)
+        session.add_chat_message("user", answer)
+        with st.spinner("Evaluating your deep-dive answer…"):
+            evaluation, usage = evaluation_service.evaluate_answer(
+                data.config, branch_question, answer, data.settings
+            )
+        session.add_branch_evaluation(evaluation)
+        session.record_usage(usage)
+        session.add_chat_message(
+            "assistant",
+            f"Deep-dive feedback — overall score "
+            f"**{evaluation.overall_score}/100**. See details below.",
+        )
+    except ServiceError as exc:
+        session.enter_error(
+            exc.message, recover_to=SessionState.BRANCH_AWAITING_ANSWER
+        )
+    finally:
+        session.end_operation()
+        client.close()
+
+
+def _render_branch_controls(session: SessionManager) -> None:
+    """The deep-dive hub between/after branch answers."""
+    data = session.data
+    mode_label = ui_helpers.label_for_id(ui_helpers.BRANCH_MODES, data.branch_mode)
+    st.markdown(
+        f"**🔎 Deep Dive — Level {data.branch_depth} of "
+        f"{constants.MAX_BRANCH_DEPTH}** · {mode_label}"
+    )
+    if data.branch_evaluations:
+        render_feedback(data.branch_evaluations[-1])
+    columns = st.columns(2)
+    if session.can_go_deeper():
+        if columns[0].button("Go deeper", type="primary", key="branch_deeper"):
+            _run_branch_generation(session)
+            st.rerun()
+    else:
+        columns[0].caption("Deep dive complete (maximum depth reached).")
+    if columns[1].button("Return to main interview", key="branch_return"):
+        session.return_to_main_interview()
+        st.rerun()
+
+
 def render_interview(session: SessionManager) -> None:
     data = session.data
     planned = data.config.number_of_questions
@@ -450,11 +559,30 @@ def render_interview(session: SessionManager) -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    if data.evaluations:
-        st.divider()
-        render_feedback(data.evaluations[-1])
-
     st.divider()
+
+    # --- Deep Dive (branch) mode ---------------------------------------------
+    if data.branch_active:
+        if session.state is SessionState.BRANCH_AWAITING_ANSWER:
+            answer = st.chat_input("Answer the deep-dive question…")
+            if answer:
+                _handle_branch_answer(session, answer)
+                st.rerun()
+            st.caption("Deep-dive questions use additional AI requests.")
+            if st.button("Return to main interview", key="branch_return_await"):
+                session.return_to_main_interview()
+                st.rerun()
+        elif session.state is SessionState.BRANCH_EVALUATING:
+            st.info("Evaluating your deep-dive answer…")
+        else:  # INTERVIEW_IN_PROGRESS, inside an open branch
+            _render_branch_controls(session)
+        return
+
+    # --- Normal main interview -----------------------------------------------
+    if data.evaluations:
+        render_feedback(data.evaluations[-1])
+        st.divider()
+
     if session.state is SessionState.AWAITING_ANSWER:
         answer = st.chat_input("Type your answer…")
         if answer:
@@ -464,16 +592,34 @@ def render_interview(session: SessionManager) -> None:
             session.end_interview_early()
             st.rerun()
     elif session.state is SessionState.INTERVIEW_IN_PROGRESS:
+        st.markdown("**Next actions**")
         columns = st.columns(2)
         if asked < planned:
             if columns[0].button("Next question", type="primary"):
                 _generate_next_question(session)
                 st.rerun()
         else:
-            st.info("You have answered all planned questions.")
+            columns[0].info("You have answered all planned questions.")
         if columns[1].button("Finish & generate report"):
             session.complete_interview()
             st.rerun()
+
+        # Explore this further (Deep Dive) — available once an answer exists.
+        if answered >= 1:
+            with st.expander("Explore this further (Deep Dive)"):
+                mode_label = st.selectbox(
+                    "Deep-dive focus",
+                    ui_helpers.labels(ui_helpers.BRANCH_MODES),
+                    index=0,
+                    help="Explore the last question more deeply before continuing.",
+                )
+                st.caption("Deep-dive questions use additional AI requests.")
+                if st.button("Explore this further", key="start_branch"):
+                    _handle_start_branch(
+                        session,
+                        ui_helpers.id_for_label(ui_helpers.BRANCH_MODES, mode_label),
+                    )
+                    st.rerun()
     elif session.state is SessionState.EVALUATING:
         st.info("Evaluating your answer…")
 
@@ -813,6 +959,8 @@ def main() -> None:
         SessionState.AWAITING_ANSWER,
         SessionState.EVALUATING,
         SessionState.INTERVIEW_IN_PROGRESS,
+        SessionState.BRANCH_AWAITING_ANSWER,
+        SessionState.BRANCH_EVALUATING,
     ):
         render_interview(session)
     elif state is SessionState.INTERVIEW_COMPLETE:

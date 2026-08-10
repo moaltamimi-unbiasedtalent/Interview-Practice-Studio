@@ -45,6 +45,8 @@ manager, challenging functional expert, sceptical executive, fast-paced panel.
   response detail).
 - Role analysis (an interview **strategy**).
 - Multi-turn mock interview using a real chat interface.
+- **Interview Deep Dive** — branch from an evaluated answer to explore a topic
+  more deeply (bounded to two levels) before returning to the main interview.
 - Rubric-based answer evaluation (overall score + seven criteria).
 - Improved-answer example (labelled to personalise) and a follow-up question.
 - Final readiness report with **JSON** and **Markdown** downloads.
@@ -61,6 +63,17 @@ manager, challenging functional expert, sceptical executive, fast-paced panel.
 (`INTERVIEW_IN_PROGRESS`) → next question or finish → `INTERVIEW_COMPLETE` →
 final report (`REPORT_READY`). `ERROR` is a recoverable side-state. See
 [docs/architecture.md](docs/architecture.md).
+
+## Interview Deep Dive
+
+Interview Deep Dive lets candidates pause the normal interview sequence and
+explore a question more deeply through contextual follow-up questions before
+returning to the main interview — like an interviewer probing an answer,
+challenging assumptions, asking for evidence or exploring trade-offs. It is a
+bounded, interview-focused feature (maximum two deeper levels), **not** an
+autonomous agent or a general-purpose chatbot: branch questions are anchored to
+the parent question and the candidate's actual answer, branch answers are framed
+as untrusted data, and a branch never advances the main interview's progress.
 
 ## Architecture
 

@@ -38,8 +38,15 @@ class ReportService(BaseGenerationService):
         answers: Sequence[str],
         evaluations: Sequence[AnswerEvaluation],
         settings: ModelSettings,
+        branch_summaries: Sequence[str] = (),
     ) -> tuple[FinalInterviewReport, UsageRecord]:
-        """Use case 4 — produce the final interview-readiness report."""
+        """Use case 4 — produce the final interview-readiness report.
+
+        ``branch_summaries`` optionally add Deep Dive evidence (short text
+        summaries). They strengthen the report's conclusions but are *not*
+        counted as scheduled questions; passing none preserves the original
+        behaviour exactly.
+        """
         if not questions or not answers:
             raise ServiceInputError(
                 "A final report needs at least one completed question and answer."
@@ -60,6 +67,10 @@ class ReportService(BaseGenerationService):
             + "; ".join(e.improvement_areas[:2])
             for i, e in enumerate(evaluations, start=1)
         ]
+        # Deep Dive evidence is appended as clearly-labelled supporting context.
+        previous_summaries.extend(
+            f"Deep dive: {summary}" for summary in branch_summaries
+        )
 
         return self._generate(
             task=prompts.TASK_REPORT,

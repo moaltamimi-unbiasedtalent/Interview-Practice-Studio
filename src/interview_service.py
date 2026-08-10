@@ -24,6 +24,7 @@ from src import prompts, security
 from src import prompt_registry as registry
 from src.models import (
     AnswerEvaluation,
+    BranchQuestion,
     InterviewConfiguration,
     InterviewQuestion,
     InterviewStrategy,
@@ -111,8 +112,13 @@ class BaseGenerationService:
         config: InterviewConfiguration,
         settings: ModelSettings,
         user_message_kwargs: dict,
+        overrides: dict | None = None,
     ):
-        """Run one structured request; return ``(validated_object, usage)``."""
+        """Run one structured request; return ``(validated_object, usage)``.
+
+        ``overrides`` are caller-authoritative fields applied before validation
+        (see :func:`src.response_parser.parse_structured_output`).
+        """
         technique_id = settings.prompt_technique
         # Use the prompt registry to validate the technique and fail safely.
         try:
@@ -148,7 +154,9 @@ class BaseGenerationService:
             return repaired.content
 
         try:
-            obj = parse_structured_output(primary.content, schema, repair=repair)
+            obj = parse_structured_output(
+                primary.content, schema, repair=repair, overrides=overrides
+            )
         except ResponseParseError as exc:
             raise ModelResponseError(exc.message) from exc
 
@@ -280,5 +288,57 @@ class InterviewService(BaseGenerationService):
                 "previous_answers": previous_answers,
                 "previous_evaluation_summaries": previous_summaries,
                 "current_question_number": current_question_number,
+            },
+        )
+
+    def generate_branch_question(
+        self,
+        config: InterviewConfiguration,
+        settings: ModelSettings,
+        *,
+        parent_question: InterviewQuestion,
+        candidate_answer: str,
+        evaluation: AnswerEvaluation,
+        branch_mode: str,
+        depth: int,
+        branch_id: str,
+        previous_branch_questions: "Sequence[str] | None" = None,
+        previous_branch_answers: "Sequence[str] | None" = None,
+    ) -> tuple[BranchQuestion, UsageRecord]:
+        """Deep Dive — generate one deeper question that branches from an answer.
+
+        Reuses the shared generation pipeline (registry, prompts, security,
+        client, parser, pricing). The linkage fields (branch_id,
+        parent_question_id, branch_mode, depth) are set authoritatively here
+        rather than trusted from the model, so a branch is always correctly
+        anchored to its parent question and depth.
+        """
+        self._screen_context(config.job_description, config.company_context)
+
+        summary = (
+            f"parent score {evaluation.overall_score}/100; improve: "
+            + "; ".join(evaluation.improvement_areas[:2])
+        )
+        return self._generate(
+            task=prompts.TASK_BRANCH,
+            schema=BranchQuestion,
+            config=config,
+            settings=settings,
+            user_message_kwargs={
+                "question": parent_question.question,
+                "candidate_answer": candidate_answer,
+                "previous_evaluation_summaries": [summary],
+                "previous_questions": list(previous_branch_questions or []),
+                "previous_answers": list(previous_branch_answers or []),
+                "branch_mode": branch_mode,
+                "branch_depth": depth,
+            },
+            # Authoritative linkage — applied before validation, never trusted
+            # from the model.
+            overrides={
+                "branch_id": branch_id,
+                "parent_question_id": parent_question.question_id,
+                "branch_mode": branch_mode,
+                "depth": depth,
             },
         )

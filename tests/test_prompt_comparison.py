@@ -6,6 +6,7 @@ refusal paths. Nothing touches the network.
 """
 
 import json
+import pathlib
 
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -14,6 +15,9 @@ from scripts import compare_model_settings as cm
 from scripts import compare_prompts as cp
 from src import constants
 from src.models import AnswerEvaluation, InterviewConfiguration, UsageRecord
+
+# Absolute path so AppTest resolves app.py across Streamlit versions.
+APP_PATH = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
 
 
 # --- A fake evaluation service (mocked model result) ------------------------
@@ -219,14 +223,14 @@ class TestClisAreSafe:
 
 class TestPromptLabUI:
     def test_prompt_lab_renders_without_network(self) -> None:
-        at = AppTest.from_file("app.py", default_timeout=30)
+        at = AppTest.from_file(APP_PATH, default_timeout=30)
         at.run()
         at.radio(key="view_mode").set_value("Prompt Lab").run()
         assert not at.exception
         assert any("Prompt Lab" in s.value for s in at.subheader)
 
     def test_run_buttons_are_disabled_until_confirmed(self) -> None:
-        at = AppTest.from_file("app.py", default_timeout=30)
+        at = AppTest.from_file(APP_PATH, default_timeout=30)
         at.run()
         at.radio(key="view_mode").set_value("Prompt Lab").run()
         run_buttons = [

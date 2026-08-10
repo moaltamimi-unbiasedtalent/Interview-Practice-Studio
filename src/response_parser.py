@@ -90,9 +90,19 @@ def parse_json_object(text: str) -> dict:
     return data
 
 
-def _parse_once(text: str, schema: type[ModelT]) -> ModelT:
-    """Parse and validate one attempt, raising ResponseParseError on failure."""
+def _parse_once(
+    text: str, schema: type[ModelT], overrides: dict | None = None
+) -> ModelT:
+    """Parse and validate one attempt, raising ResponseParseError on failure.
+
+    ``overrides`` (if given) are applied to the parsed object **before**
+    validation, so caller-authoritative fields (e.g. a branch's depth and
+    linkage ids) always take precedence over — and are validated instead of —
+    whatever the model produced for them.
+    """
     data = parse_json_object(text)
+    if overrides:
+        data.update(overrides)
     try:
         return schema.model_validate(data)
     except ValidationError as exc:
@@ -112,6 +122,7 @@ def parse_structured_output(
     schema: type[ModelT],
     *,
     repair: RepairFn | None = None,
+    overrides: dict | None = None,
 ) -> ModelT:
     """Parse ``text`` into a validated ``schema`` instance, with one repair round.
 
@@ -119,9 +130,11 @@ def parse_structured_output(
     a corrected attempt which is parsed again. A second failure stops the process
     and raises :class:`ResponseParseError`. ``repair`` is injected (not built
     here) so this module stays independent of the network and easy to test.
+    ``overrides`` are applied to the parsed object before validation on every
+    attempt (see :func:`_parse_once`).
     """
     try:
-        return _parse_once(text, schema)
+        return _parse_once(text, schema, overrides)
     except ResponseParseError as first_error:
         if repair is None:
             raise
@@ -134,7 +147,7 @@ def parse_structured_output(
                 "The automatic repair attempt could not be completed."
             ) from exc
         try:
-            return _parse_once(repaired, schema)
+            return _parse_once(repaired, schema, overrides)
         except ResponseParseError as second_error:
             raise ResponseParseError(
                 "The model response could not be parsed after one repair "

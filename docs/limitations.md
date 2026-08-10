@@ -57,6 +57,18 @@ boundaries of the tool.
   handling, not the model's real responses. Live behaviour is only exercised
   through the explicitly gated experiment paths.
 
+## Interview Deep Dive (branching)
+
+- **Bounded by design.** A deep dive allows at most two deeper levels
+  (`MAX_BRANCH_DEPTH`) before you must return to the main interview. This is
+  deliberate — it prevents runaway token usage, confusing navigation and
+  uncontrolled state; it is not an open-ended conversation or an agent.
+- **Extra cost.** Each deep-dive question and its evaluation are additional
+  model calls, so exploring adds to session usage and cost.
+- **Interview-focused only.** Branch answers are treated as untrusted data, so
+  a deep dive cannot be used to turn the app into a general-purpose assistant;
+  the same best-effort security limits apply as elsewhere.
+
 ## Scope (Sprint 1)
 
 - **No RAG or vector search.** There is no retrieval-augmented generation,

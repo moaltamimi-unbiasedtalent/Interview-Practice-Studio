@@ -34,6 +34,7 @@ human should confirm (e.g. live behaviour, visual/UX).
 | Jailbreak testing exported to Excel | O | 29-case battery → xlsx + csv | `scripts/run_jailbreak_tests.py` | `tests/test_jailbreak_runner.py` | `evaluations/jailbreak_test_results.{xlsx,csv}` | — | Complete |
 | Full conversational chatbot | O | `st.chat_message`/`st.chat_input` flow | `app.py` (`render_interview`) | `tests/test_app_smoke.py` | n/a | Live multi-turn run | Complete |
 | Prompt-performance comparison | O | 5-technique comparison script + Prompt Lab | `scripts/compare_prompts.py`, `app.py` | `tests/test_prompt_comparison.py` | `evaluations/prompt_comparison.*` | Live comparison metrics | Complete (see note) |
+| Interview Deep Dive (branching) | O | Bounded topic branching from an evaluated answer | `src/session_manager.py`, `src/interview_service.py` (`generate_branch_question`), `src/models.py` (`BranchQuestion`), `app.py` | `tests/test_branching.py` | n/a | Live end-to-end deep dive | Complete |
 
 ## Notes
 

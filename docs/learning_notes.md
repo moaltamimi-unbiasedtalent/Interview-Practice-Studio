@@ -897,3 +897,55 @@ results and screenshots are recorded by the learner.
 
 - After running the browser tests, summarise what worked, what failed, and what
   you would fix first. *(Complete this in your own words before submission.)*
+
+---
+
+## Phase 14 — Interview Deep Dive (branching)
+
+### Concepts introduced
+
+- **A bounded feature, not an agent.** Branching lets the candidate explore a
+  question more deeply (up to two levels) then return — deliberately bounded to
+  avoid runaway tokens, confusing navigation and uncontrolled state.
+- **Sub-state machine.** Two new states (`BRANCH_AWAITING_ANSWER`,
+  `BRANCH_EVALUATING`) plus a `branch_active` flag extend the existing machine
+  without replacing it; main progress operations are blocked while branching.
+- **Isolation of main progress.** A branch never touches
+  `current_question_number` or the main lists, so "Question 2 of 6" stays
+  correct — proven by tests.
+- **Authoritative overrides before validation.** The parser can patch
+  caller-owned fields (branch id, parent, depth, mode) into the model's JSON
+  *before* validation, so a branch is always correctly anchored regardless of
+  what the model returns — and an out-of-range model depth can't slip through.
+- **Reuse over reinvention.** Branch questions flow through the same
+  `_generate` pipeline; branch answers reuse `AnswerEvaluation`; branch cost is
+  recorded once, guarded against Streamlit reruns.
+
+### Important files
+
+- `src/session_manager.py` — branch states, fields, methods, guards.
+- `src/interview_service.py` — `generate_branch_question`.
+- `src/models.py` — `BranchQuestion`; `src/prompts.py` — `TASK_BRANCH`.
+- `app.py` — Deep Dive UI. `tests/test_branching.py` — 29 tests.
+
+### Decisions made
+
+- **Extended the state machine** rather than tracking branches in loose globals.
+- **Overrides applied pre-validation** in the parser (a small, reusable change)
+  instead of trusting or post-patching model linkage fields.
+- **Report integration is additive** — `generate_report(..., branch_summaries)`
+  defaults to empty, so existing behaviour and tests are unchanged.
+
+### Questions I should be able to answer
+
+1. How does a Deep Dive differ from a normal follow-up question?
+2. What stops branching from advancing or completing the main interview?
+3. How is branch depth bounded, and where is that enforced?
+4. Why override linkage fields before validation rather than after?
+5. How are branch usage and cost prevented from double-counting on reruns?
+6. How does security apply to a branch answer?
+
+### Reflection prompt — *Complete this in your own words before submission*
+
+- Explain, in your own words, why branching keeps the main interview intact and
+  how you would demo that to a reviewer. *(Complete this in your own words.)*

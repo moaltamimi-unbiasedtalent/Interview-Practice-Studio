@@ -7,6 +7,8 @@ session_state so their rendering is covered offline too. Pure helpers are
 unit-tested directly.
 """
 
+import pathlib
+
 import app
 import pytest
 from streamlit.testing.v1 import AppTest
@@ -19,7 +21,10 @@ from src.models import (
 )
 from src.session_manager import NAMESPACE, SessionData, SessionState
 
-APP_PATH = "app.py"
+# Absolute path so AppTest.from_file resolves correctly across Streamlit
+# versions (>=1.61 resolves relative paths against the calling test file's
+# directory rather than the working directory).
+APP_PATH = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
 
 
 def _config() -> InterviewConfiguration:

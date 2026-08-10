@@ -142,6 +142,23 @@ MIN_QUESTIONS = 1
 MAX_QUESTIONS = 20
 DEFAULT_NUMBER_OF_QUESTIONS = 6
 
+# --- Interview Deep Dive (branching) -----------------------------------------
+# A candidate may branch from an evaluated answer to explore the same topic in
+# more depth, then return to the main interview. Branch modes are the kinds of
+# deeper exploration offered; depth is bounded so the exploration can never
+# become an unlimited recursive conversation.
+
+BRANCH_MODES = (
+    "deepen_reasoning",  # why / how / what logic supports the answer
+    "challenge_assumptions",  # what assumptions; what would invalidate them
+    "explore_evidence",  # what data/examples/metrics support it
+    "explore_tradeoffs",  # alternatives, risks, priorities
+    "go_technical",  # domain methodology, tools, calculations
+    "executive_challenge",  # senior/board-style challenge of the recommendation
+)
+DEFAULT_BRANCH_MODE = "deepen_reasoning"
+MAX_BRANCH_DEPTH = 2
+
 # --- Scoring bounds ----------------------------------------------------------
 # Practice-feedback scores only — never treated as objective hiring decisions.
 

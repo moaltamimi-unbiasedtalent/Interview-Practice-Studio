@@ -36,6 +36,7 @@ from pydantic import BaseModel
 from src import constants
 from src.models import (
     AnswerEvaluation,
+    BranchQuestion,
     FinalInterviewReport,
     InterviewConfiguration,
     InterviewQuestion,
@@ -54,6 +55,7 @@ __all__ = [
     "TASK_QUESTION",
     "TASK_EVALUATION",
     "TASK_REPORT",
+    "TASK_BRANCH",
     "TASK_SCHEMAS",
     "build_task_system_prompt",
     "build_task_user_message",
@@ -461,11 +463,14 @@ TASK_QUESTION = "question"
 TASK_EVALUATION = "evaluation"
 TASK_REPORT = "report"
 
+TASK_BRANCH = "branch"
+
 TASK_SCHEMAS: dict[str, type[BaseModel]] = {
     TASK_STRATEGY: InterviewStrategy,
     TASK_QUESTION: InterviewQuestion,
     TASK_EVALUATION: AnswerEvaluation,
     TASK_REPORT: FinalInterviewReport,
+    TASK_BRANCH: BranchQuestion,
 }
 
 _TASK_INSTRUCTIONS = {
@@ -489,6 +494,17 @@ _TASK_INSTRUCTIONS = {
         "on the completed questions, answers and evaluations in the reference "
         "data. Clearly separate observed answer patterns from assumptions, and "
         "give specific, actionable practice priorities."
+    ),
+    TASK_BRANCH: (
+        "TASK\n"
+        "Generate one deeper 'deep dive' interview question that builds directly "
+        "on the candidate's answer to the interview_question in the reference "
+        "data. Deepen the same topic — do not change subject and do not repeat "
+        "the parent or any previous branch question. Challenge unsupported "
+        "claims and ask for concrete evidence where appropriate. Adapt to the "
+        "role, seniority, interviewer persona and job description. It must remain "
+        "an interview-preparation question; never assume experience the candidate "
+        "has not stated and never invent metrics."
     ),
 }
 
@@ -588,6 +604,8 @@ def build_task_user_message(
     previous_answers: Sequence[str] | None = None,
     previous_evaluation_summaries: Sequence[str] | None = None,
     current_question_number: int | None = None,
+    branch_mode: str | None = None,
+    branch_depth: int | None = None,
 ) -> str:
     """Assemble the user message for a task, with all free text as untrusted data."""
     _validate_task(task)
@@ -627,6 +645,13 @@ def build_task_user_message(
         "candidate_answer to the interview_question and return the required JSON.",
         TASK_REPORT: "Using only the reference data above, return the required "
         "final report JSON.",
+        TASK_BRANCH: (
+            "Using only the reference data above, return the required JSON for a "
+            f"single level-{branch_depth or 1} deep-dive question in the "
+            f"'{branch_mode or 'deepen_reasoning'}' style. Build on the "
+            "candidate_answer to the interview_question; do not repeat any "
+            "previous_question."
+        ),
     }[task]
 
     return (

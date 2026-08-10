@@ -74,6 +74,16 @@ DIFFICULTIES: list[tuple[str, str]] = [
     ("Hard", "hard"),
 ]
 
+# Interview Deep Dive (branching) modes — friendly label ↔ domain id.
+BRANCH_MODES: list[tuple[str, str]] = [
+    ("Deepen reasoning", "deepen_reasoning"),
+    ("Challenge assumptions", "challenge_assumptions"),
+    ("Explore evidence", "explore_evidence"),
+    ("Explore trade-offs", "explore_tradeoffs"),
+    ("Go more technical", "go_technical"),
+    ("Executive challenge", "executive_challenge"),
+]
+
 RESPONSE_DETAILS: list[tuple[str, str]] = [
     ("Concise", "brief"),
     ("Balanced", "standard"),

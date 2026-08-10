@@ -46,6 +46,7 @@ __all__ = [
     "FinalInterviewReport",
     "UsageRecord",
     "ModelPricing",
+    "BranchQuestion",
 ]
 
 
@@ -133,6 +134,7 @@ StrList = Annotated[
 CareerLevel = _make_enum_type(constants.CAREER_LEVELS, "career_level")
 InterviewerPersona = _make_enum_type(constants.INTERVIEWER_PERSONAS, "interviewer_persona")
 Difficulty = _make_enum_type(constants.DIFFICULTY_LEVELS, "difficulty")
+BranchMode = _make_enum_type(constants.BRANCH_MODES, "branch_mode")
 ResponseDetail = _make_enum_type(constants.RESPONSE_DETAIL_LEVELS, "response_detail")
 PromptTechnique = _make_enum_type(constants.PROMPT_TECHNIQUES, "prompt_technique")
 QuestionType = _make_enum_type(constants.INTERVIEW_TYPES, "question_type")
@@ -475,3 +477,41 @@ class ModelPricing(_StudioModel):
                 f"got {value!r}"
             )
         return value
+
+
+# --- Interview Deep Dive (branching) -----------------------------------------
+
+
+class BranchQuestion(_StudioModel):
+    """A deeper "deep dive" question that branches from an evaluated answer.
+
+    A branch question deepens the topic of a parent interview question using the
+    candidate's actual answer; it is never counted as a scheduled main question.
+    The linkage fields (``branch_id``, ``parent_question_id``, ``branch_mode``,
+    ``depth``) are set authoritatively by the service, not invented by the model.
+    """
+
+    branch_id: ShortText = Field(description="Stable identifier for this branch turn.")
+    parent_question_id: int = Field(
+        ge=1, description="question_id of the main question this branch deepens."
+    )
+    question: FreeText = Field(description="The deeper deep-dive question text.")
+    branch_mode: BranchMode = Field(
+        description="Kind of deeper exploration (e.g. challenge_assumptions)."
+    )
+    focus_area: ShortText = Field(
+        description="The specific aspect of the answer being probed."
+    )
+    interviewer_intent: FreeText = Field(
+        description="Concise note on what a strong answer should demonstrate "
+        "(a rubric hint, not hidden reasoning)."
+    )
+    expected_answer_elements: StrList = Field(
+        description="Key elements a strong answer to this branch would include."
+    )
+    difficulty: Difficulty = Field(description="Difficulty band for this branch.")
+    depth: int = Field(
+        ge=1,
+        le=constants.MAX_BRANCH_DEPTH,
+        description="Branch depth level (1..MAX_BRANCH_DEPTH).",
+    )

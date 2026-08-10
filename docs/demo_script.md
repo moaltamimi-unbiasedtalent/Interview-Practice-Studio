@@ -74,6 +74,18 @@ terminal ready for `pytest -q` and `python scripts/run_jailbreak_tests.py`.
   app never fabricates your achievements."
 - **Concept:** rubric-constrained structured output; `AnswerEvaluation`.
 
+### 8b. Interview Deep Dive (~60s)
+- **Do:** Under "Next actions", open "Explore this further (Deep Dive)", pick
+  "Challenge assumptions", and click Explore this further. Answer the deeper
+  question, then use "Go deeper" once, then "Return to main interview".
+- **Say:** "A strong interviewer probes an answer. Deep Dive branches into the
+  same topic for up to two levels, then returns — and it never advances the
+  main interview count."
+- **Concept:** bounded branching; main-progress isolation; reuse of the
+  evaluation pipeline.
+- **Contingency:** if a live call fails, show the controlled error and
+  "Return to main interview"; the main interview is unaffected.
+
 ### 9. Show usage and cost (~30s)
 - **Do:** Enable "Show usage details"; show tokens, current cost, cumulative
   cost, and whether cost was reported or estimated.

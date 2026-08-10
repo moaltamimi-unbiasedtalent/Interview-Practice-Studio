@@ -63,8 +63,8 @@ assumes a specific domain.
 - **`src/models.py`** — validated Pydantic domain models and
   structured-output schemas. Inputs (`InterviewConfiguration`,
   `ModelSettings`), model outputs (`InterviewStrategy`, `InterviewQuestion`,
-  `AnswerEvaluation`, `FinalInterviewReport`) and accounting (`UsageRecord`)
-  are validated here so the rest of the app can trust its data.
+  `AnswerEvaluation`, `FinalInterviewReport`, `BranchQuestion`) and accounting
+  (`UsageRecord`) are validated here so the rest of the app can trust its data.
 - **`src/prompts.py`** — the system-prompt library: five prompt-engineering
   techniques, shared safety guardrails, a schema-derived output contract, and
   role-separated message assembly (`build_messages`).
@@ -314,6 +314,28 @@ The session data covers configuration, model settings, selected technique,
 strategy, chat messages, questions, answers, evaluations, current question
 number, usage records, cumulative session cost (USD), current state, a
 recoverable error, the interview start time and duplicate-submission control.
+
+### Interview Deep Dive (branching)
+
+From `INTERVIEW_IN_PROGRESS` (after a main answer is evaluated) the candidate can
+open a **Deep Dive**: a bounded branch that explores the same question more
+deeply. It adds two sub-states — `BRANCH_AWAITING_ANSWER` and
+`BRANCH_EVALUATING` — plus branch fields (`branch_active`, `active_branch_id`,
+`branch_parent_question_id`, `branch_mode`, `branch_depth`, `branch_questions`,
+`branch_answers`, `branch_evaluations`, `branch_started_at`, archived
+`branches`). Key invariants:
+
+- **Bounded** — at most `MAX_BRANCH_DEPTH` (2) levels; deeper is disabled at the
+  cap; "Return to main interview" is always available.
+- **Main progress isolated** — a branch never touches `current_question_number`
+  or the main lists, and `add_question` / `advance_interview` /
+  `complete_interview` / `end_interview_early` are blocked while a branch is
+  active, so a Deep Dive can never advance or complete the main interview.
+- **Reuse** — branch questions are a validated `BranchQuestion` from
+  `InterviewService.generate_branch_question` (anchored to the parent via
+  authoritative `overrides`, applied before validation); branch answers reuse
+  `AnswerEvaluation` via `EvaluationService`; each branch call records usage
+  once. Branch answers are untrusted data, exactly like main answers.
 
 ## Streamlit candidate experience
 
