@@ -1031,3 +1031,22 @@ and diagnosable:
 
 Reviewer question: why extract a balanced object rather than loosening the
 schema to accept extra fields, and what would each choice cost in safety?
+
+### Follow-up — tolerant (but closed) enum validation
+
+With diagnostics in place, the real failure surfaced clearly: an
+`InterviewQuestion` was rejected on `difficulty`. The model returns natural
+surface variants — `medium` for `moderate`, US `behavioral` for `behavioural`,
+`Case Study` for `case_study` — which exact, case-sensitive matching refused,
+and the repair round (which lists field *names*, not allowed *values*) could
+not recover.
+
+Fix: the enum factory `_make_enum_type` now normalises case, whitespace and
+hyphens, and consults a small per-field synonym map, always returning the
+**canonical** value. The vocabulary stays closed — an unmappable value is still
+rejected — so this adds tolerance without weakening the injection defence or
+inventing values. Only the two enums the model fills in freely (question
+`difficulty` and `question_type`) carry synonym maps.
+
+Reviewer question: why is normalising to a canonical value safer than either
+(a) accepting any string or (b) failing on every surface variant?

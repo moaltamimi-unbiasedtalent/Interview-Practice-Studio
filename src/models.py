@@ -24,6 +24,7 @@ Design rules followed throughout this module:
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 from pydantic import (
@@ -83,15 +84,46 @@ def _clean_str_list(values: list[str]) -> list[str]:
     return cleaned
 
 
-def _make_enum_type(allowed: tuple[str, ...], label: str):
-    """Build an ``Annotated[str, ...]`` type restricted to ``allowed``."""
+def _normalise_enum_key(value: str) -> str:
+    """Fold a label to a comparison key: lower-case, spaces/hyphens → ``_``.
+
+    This lets a fixed vocabulary accept the harmless surface variants a model
+    naturally produces (``"Case Study"``, ``"case-study"``, ``"MODERATE"``)
+    while still mapping onto exactly one canonical value.
+    """
+    return re.sub(r"[\s\-]+", "_", value.strip().lower())
+
+
+def _make_enum_type(
+    allowed: tuple[str, ...],
+    label: str,
+    synonyms: dict[str, str] | None = None,
+):
+    """Build an ``Annotated[str, ...]`` type restricted to ``allowed``.
+
+    Matching is tolerant but closed: the incoming value is normalised (case,
+    whitespace and hyphens) and matched against the allowed set, then against
+    an optional ``synonyms`` map (e.g. US spelling or common wording the model
+    emits). The **canonical** allowed value is always returned, so downstream
+    code only ever sees one spelling. Anything that matches neither is still
+    rejected, so the vocabulary stays fixed and injected values are refused.
+    """
+    canonical = {_normalise_enum_key(value): value for value in allowed}
+    synonym_keys = {
+        _normalise_enum_key(key): value for key, value in (synonyms or {}).items()
+    }
 
     def _check(value: str) -> str:
-        if value not in allowed:
-            raise ValueError(
-                f"{label} must be one of {list(allowed)}; got {value!r}"
-            )
-        return value
+        if not isinstance(value, str):
+            raise ValueError(f"{label} must be a string; got {value!r}")
+        key = _normalise_enum_key(value)
+        if key in canonical:
+            return canonical[key]
+        if key in synonym_keys:
+            return synonym_keys[key]
+        raise ValueError(
+            f"{label} must be one of {list(allowed)}; got {value!r}"
+        )
 
     return Annotated[str, AfterValidator(_check)]
 
@@ -130,14 +162,47 @@ StrList = Annotated[
     AfterValidator(_clean_str_list),
 ]
 
+# Common surface variants a model emits for the two enums it fills in freely
+# (question difficulty and question type). Each maps onto a canonical value in
+# the relevant constants tuple; case/space/hyphen differences are handled by the
+# normaliser and need no entry here.
+_DIFFICULTY_SYNONYMS = {
+    "medium": "moderate",
+    "intermediate": "moderate",
+    "normal": "moderate",
+    "difficult": "hard",
+    "challenging": "hard",
+    "advanced": "hard",
+    "tough": "hard",
+    "simple": "easy",
+    "basic": "easy",
+    "beginner": "easy",
+}
+_QUESTION_TYPE_SYNONYMS = {
+    "behavioral": "behavioural",  # US spelling
+    "competency_based": "competency",
+    "competencies": "competency",
+    "case": "case_study",
+    "culture": "culture_values",
+    "values": "culture_values",
+    "culture_fit": "culture_values",
+    "cultural_fit": "culture_values",
+    "board": "executive_board",
+    "stakeholder_management": "stakeholder",
+}
+
 # Enum-like scalar types (values validated against constants).
 CareerLevel = _make_enum_type(constants.CAREER_LEVELS, "career_level")
 InterviewerPersona = _make_enum_type(constants.INTERVIEWER_PERSONAS, "interviewer_persona")
-Difficulty = _make_enum_type(constants.DIFFICULTY_LEVELS, "difficulty")
+Difficulty = _make_enum_type(
+    constants.DIFFICULTY_LEVELS, "difficulty", synonyms=_DIFFICULTY_SYNONYMS
+)
 BranchMode = _make_enum_type(constants.BRANCH_MODES, "branch_mode")
 ResponseDetail = _make_enum_type(constants.RESPONSE_DETAIL_LEVELS, "response_detail")
 PromptTechnique = _make_enum_type(constants.PROMPT_TECHNIQUES, "prompt_technique")
-QuestionType = _make_enum_type(constants.INTERVIEW_TYPES, "question_type")
+QuestionType = _make_enum_type(
+    constants.INTERVIEW_TYPES, "question_type", synonyms=_QUESTION_TYPE_SYNONYMS
+)
 CostSource = _make_enum_type(constants.COST_SOURCES, "cost_source")
 ApprovedModel = _make_enum_type(tuple(constants.APPROVED_MODELS), "model")
 

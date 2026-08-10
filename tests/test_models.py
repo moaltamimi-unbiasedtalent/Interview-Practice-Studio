@@ -333,6 +333,52 @@ class TestInterviewQuestion:
                 **{**_valid_question_kwargs(), "question_type": "riddle"}
             )
 
+    @pytest.mark.parametrize(
+        "given, expected",
+        [
+            ("moderate", "moderate"),
+            ("Moderate", "moderate"),  # case
+            ("  HARD  ", "hard"),  # case + whitespace
+            ("medium", "moderate"),  # synonym
+            ("intermediate", "moderate"),  # synonym
+            ("challenging", "hard"),  # synonym
+            ("basic", "easy"),  # synonym
+        ],
+    )
+    def test_difficulty_variants_normalise_to_canonical(
+        self, given: str, expected: str
+    ) -> None:
+        question = InterviewQuestion(
+            **{**_valid_question_kwargs(), "difficulty": given}
+        )
+        assert question.difficulty == expected
+
+    @pytest.mark.parametrize(
+        "given, expected",
+        [
+            ("behavioural", "behavioural"),
+            ("behavioral", "behavioural"),  # US spelling
+            ("Behavioural", "behavioural"),  # case
+            ("case study", "case_study"),  # space → underscore
+            ("case-study", "case_study"),  # hyphen → underscore
+            ("culture fit", "culture_values"),  # synonym + space
+        ],
+    )
+    def test_question_type_variants_normalise_to_canonical(
+        self, given: str, expected: str
+    ) -> None:
+        question = InterviewQuestion(
+            **{**_valid_question_kwargs(), "question_type": given}
+        )
+        assert question.question_type == expected
+
+    def test_unmappable_difficulty_still_rejected(self) -> None:
+        # Tolerance is closed: an unknown value is still refused, never coerced.
+        with pytest.raises(ValidationError):
+            InterviewQuestion(
+                **{**_valid_question_kwargs(), "difficulty": "impossible"}
+            )
+
 
 # --- UsageRecord -------------------------------------------------------------
 
