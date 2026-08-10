@@ -17,6 +17,7 @@ Every service here is:
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
@@ -42,6 +43,8 @@ __all__ = [
     "BaseGenerationService",
     "InterviewService",
 ]
+
+_LOGGER = logging.getLogger(__name__)
 
 
 # --- Domain errors -----------------------------------------------------------
@@ -158,6 +161,20 @@ class BaseGenerationService:
                 primary.content, schema, repair=repair, overrides=overrides
             )
         except ResponseParseError as exc:
+            # Log the reason and a truncated copy of each raw attempt to the
+            # server console so a formatting failure can be diagnosed. Model
+            # output is not a secret; the output guard has already screened it
+            # for system-prompt leakage, and API keys are never echoed here.
+            _LOGGER.warning(
+                "Structured parse failed for %s: %s", schema.__name__, exc.message
+            )
+            for position, result in enumerate(results):
+                _LOGGER.warning(
+                    "%s attempt %d raw output (first 1200 chars): %s",
+                    schema.__name__,
+                    position,
+                    result.content[:1200],
+                )
             raise ModelResponseError(exc.message) from exc
 
         usage = self._build_usage(settings.model, results)

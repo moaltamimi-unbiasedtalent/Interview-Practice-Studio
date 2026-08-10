@@ -1009,3 +1009,25 @@ grid now derives its "concise" budget from `MIN_OUTPUT_TOKENS`.
 
 Reviewer question: why is a single global token budget a foot-gun across tasks
 of very different output sizes, and what would a per-task budget look like?
+
+### Follow-up — parse robustness and diagnostics
+
+A later run failed to parse even with a large token budget (960 output tokens,
+no truncation), so the model returned a full response that was not directly
+loadable as the required JSON object. Two changes make this both more robust
+and diagnosable:
+
+- **Balanced-object extraction.** `parse_json_object` now falls back to
+  extracting the first complete top-level `{...}` object (ignoring braces
+  inside strings) when the whole response is not valid JSON. This tolerates a
+  short preamble or trailing note around an otherwise-valid object without
+  loosening validation of the object's contents. `extra="forbid"` on the
+  models is unchanged, so unknown/injected fields are still rejected.
+- **Concrete failure reason + server-side logging.** The final parse error now
+  includes the specific reason (e.g. which fields failed, or "not valid JSON"),
+  and the service logs a truncated copy of each raw attempt to the console so a
+  formatting failure can be inspected. Model output is not a secret and the
+  output guard has already screened it; API keys are never logged.
+
+Reviewer question: why extract a balanced object rather than loosening the
+schema to accept extra fields, and what would each choice cost in safety?

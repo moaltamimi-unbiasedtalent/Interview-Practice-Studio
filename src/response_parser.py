@@ -68,21 +68,70 @@ def strip_json_fences(text: str) -> str:
     return stripped.strip()
 
 
+def _extract_json_object(text: str) -> str | None:
+    """Return the first complete top-level ``{...}`` object in ``text``.
+
+    Some models (especially when JSON mode is unavailable) wrap the object in a
+    short preamble or trailing note — e.g. ``Here is the strategy: {..}``. This
+    scans for the first ``{`` and returns the substring up to its matching
+    ``}``, correctly ignoring braces that appear inside JSON strings. Returns
+    ``None`` if no balanced object is found. It never edits content inside the
+    object, so a valid object is preserved exactly.
+    """
+    start = text.find("{")
+    if start == -1:
+        return None
+    depth = 0
+    in_string = False
+    escaped = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : index + 1]
+    return None
+
+
 def parse_json_object(text: str) -> dict:
     """Parse ``text`` into a JSON object (dict), safely.
 
     Raises :class:`ResponseParseError` if the text is not valid JSON or is not
     a JSON object. Uses :func:`json.loads` only — never ``eval``/``exec``.
+
+    Parsing is attempted first on the whole (fence-stripped) response. If that
+    is not valid JSON, a single balanced ``{...}`` object is extracted and
+    parsed instead, which tolerates a short preamble or trailing note around an
+    otherwise-valid object without ever loosening validation of its contents.
     """
     cleaned = strip_json_fences(text)
     if not cleaned:
         raise ResponseParseError("The model returned an empty response.")
+    data: object
     try:
         data = json.loads(cleaned)
-    except (json.JSONDecodeError, ValueError) as exc:
-        raise ResponseParseError(
-            "The model response was not valid JSON."
-        ) from exc
+    except (json.JSONDecodeError, ValueError):
+        candidate = _extract_json_object(cleaned)
+        if candidate is None:
+            raise ResponseParseError("The model response was not valid JSON.")
+        try:
+            data = json.loads(candidate)
+        except (json.JSONDecodeError, ValueError) as exc:
+            raise ResponseParseError(
+                "The model response was not valid JSON."
+            ) from exc
     if not isinstance(data, dict):
         raise ResponseParseError(
             "The model response was valid JSON but not a JSON object."
@@ -151,5 +200,5 @@ def parse_structured_output(
         except ResponseParseError as second_error:
             raise ResponseParseError(
                 "The model response could not be parsed after one repair "
-                "attempt. Please try again."
+                f"attempt: {second_error.message} Please try again."
             ) from second_error

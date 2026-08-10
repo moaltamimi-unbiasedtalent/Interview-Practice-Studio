@@ -79,6 +79,24 @@ class TestJsonObjectParsing:
         with pytest.raises(ResponseParseError):
             parse_json_object("__import__('os').system('echo hi')")
 
+    def test_extracts_object_with_preamble(self) -> None:
+        # A model that ignores JSON mode may add a short preamble.
+        text = 'Here is the strategy you asked for:\n{"a": 1, "b": 2}'
+        assert parse_json_object(text) == {"a": 1, "b": 2}
+
+    def test_extracts_object_with_trailing_note(self) -> None:
+        text = '{"a": 1}\n\nLet me know if you need anything else.'
+        assert parse_json_object(text) == {"a": 1}
+
+    def test_extraction_ignores_braces_inside_strings(self) -> None:
+        # A closing brace inside a string value must not end the object early.
+        text = 'note: {"a": "value with } brace", "b": 2}'
+        assert parse_json_object(text) == {"a": "value with } brace", "b": 2}
+
+    def test_still_raises_when_no_object_present(self) -> None:
+        with pytest.raises(ResponseParseError):
+            parse_json_object("there is no json here at all")
+
 
 # --- Structured output with repair ------------------------------------------
 
