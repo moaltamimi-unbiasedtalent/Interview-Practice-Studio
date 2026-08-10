@@ -1050,3 +1050,28 @@ inventing values. Only the two enums the model fills in freely (question
 
 Reviewer question: why is normalising to a canonical value safer than either
 (a) accepting any string or (b) failing on every surface variant?
+
+### Follow-up — lenient enums for model-invented classification fields
+
+The next failure was `question_type`: the model returns open-ended category
+labels (e.g. `system_design`, `motivational`) that no fixed synonym list can
+fully anticipate. Chasing every label with synonyms is a losing game, and
+failing the whole interview over a descriptive tag is the wrong trade-off.
+
+Design decision — separate **input** enums from **model-output** enums:
+
+- **Input enums stay strict.** `InterviewConfiguration` difficulty/type still
+  reject any unknown value (injection defence and configuration integrity are
+  unchanged). A test asserts this explicitly.
+- **Model-output classification enums are lenient.** A new
+  `_make_lenient_enum_type` coerces an unmappable `question_type` or generated
+  `difficulty` to a safe in-vocabulary default (`behavioural` / `moderate`) and
+  logs the coercion, so the interview continues. These types (`QuestionType`,
+  `ModelDifficulty`) are used only in generated output, never on input.
+- **Prompt guidance** now tells the model to set `question_type` to one of the
+  session's interview types and `difficulty` to exactly easy/moderate/hard,
+  which keeps the recorded label accurate and makes coercion rare.
+
+Reviewer question: why is it correct to coerce a model's descriptive tag but
+wrong to coerce a user's configuration value? (Trust boundary: output is ours
+to normalise; input must be validated, not silently changed.)

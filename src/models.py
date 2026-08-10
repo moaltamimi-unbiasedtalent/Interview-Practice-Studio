@@ -24,6 +24,7 @@ Design rules followed throughout this module:
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Annotated
 
@@ -37,6 +38,8 @@ from pydantic import (
 )
 
 from src import constants
+
+_LOGGER = logging.getLogger(__name__)
 
 __all__ = [
     "InterviewConfiguration",
@@ -128,6 +131,45 @@ def _make_enum_type(
     return Annotated[str, AfterValidator(_check)]
 
 
+def _make_lenient_enum_type(
+    allowed: tuple[str, ...],
+    label: str,
+    default: str,
+    synonyms: dict[str, str] | None = None,
+):
+    """Like :func:`_make_enum_type`, but coerces an unknown value to ``default``.
+
+    This is used only for the descriptive classification fields the model
+    *invents* in its output (a question's ``question_type`` and ``difficulty``).
+    Those are open-ended labels — a model may reasonably answer ``"motivational"``
+    or ``"system_design"`` — and failing the whole interview over a metadata tag
+    is worse than recording the nearest in-vocabulary value. Case/whitespace and
+    the synonym map are applied first; anything still unmatched is logged and
+    mapped to ``default`` (always a member of ``allowed``). This never runs on
+    user-supplied input, so input validation stays strict.
+    """
+    canonical = {_normalise_enum_key(value): value for value in allowed}
+    synonym_keys = {
+        _normalise_enum_key(key): value for key, value in (synonyms or {}).items()
+    }
+    if default not in allowed:  # pragma: no cover - guards a programming error
+        raise ValueError(f"default {default!r} is not in the allowed {label} set")
+
+    def _check(value: str) -> str:
+        if isinstance(value, str):
+            key = _normalise_enum_key(value)
+            if key in canonical:
+                return canonical[key]
+            if key in synonym_keys:
+                return synonym_keys[key]
+        _LOGGER.warning(
+            "Coerced unrecognised %s %r to default %r", label, value, default
+        )
+        return default
+
+    return Annotated[str, AfterValidator(_check)]
+
+
 def _make_enum_list_type(allowed: tuple[str, ...], label: str):
     """Build a non-empty list type whose items are all in ``allowed``."""
 
@@ -191,7 +233,8 @@ _QUESTION_TYPE_SYNONYMS = {
     "stakeholder_management": "stakeholder",
 }
 
-# Enum-like scalar types (values validated against constants).
+# Enum-like scalar types for validated INPUT (strict — an unknown value is
+# rejected). These guard user- and programmatically-supplied configuration.
 CareerLevel = _make_enum_type(constants.CAREER_LEVELS, "career_level")
 InterviewerPersona = _make_enum_type(constants.INTERVIEWER_PERSONAS, "interviewer_persona")
 Difficulty = _make_enum_type(
@@ -200,11 +243,25 @@ Difficulty = _make_enum_type(
 BranchMode = _make_enum_type(constants.BRANCH_MODES, "branch_mode")
 ResponseDetail = _make_enum_type(constants.RESPONSE_DETAIL_LEVELS, "response_detail")
 PromptTechnique = _make_enum_type(constants.PROMPT_TECHNIQUES, "prompt_technique")
-QuestionType = _make_enum_type(
-    constants.INTERVIEW_TYPES, "question_type", synonyms=_QUESTION_TYPE_SYNONYMS
-)
 CostSource = _make_enum_type(constants.COST_SOURCES, "cost_source")
 ApprovedModel = _make_enum_type(tuple(constants.APPROVED_MODELS), "model")
+
+# Classification fields the MODEL fills in freely in its output. These are
+# lenient: a value that cannot be mapped to the vocabulary is recorded as the
+# nearest safe default (and logged) rather than failing the whole interview
+# over a descriptive tag. Used only in generated output, never on input.
+ModelDifficulty = _make_lenient_enum_type(
+    constants.DIFFICULTY_LEVELS,
+    "difficulty",
+    default="moderate",
+    synonyms=_DIFFICULTY_SYNONYMS,
+)
+QuestionType = _make_lenient_enum_type(
+    constants.INTERVIEW_TYPES,
+    "question_type",
+    default="behavioural",
+    synonyms=_QUESTION_TYPE_SYNONYMS,
+)
 
 # Enum-like list type.
 InterviewTypeList = _make_enum_list_type(constants.INTERVIEW_TYPES, "interview type")
@@ -355,7 +412,9 @@ class InterviewQuestion(_StudioModel):
     competency: ShortText = Field(
         description="Primary competency the question assesses."
     )
-    difficulty: Difficulty = Field(description="Difficulty band for this question.")
+    difficulty: ModelDifficulty = Field(
+        description="Difficulty band for this question."
+    )
     interviewer_intent: FreeText = Field(
         description="Concise note on what a strong answer should demonstrate "
         "(a rubric hint, not hidden reasoning)."
@@ -574,7 +633,9 @@ class BranchQuestion(_StudioModel):
     expected_answer_elements: StrList = Field(
         description="Key elements a strong answer to this branch would include."
     )
-    difficulty: Difficulty = Field(description="Difficulty band for this branch.")
+    difficulty: ModelDifficulty = Field(
+        description="Difficulty band for this branch."
+    )
     depth: int = Field(
         ge=1,
         le=constants.MAX_BRANCH_DEPTH,

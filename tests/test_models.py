@@ -191,6 +191,14 @@ class TestEnumValidation:
                 **{**_valid_configuration_kwargs(), "interview_types": ["telepathy"]}
             )
 
+    def test_invalid_input_difficulty_strictly_rejected(self) -> None:
+        # Input difficulty stays strict (unlike a model's generated difficulty):
+        # an unknown value is rejected, never coerced.
+        with pytest.raises(ValidationError):
+            InterviewConfiguration(
+                **{**_valid_configuration_kwargs(), "difficulty": "impossible"}
+            )
+
     def test_unapproved_model_rejected(self) -> None:
         with pytest.raises(ValidationError):
             ModelSettings(model="anthropic/claude-not-approved")
@@ -327,11 +335,14 @@ class TestInterviewQuestion:
         with pytest.raises(ValidationError):
             InterviewQuestion(**{**_valid_question_kwargs(), "question_id": 0})
 
-    def test_invalid_question_type_rejected(self) -> None:
-        with pytest.raises(ValidationError):
-            InterviewQuestion(
-                **{**_valid_question_kwargs(), "question_type": "riddle"}
-            )
+    def test_unmappable_question_type_coerced_to_default(self) -> None:
+        # question_type is a descriptive label the model invents; an
+        # unrecognised value is recorded as the safe default, not rejected, so a
+        # whole interview never fails over a metadata tag.
+        question = InterviewQuestion(
+            **{**_valid_question_kwargs(), "question_type": "riddle"}
+        )
+        assert question.question_type == "behavioural"
 
     @pytest.mark.parametrize(
         "given, expected",
@@ -372,12 +383,13 @@ class TestInterviewQuestion:
         )
         assert question.question_type == expected
 
-    def test_unmappable_difficulty_still_rejected(self) -> None:
-        # Tolerance is closed: an unknown value is still refused, never coerced.
-        with pytest.raises(ValidationError):
-            InterviewQuestion(
-                **{**_valid_question_kwargs(), "difficulty": "impossible"}
-            )
+    def test_unmappable_difficulty_coerced_to_default(self) -> None:
+        # In generated output an unknown difficulty is recorded as the safe
+        # default rather than failing the interview.
+        question = InterviewQuestion(
+            **{**_valid_question_kwargs(), "difficulty": "impossible"}
+        )
+        assert question.difficulty == "moderate"
 
 
 # --- UsageRecord -------------------------------------------------------------

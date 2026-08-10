@@ -485,7 +485,11 @@ _TASK_INSTRUCTIONS = {
         "Generate the single next interview question. Adapt to the profession, "
         "seniority and selected interview type(s), and to the job description "
         "when present. Do not repeat any previous question listed in the "
-        "reference data. Never assume experience the candidate has not stated."
+        "reference data. Never assume experience the candidate has not stated.\n"
+        "Set 'question_type' to one of the interview type(s) listed in SESSION "
+        "PARAMETERS, written in lowercase with underscores (e.g. behavioural, "
+        "technical, case_study). Set 'difficulty' to exactly one of: easy, "
+        "moderate, hard."
     ),
     TASK_EVALUATION: _TASK,
     TASK_REPORT: (
