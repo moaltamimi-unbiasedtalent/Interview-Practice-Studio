@@ -1075,3 +1075,24 @@ Design decision — separate **input** enums from **model-output** enums:
 Reviewer question: why is it correct to coerce a model's descriptive tag but
 wrong to coerce a user's configuration value? (Trust boundary: output is ours
 to normalise; input must be validated, not silently changed.)
+
+### Follow-up — ignore surplus keys in model output (not input)
+
+The evaluation step then failed on `stronger_answer_structure` — a key the
+model *added* that is not in `AnswerEvaluation`. The schemas used
+`extra="forbid"`, so any well-meant surplus field failed the whole response.
+This is the same trust-boundary lesson as the enums: strict for input, tolerant
+for model output.
+
+Fix: a new `_GeneratedModel` base sets `extra="ignore"`, and the five
+model-parsed schemas (`InterviewStrategy`, `InterviewQuestion`,
+`AnswerEvaluation`, `FinalInterviewReport`, `BranchQuestion`) inherit it. Input
+and internal models (`InterviewConfiguration`, `ModelSettings`, `UsageRecord`,
+`ModelPricing`) keep `extra="forbid"`. Required fields are still validated, so
+missing or malformed values are still rejected and nothing is invented; a stray
+field is simply dropped and never reaches the UI (the no-hidden-reasoning guard
+still holds because a `chain_of_thought` key is dropped, not surfaced).
+
+Reviewer question: what is the difference in risk between an unexpected key in
+*user input* versus in *model output*, and why does that justify different
+`extra` policies?

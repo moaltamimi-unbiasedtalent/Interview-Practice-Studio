@@ -456,11 +456,16 @@ class TestUnknownFields:
                 **{**_valid_configuration_kwargs(), "secret_flag": True}
             )
 
-    def test_unknown_field_rejected_on_evaluation(self) -> None:
-        with pytest.raises(ValidationError):
-            AnswerEvaluation(
-                **{**_valid_evaluation_kwargs(), "chain_of_thought": "hidden"}
-            )
+    def test_unknown_field_ignored_on_generated_model(self) -> None:
+        # Generated (model-output) schemas ignore surplus keys the model may
+        # add, rather than failing the whole response. The extra data is
+        # dropped, so a stray field such as chain_of_thought never reaches the
+        # validated object or the UI — the no-hidden-reasoning guard still holds.
+        evaluation = AnswerEvaluation(
+            **{**_valid_evaluation_kwargs(), "chain_of_thought": "hidden"}
+        )
+        assert not hasattr(evaluation, "chain_of_thought")
+        assert "chain_of_thought" not in evaluation.model_dump()
 
     def test_unknown_field_rejected_on_usage(self) -> None:
         with pytest.raises(ValidationError):

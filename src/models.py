@@ -72,6 +72,22 @@ class _StudioModel(BaseModel):
     )
 
 
+class _GeneratedModel(_StudioModel):
+    """Base for objects parsed from *model output* (not user input).
+
+    Identical to :class:`_StudioModel` except that unknown keys are **ignored**
+    rather than rejected. A language model routinely adds an extra, well-meant
+    field (e.g. a ``notes`` or ``stronger_answer_structure`` key) that is not
+    part of the schema; failing the whole interview over such a surplus tag is
+    the wrong trade-off. Every *required* field is still validated, so missing
+    or malformed values are still rejected and nothing is invented — the raw
+    text has also already passed the output safety scan before it reaches here.
+    Input models keep ``extra="forbid"`` so caller mistakes are still caught.
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+
 # --- Reusable validators and field types ------------------------------------
 
 
@@ -360,7 +376,7 @@ class ModelSettings(_StudioModel):
 # --- Structured-output models ------------------------------------------------
 
 
-class InterviewStrategy(_StudioModel):
+class InterviewStrategy(_GeneratedModel):
     """A preparation strategy the model produces for the chosen role.
 
     Every list section must contain at least one concrete item; an empty
@@ -399,7 +415,7 @@ class InterviewStrategy(_StudioModel):
     )
 
 
-class InterviewQuestion(_StudioModel):
+class InterviewQuestion(_GeneratedModel):
     """A single interview question with its assessment intent."""
 
     question_id: int = Field(
@@ -424,7 +440,7 @@ class InterviewQuestion(_StudioModel):
     )
 
 
-class AnswerEvaluation(_StudioModel):
+class AnswerEvaluation(_GeneratedModel):
     """Structured, rubric-based feedback on one candidate answer.
 
     Scores are practice feedback only and never an objective hiring decision.
@@ -468,7 +484,7 @@ class AnswerEvaluation(_StudioModel):
     )
 
 
-class FinalInterviewReport(_StudioModel):
+class FinalInterviewReport(_GeneratedModel):
     """End-of-session summary across all answers."""
 
     overall_readiness_score: OverallScore = Field(
@@ -606,7 +622,7 @@ class ModelPricing(_StudioModel):
 # --- Interview Deep Dive (branching) -----------------------------------------
 
 
-class BranchQuestion(_StudioModel):
+class BranchQuestion(_GeneratedModel):
     """A deeper "deep dive" question that branches from an evaluated answer.
 
     A branch question deepens the topic of a parent interview question using the
