@@ -58,6 +58,58 @@ class RaisingClient:
         raise self._exc
 
 
+class TruncatingClient:
+    """Always returns unparseable content flagged as truncated (length)."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def create_chat_completion(self, **kwargs) -> ChatResult:
+        self.calls += 1
+        return ChatResult(
+            content="{ partial json that was cut off",
+            model=kwargs["model"],
+            prompt_tokens=100,
+            completion_tokens=50,
+            total_tokens=150,
+            reported_cost=0.001,
+            duration_seconds=0.5,
+            request_id="trunc-test",
+            finish_reason="length",
+        )
+
+
+def _make_question(index: int) -> InterviewQuestion:
+    return InterviewQuestion(
+        question_id=index,
+        question=f"Question number {index}?",
+        question_type="behavioural",
+        competency="teamwork",
+        difficulty="moderate",
+        interviewer_intent="See how they respond.",
+        expected_answer_elements=["situation", "action", "result"],
+    )
+
+
+def _make_eval() -> AnswerEvaluation:
+    return AnswerEvaluation(
+        overall_score=70,
+        relevance=7,
+        structure=7,
+        evidence=7,
+        role_knowledge=7,
+        problem_solving=7,
+        communication=7,
+        credibility=7,
+        strengths=["clear"],
+        improvement_areas=["add metrics", "be concise"],
+        missing_evidence=["numbers"],
+        stronger_answer_structure="STAR",
+        improved_example_answer="Example.",
+        follow_up_question="What was the impact?",
+    )
+
+
 def _models(supported=("temperature", "max_tokens", "response_format")):
     return [
         {
@@ -174,6 +226,96 @@ class TestGenerateStrategy:
         assert len(client.calls) == 3  # 2 failed calls + 1 successful
         # Cost is honest: it includes every billed call, not just the last one.
         assert usage.total_tokens == 150 * 3
+
+
+# --- Token-budget hardening --------------------------------------------------
+
+
+class TestTokenBudgetHardening:
+    def test_previous_answers_are_bounded(self) -> None:
+        # A long interview must not send every prior answer (up to
+        # MAX_ANSWER_CHARS each) on each turn: only the most recent few answers
+        # are included, while every question (short, for no-repeat) remains.
+        n = constants.MAX_HISTORY_ANSWERS
+        total = n + 3
+        questions = [_make_question(i) for i in range(1, total + 1)]
+        answers = [f"answer number {i} " + "x" * 50 for i in range(1, total + 1)]
+        evaluations = [_make_eval() for _ in range(total)]
+        client = FakeClient([_question_json()])
+        service = InterviewService(client, _pricing())
+        service.generate_next_question(
+            _config(),
+            _settings(),
+            current_question_number=total + 1,
+            history=QuestionHistory(
+                questions=questions, answers=answers, evaluations=evaluations
+            ),
+        )
+        user_message = client.calls[0]["messages"][-1]["content"]
+        assert user_message.count("previous_answer_") == n
+        assert user_message.count("previous_question_") == total
+        assert f"answer number {total} " in user_message  # newest kept
+        assert "answer number 1 " not in user_message  # oldest dropped
+
+    def test_truncated_output_is_distinct_error_and_not_retried(self) -> None:
+        # finish_reason == "length" means the budget was exhausted; a fresh
+        # attempt with the same budget cannot succeed, so it must not be retried.
+        client = TruncatingClient()
+        service = InterviewService(client, _pricing())
+        with pytest.raises(ModelResponseError) as excinfo:
+            service.generate_strategy(_config(), _settings())
+        assert "output-token limit" in str(excinfo.value)
+        # One attempt only (primary + its single repair), then stop — not the
+        # full GENERATION_MAX_ATTEMPTS * 2 calls.
+        assert client.calls == 2
+
+    def test_request_budget_capped_to_model_max_completion(self) -> None:
+        # The requested max_tokens is lowered to the model's advertised
+        # completion limit, so we never ask for more than the model allows.
+        pricing = PricingService(
+            models_fetcher=lambda: [
+                {
+                    "id": MODEL,
+                    "pricing": {"prompt": "0.0000006", "completion": "0.0000018"},
+                    "supported_parameters": ["temperature", "max_tokens"],
+                    "top_provider": {"max_completion_tokens": 100},
+                }
+            ]
+        )
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, pricing)
+        service.generate_strategy(_config(), _settings(max_tokens=1024))
+        assert client.calls[0]["max_tokens"] == 100
+
+    def test_repaired_output_is_safety_checked(self) -> None:
+        # The repaired response is model output too and must pass the same
+        # output safety scan as the primary response.
+        client = FakeClient(["not valid json", _strategy_json()])
+        service = InterviewService(client, _pricing())
+        seen: list[str] = []
+        original = service._guard_output
+
+        def spy(content: str) -> None:
+            seen.append(content)
+            return original(content)
+
+        service._guard_output = spy  # type: ignore[method-assign]
+        strategy, _ = service.generate_strategy(_config(), _settings())
+        assert isinstance(strategy, InterviewStrategy)
+        assert len(seen) == 2  # both the primary and the repaired response
+        assert seen[0] == "not valid json"
+
+    def test_failed_generation_still_records_usage(self) -> None:
+        # Failed attempts still consume billed tokens; they are recorded for
+        # honest session totals even though no object is returned.
+        pricing = _pricing()
+        bad = ["nope"] * (constants.GENERATION_MAX_ATTEMPTS * 2)
+        service = InterviewService(FakeClient(bad), pricing)
+        with pytest.raises(ModelResponseError):
+            service.generate_strategy(_config(), _settings())
+        totals = pricing.session_totals()
+        assert totals.requests == 1  # one aggregated record for the failed call
+        assert totals.total_tokens > 0
 
 
 # --- Next question -----------------------------------------------------------

@@ -168,6 +168,40 @@ class PricingService:
         """Whether the model supports structured output (response_format)."""
         return "response_format" in self.supported_parameters(model_id)
 
+    @staticmethod
+    def _positive_int(value: object) -> int | None:
+        """Return a positive int from metadata, or None if absent/invalid."""
+        if isinstance(value, bool):  # bool is an int subclass; reject it
+            return None
+        if isinstance(value, (int, float)) and value > 0:
+            return int(value)
+        return None
+
+    def context_length(self, model_id: str) -> int | None:
+        """The model's total context window (tokens), if metadata provides it.
+
+        Read-only accessor over existing OpenRouter model metadata; returns
+        None when the field is absent so callers can degrade gracefully.
+        """
+        entry = self._ensure_loaded().get(model_id)
+        if entry is None:
+            return None
+        return self._positive_int(entry.get("context_length"))
+
+    def max_completion_tokens(self, model_id: str) -> int | None:
+        """The model's maximum output tokens, if metadata provides it.
+
+        OpenRouter reports this under ``top_provider.max_completion_tokens``.
+        Returns None when absent so the caller keeps its own budget.
+        """
+        entry = self._ensure_loaded().get(model_id)
+        if entry is None:
+            return None
+        top_provider = entry.get("top_provider")
+        if not isinstance(top_provider, dict):
+            return None
+        return self._positive_int(top_provider.get("max_completion_tokens"))
+
     # -- cost resolution ------------------------------------------------------
 
     def calculate_cost_usd(

@@ -1154,3 +1154,33 @@ output. The fixes fall into three families — content/budget (reasoning control
 token floor, retries), shape (JSON extraction, ignore surplus keys, flatten
 text), and vocabulary (tolerant + lenient enums). Input validation stayed
 strict throughout; only *model output* was made tolerant.
+
+### Token-budget audit — five confirmed issues fixed
+
+A focused audit of the token-budget paths confirmed all five suspected issues.
+Each fix is small and preserves the existing architecture (no new service layer,
+no frameworks).
+
+1. **Unbounded prompt-history growth.** `generate_next_question` sent every
+   prior answer (each up to `MAX_ANSWER_CHARS`) on every turn — up to ~120k
+   characters by question 20 — risking context-window overflow. Fix: keep all
+   (short) previous questions and all compact evaluation summaries, but bound
+   the full answer texts to the most recent `MAX_HISTORY_ANSWERS` (4).
+2. **Truncation ignored + futile retries.** `finish_reason` was recorded on
+   `ChatResult` but never acted on; a truncated (`length`) response failed
+   parsing and was retried with the *same* budget. Fix: on a parse failure
+   where any response was truncated, raise a distinct, actionable error
+   ("increase Maximum output tokens") and stop — no same-budget retry.
+3. **Model limits ignored.** `PricingService` read pricing and supported
+   parameters but not `context_length` / `top_provider.max_completion_tokens`.
+   Fix: small read-only accessors for both, and the service now caps the
+   requested `max_tokens` at the model's completion limit (never raising it).
+4. **Answer length not enforced.** Streamlit chat answers went straight to
+   session state and the API without the `MAX_ANSWER_CHARS` check. Fix: both
+   handlers validate via `security.validate_field("candidate_answer")` before
+   any state change, and the inputs carry `max_chars`. (Injection screening is
+   still deliberately not applied to answers.)
+5. **Repair unguarded + failed calls unbilled.** The automatic repair response
+   bypassed the output safety scan, and a fully-failed generation recorded no
+   usage. Fix: the repaired response is now safety-scanned like the primary,
+   and every billed call is recorded even when all attempts fail.

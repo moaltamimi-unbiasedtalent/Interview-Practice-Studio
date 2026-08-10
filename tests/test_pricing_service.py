@@ -71,6 +71,42 @@ class TestMetadata:
         assert service.supports_response_format(MINI) is True
         assert service.supports_response_format(NANO) is False
 
+    def test_context_and_completion_limits_read_from_metadata(self) -> None:
+        pricing = PricingService(
+            models_fetcher=lambda: [
+                {
+                    "id": MINI,
+                    "pricing": {"prompt": "0.0000006", "completion": "0.0000018"},
+                    "context_length": 400_000,
+                    "top_provider": {"max_completion_tokens": 128_000},
+                }
+            ]
+        )
+        assert pricing.context_length(MINI) == 400_000
+        assert pricing.max_completion_tokens(MINI) == 128_000
+
+    def test_limits_absent_or_invalid_return_none(self) -> None:
+        pricing = PricingService(
+            models_fetcher=lambda: [
+                {
+                    "id": MINI,
+                    "pricing": {"prompt": "0.0000006", "completion": "0.0000018"},
+                    # no context_length; top_provider present but no completion cap
+                    "top_provider": {"is_moderated": True},
+                },
+                {
+                    "id": NANO,
+                    "pricing": {"prompt": "0.0000001", "completion": "0.0000004"},
+                    "context_length": 0,  # non-positive -> treated as absent
+                },
+            ]
+        )
+        assert pricing.context_length(MINI) is None
+        assert pricing.max_completion_tokens(MINI) is None
+        assert pricing.context_length(NANO) is None
+        assert pricing.context_length("no/such-model") is None
+        assert pricing.max_completion_tokens("no/such-model") is None
+
     def test_metadata_cached_for_session(self) -> None:
         calls = {"n": 0}
 

@@ -407,6 +407,11 @@ def _generate_next_question(session: SessionManager, *, first: bool = False) -> 
 
 
 def _handle_answer(session: SessionManager, answer: str) -> None:
+    try:
+        answer = security.validate_field(answer, "candidate_answer")
+    except security.InputValidationError as exc:
+        st.error(str(exc))
+        return
     if not session.begin_operation("evaluate"):
         return
     config = load_config()
@@ -492,6 +497,11 @@ def _handle_start_branch(session: SessionManager, mode: str) -> None:
 
 
 def _handle_branch_answer(session: SessionManager, answer: str) -> None:
+    try:
+        answer = security.validate_field(answer, "candidate_answer")
+    except security.InputValidationError as exc:
+        st.error(str(exc))
+        return
     if not session.begin_operation("branch_evaluate"):
         return
     config = load_config()
@@ -567,7 +577,10 @@ def render_interview(session: SessionManager) -> None:
     # --- Deep Dive (branch) mode ---------------------------------------------
     if data.branch_active:
         if session.state is SessionState.BRANCH_AWAITING_ANSWER:
-            answer = st.chat_input("Answer the deep-dive question…")
+            answer = st.chat_input(
+                "Answer the deep-dive question…",
+                max_chars=constants.MAX_ANSWER_CHARS,
+            )
             if answer:
                 _handle_branch_answer(session, answer)
                 st.rerun()
@@ -587,7 +600,9 @@ def render_interview(session: SessionManager) -> None:
         st.divider()
 
     if session.state is SessionState.AWAITING_ANSWER:
-        answer = st.chat_input("Type your answer…")
+        answer = st.chat_input(
+            "Type your answer…", max_chars=constants.MAX_ANSWER_CHARS
+        )
         if answer:
             _handle_answer(session, answer)
             st.rerun()

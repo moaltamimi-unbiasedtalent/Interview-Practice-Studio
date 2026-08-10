@@ -168,6 +168,9 @@ class BaseGenerationService:
                     repair_messages, settings, response_format, supported
                 )
                 _results.append(repaired)
+                # The repaired text is model output too: apply the same safety
+                # scan as the primary response before it is parsed or used.
+                self._guard_output(repaired.content)
                 return repaired.content
 
             try:
@@ -196,6 +199,17 @@ class BaseGenerationService:
                         position,
                         result.content[:1200],
                     )
+                # If the response was cut off at the output-token limit, a fresh
+                # attempt with the *same* budget cannot succeed either. Stop and
+                # return a distinct, actionable error rather than burning further
+                # identical attempts.
+                if any(r.finish_reason == "length" for r in results):
+                    self._record_billed(settings.model, billed)
+                    raise ModelResponseError(
+                        "The response was cut off because it reached the "
+                        "output-token limit. Increase 'Maximum output tokens' "
+                        "in the developer settings and try again."
+                    ) from exc
                 continue
 
             # Success — bill every call made across all attempts, then return.
@@ -204,8 +218,33 @@ class BaseGenerationService:
             self._pricing.record_usage(usage)
             return obj, usage
 
-        # Every attempt failed; surface the last controlled reason.
+        # Every attempt failed; still record the tokens every attempt consumed
+        # (they were billed by the provider), then surface the last reason.
+        self._record_billed(settings.model, billed)
         raise ModelResponseError(last_error.message) from last_error
+
+    def _record_billed(self, model: str, billed: list[ChatResult]) -> None:
+        """Record usage for calls that were made but did not yield a result.
+
+        Failed attempts still consume tokens the provider bills for, so their
+        usage is recorded (for honest session totals) even though no validated
+        object is returned.
+        """
+        if billed:
+            self._pricing.record_usage(self._build_usage(model, billed))
+
+    def _effective_max_tokens(self, settings: ModelSettings) -> int:
+        """Never request more output than the model itself allows.
+
+        The requested budget is capped at the model's advertised
+        ``max_completion_tokens`` when metadata provides it; otherwise the
+        user's setting is used unchanged. This only ever lowers the request, so
+        it cannot cause an over-budget call to a model with a small limit.
+        """
+        cap = self._pricing.max_completion_tokens(settings.model)
+        if cap is not None and cap > 0:
+            return min(settings.max_tokens, cap)
+        return settings.max_tokens
 
     def _call_model(
         self, messages, settings: ModelSettings, response_format, supported
@@ -215,7 +254,7 @@ class BaseGenerationService:
                 model=settings.model,
                 messages=messages,
                 temperature=settings.temperature,
-                max_tokens=settings.max_tokens,
+                max_tokens=self._effective_max_tokens(settings),
                 response_format=response_format,
                 supported_parameters=supported,
                 # Reasoning models (e.g. GPT-5) otherwise spend the whole output
@@ -320,8 +359,13 @@ class InterviewService(BaseGenerationService):
             config.candidate_background,
         )
 
+        # Keep every previous question (short; needed so the model does not
+        # repeat one) and every compact evaluation summary (drives difficulty
+        # adaptation). Bound only the full answer texts — the dominant token
+        # cost — to the most recent few, so the prompt cannot grow without limit
+        # across a long interview and overflow the model's context window.
         previous_questions = [q.question for q in history.questions]
-        previous_answers = list(history.answers)
+        previous_answers = list(history.answers)[-constants.MAX_HISTORY_ANSWERS :]
         previous_summaries = [
             f"score {e.overall_score}/100; improve: "
             + "; ".join(e.improvement_areas[:2])

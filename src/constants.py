@@ -154,6 +154,13 @@ MIN_QUESTIONS = 1
 MAX_QUESTIONS = 20
 DEFAULT_NUMBER_OF_QUESTIONS = 6
 
+# How many prior candidate answers to include, in full, when generating the
+# next question. Previous questions (short) and compact evaluation summaries are
+# always sent so the no-repeat rule and difficulty adaptation still work; only
+# the full answer texts — the dominant token cost, up to MAX_ANSWER_CHARS each —
+# are bounded to the most recent few so the prompt cannot grow without limit.
+MAX_HISTORY_ANSWERS = 4
+
 # --- Interview Deep Dive (branching) -----------------------------------------
 # A candidate may branch from an evaluated answer to explore the same topic in
 # more depth, then return to the main interview. Branch modes are the kinds of
