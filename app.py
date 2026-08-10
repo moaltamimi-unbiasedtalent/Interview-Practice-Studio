@@ -40,10 +40,18 @@ def get_session() -> SessionManager:
 
 
 def get_pricing_service() -> PricingService:
-    """A pricing service kept in session so its metadata cache persists."""
-    if "_pricing_service" not in st.session_state:
-        st.session_state["_pricing_service"] = PricingService()
-    return st.session_state["_pricing_service"]
+    """A pricing service kept in session so its metadata cache persists.
+
+    After a code hot-reload the cached instance can predate the current
+    ``PricingService`` class (a stale instance keeps referencing the old class
+    object). The ``isinstance`` check detects that and rebuilds it, so newly
+    added accessors are always available instead of raising ``AttributeError``.
+    """
+    cached = st.session_state.get("_pricing_service")
+    if not isinstance(cached, PricingService):
+        cached = PricingService()
+        st.session_state["_pricing_service"] = cached
+    return cached
 
 
 def build_services(

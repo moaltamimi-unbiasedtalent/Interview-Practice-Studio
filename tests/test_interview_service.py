@@ -79,6 +79,23 @@ class TruncatingClient:
         )
 
 
+class _StalePricing:
+    """A pricing object that lacks ``max_completion_tokens``.
+
+    Reproduces the reported regression: after a hot reload the cached pricing
+    instance can predate the accessor. Every other call is delegated to a real
+    service; only ``max_completion_tokens`` is missing.
+    """
+
+    def __init__(self, inner: PricingService) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str):
+        if name == "max_completion_tokens":
+            raise AttributeError(name)
+        return getattr(self._inner, name)
+
+
 def _make_question(index: int) -> InterviewQuestion:
     return InterviewQuestion(
         question_id=index,
@@ -270,8 +287,8 @@ class TestTokenBudgetHardening:
         assert client.calls == 2
 
     def test_request_budget_capped_to_model_max_completion(self) -> None:
-        # The requested max_tokens is lowered to the model's advertised
-        # completion limit, so we never ask for more than the model allows.
+        # A configured budget ABOVE the model's advertised completion limit is
+        # lowered to that limit, so we never ask for more than the model allows.
         pricing = PricingService(
             models_fetcher=lambda: [
                 {
@@ -286,6 +303,43 @@ class TestTokenBudgetHardening:
         service = InterviewService(client, pricing)
         service.generate_strategy(_config(), _settings(max_tokens=1024))
         assert client.calls[0]["max_tokens"] == 100
+
+    def test_budget_below_model_limit_is_unchanged(self) -> None:
+        # A recognised limit that is ABOVE the configured budget leaves the
+        # request unchanged (the cap only ever lowers, never raises).
+        pricing = PricingService(
+            models_fetcher=lambda: [
+                {
+                    "id": MODEL,
+                    "pricing": {"prompt": "0.0000006", "completion": "0.0000018"},
+                    "supported_parameters": ["temperature", "max_tokens"],
+                    "top_provider": {"max_completion_tokens": 4096},
+                }
+            ]
+        )
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, pricing)
+        service.generate_strategy(_config(), _settings(max_tokens=1024))
+        assert client.calls[0]["max_tokens"] == 1024
+
+    def test_missing_completion_limit_uses_configured_budget(self) -> None:
+        # Metadata without a completion limit must leave the configured budget
+        # unchanged rather than invent a cap.
+        client = FakeClient([_strategy_json()])  # _models() has no top_provider
+        service = InterviewService(client, _pricing())
+        service.generate_strategy(_config(), _settings(max_tokens=777))
+        assert client.calls[0]["max_tokens"] == 777
+
+    def test_pricing_without_completion_accessor_does_not_raise(self) -> None:
+        # Regression: an injected pricing object lacking max_completion_tokens
+        # (e.g. a stale instance after a hot reload) must fall back to the
+        # configured budget, never raise AttributeError.
+        stale = _StalePricing(_pricing())
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, stale)
+        strategy, _ = service.generate_strategy(_config(), _settings(max_tokens=800))
+        assert isinstance(strategy, InterviewStrategy)
+        assert client.calls[0]["max_tokens"] == 800
 
     def test_repaired_output_is_safety_checked(self) -> None:
         # The repaired response is model output too and must pass the same

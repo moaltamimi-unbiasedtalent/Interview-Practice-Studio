@@ -1184,3 +1184,25 @@ no frameworks).
    bypassed the output safety scan, and a fully-failed generation recorded no
    usage. Fix: the repaired response is now safety-scanned like the primary,
    and every billed call is recorded even when all attempts fail.
+
+### Regression fix — stale cached PricingService after hot reload
+
+Symptom: `AttributeError: 'PricingService' object has no attribute
+'max_completion_tokens'` from `interview_service._effective_max_tokens`.
+
+Root cause (not an invented method): the accessor *does* exist on the current
+class, but `app.get_pricing_service()` caches the instance in
+`st.session_state`. After a code hot-reload the cached instance still points to
+the pre-patch class object, which lacks the new accessor. It is a stale-instance
+problem, not a missing method.
+
+Fix (two small, safe parts):
+- `_effective_max_tokens` resolves the accessor with `getattr(..., None)` and
+  falls back to the configured `settings.max_tokens` if it is absent or returns
+  no positive limit — so a missing accessor can never raise into Streamlit.
+- `get_pricing_service()` rebuilds the cached service when it is not an instance
+  of the current class (`isinstance` fails across a reload), so the accessor is
+  available again without a manual restart.
+
+The cap still only ever *lowers* the request to a model's advertised limit and
+is a no-op when metadata omits one.

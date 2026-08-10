@@ -240,9 +240,17 @@ class BaseGenerationService:
         ``max_completion_tokens`` when metadata provides it; otherwise the
         user's setting is used unchanged. This only ever lowers the request, so
         it cannot cause an over-budget call to a model with a small limit.
+
+        The pricing dependency is injected, and across a Streamlit hot reload a
+        previously-cached instance can predate this accessor. Resolve it with
+        ``getattr`` so a missing accessor degrades to the configured budget
+        rather than raising ``AttributeError`` into the UI.
         """
-        cap = self._pricing.max_completion_tokens(settings.model)
-        if cap is not None and cap > 0:
+        getter = getattr(self._pricing, "max_completion_tokens", None)
+        if not callable(getter):
+            return settings.max_tokens
+        cap = getter(settings.model)
+        if isinstance(cap, int) and not isinstance(cap, bool) and cap > 0:
             return min(settings.max_tokens, cap)
         return settings.max_tokens
 
