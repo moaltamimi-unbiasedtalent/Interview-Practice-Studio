@@ -224,7 +224,7 @@ class TestBuildConfiguration:
                 candidate_background="",
                 interview_type_labels=["Behavioural"],
                 persona_label="Neutral hiring manager",
-                difficulty_label="Medium",
+                difficulty_label="Moderate",
                 number_of_questions=3,
                 detail_label="Balanced",
             )
@@ -242,7 +242,7 @@ class TestBuildConfiguration:
                 candidate_background="",
                 interview_type_labels=["Behavioural"],
                 persona_label="Neutral hiring manager",
-                difficulty_label="Medium",
+                difficulty_label="Moderate",
                 number_of_questions=3,
                 detail_label="Balanced",
             )

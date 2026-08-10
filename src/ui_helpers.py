@@ -52,7 +52,10 @@ INTERVIEW_TYPES: list[tuple[str, str]] = [
     ("Recruiter screening", "screening"),
     ("Behavioural", "behavioural"),
     ("Technical or functional", "technical"),
+    ("Situational", "situational"),
+    ("Competency-based", "competency"),
     ("Case or problem-solving", "case_study"),
+    ("Portfolio review", "portfolio"),
     ("Leadership", "leadership"),
     ("Culture and values", "culture_values"),
     ("Stakeholder or client", "stakeholder"),
@@ -70,7 +73,7 @@ PERSONAS: list[tuple[str, str]] = [
 
 DIFFICULTIES: list[tuple[str, str]] = [
     ("Easy", "easy"),
-    ("Medium", "moderate"),
+    ("Moderate", "moderate"),
     ("Hard", "hard"),
 ]
 
@@ -133,7 +136,7 @@ def technique_options() -> list[tuple[str, str]]:
 
 
 def difficulty_default_index() -> int:
-    """Index of the 'Medium' difficulty option (a sensible default)."""
+    """Index of the 'Moderate' difficulty option (a sensible default)."""
     return [domain_id for _, domain_id in DIFFICULTIES].index("moderate")
 
 

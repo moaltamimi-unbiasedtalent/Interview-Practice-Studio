@@ -95,6 +95,27 @@ class TestLabelsSeparatedFromValues:
     def test_every_ui_id_is_a_valid_domain_id(self) -> None:
         for _, domain_id in ui_helpers.INTERVIEW_TYPES:
             assert domain_id in constants.INTERVIEW_TYPES
+
+    def test_ui_exposes_every_interview_type(self) -> None:
+        # The dropdown now offers the full interview-type vocabulary.
+        ui_ids = {domain_id for _, domain_id in ui_helpers.INTERVIEW_TYPES}
+        assert ui_ids == set(constants.INTERVIEW_TYPES)
+
+    def test_new_interview_types_have_labels(self) -> None:
+        type_map = dict(ui_helpers.INTERVIEW_TYPES)
+        assert type_map["Situational"] == "situational"
+        assert type_map["Competency-based"] == "competency"
+        assert type_map["Portfolio review"] == "portfolio"
+
+    def test_difficulty_labels_use_canonical_wording(self) -> None:
+        # The UI label matches the canonical vocabulary term ('Moderate'),
+        # so there is no Medium/moderate mismatch anywhere.
+        difficulty_map = dict(ui_helpers.DIFFICULTIES)
+        assert difficulty_map == {
+            "Easy": "easy",
+            "Moderate": "moderate",
+            "Hard": "hard",
+        }
         for _, domain_id in ui_helpers.PERSONAS:
             assert domain_id in constants.INTERVIEWER_PERSONAS
 

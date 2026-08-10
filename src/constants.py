@@ -34,7 +34,7 @@ MAX_TEMPERATURE = 1.0
 # attempt is a fresh request (plus its own one repair round), so a one-off
 # malformed model response self-heals instead of surfacing an error. Kept small
 # so a genuinely broken model cannot loop or run up cost.
-GENERATION_MAX_ATTEMPTS = 2
+GENERATION_MAX_ATTEMPTS = 3
 
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
 # Floor for the output budget. Every use case produces a structured JSON object

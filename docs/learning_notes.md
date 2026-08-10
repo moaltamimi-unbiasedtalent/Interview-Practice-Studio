@@ -1119,3 +1119,18 @@ retried, and cost accounting bills every call made across all attempts.
 Reviewer question: why is retrying with a fresh generation more effective than
 only repairing the same response, and what stops the retry from hiding a real,
 persistent defect?
+
+### Follow-up — consistency and robustness polish
+
+Three small, requested improvements:
+
+1. **Difficulty label aligned to the vocabulary.** The dropdown showed "Medium"
+   while the canonical value is `moderate`. Renamed the label to "Moderate", so
+   the UI, the prompt and the data all use one word. (The synonym bridge still
+   maps a stray `medium` from the model, but the app no longer introduces the
+   mismatch itself.)
+2. **Full interview-type vocabulary in the UI.** The dropdown offered 9 of the
+   12 types; added "Situational", "Competency-based" and "Portfolio review" so
+   every vocabulary value is selectable.
+3. **More generous self-healing.** `GENERATION_MAX_ATTEMPTS` raised from 2 to 3,
+   giving one more fresh generation before an error can surface. Still bounded.
