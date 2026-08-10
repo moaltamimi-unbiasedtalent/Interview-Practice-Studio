@@ -256,6 +256,21 @@ class TestKeyAndParameters:
         _call(_client(handler))
         assert "response_format" not in captured["body"]
 
+    def test_normal_generation_sends_no_reasoning_override(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        # A normal interview call — even for a reasoning-capable model — must not
+        # add a reasoning override (reasoning defaults to None).
+        _call(
+            _client(handler),
+            supported_parameters=["temperature", "max_tokens", "reasoning"],
+        )
+        assert "reasoning" not in captured["body"]
+
 
 # --- Connection test ---------------------------------------------------------
 
@@ -296,10 +311,34 @@ class TestConnectionTest:
         assert isinstance(result, ChatResult)
         # Realistic for reasoning models, but still intentionally cheap.
         assert captured["body"]["max_tokens"] == constants.CONNECTION_TEST_MAX_TOKENS
-        assert captured["body"]["max_tokens"] == 128
-        assert captured["body"]["max_tokens"] <= 256
+        assert captured["body"]["max_tokens"] == 256
         assert captured["body"]["messages"][0]["role"] == "user"
         assert captured["body"]["messages"][0]["content"] == constants.CONNECTION_TEST_PROMPT
+
+    def test_connection_test_sends_minimal_reasoning_when_supported(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        _client(handler).test_connection(
+            supported_parameters=["temperature", "max_tokens", "reasoning"]
+        )
+        assert captured["body"]["reasoning"]["effort"] == "minimal"
+        assert captured["body"]["reasoning"]["exclude"] is True
+
+    def test_connection_test_omits_reasoning_when_unsupported(self) -> None:
+        captured: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["body"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        _client(handler).test_connection(
+            supported_parameters=["temperature", "max_tokens"]
+        )
+        assert "reasoning" not in captured["body"]
 
     def test_successful_ok_response(self) -> None:
         body = _success_body(

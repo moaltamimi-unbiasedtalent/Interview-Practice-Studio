@@ -163,12 +163,15 @@ def _test_connection(config: AppConfig, model: str) -> None:
     client = OpenRouterClient(config)
     try:
         with st.spinner("Contacting OpenRouter…"):
-            client.test_connection()
-            cache = st.session_state.setdefault(_METADATA_CACHE_KEY, {})
+            # Fetch capabilities first so the test can send a minimal-reasoning
+            # request only when the model supports it (best-effort).
+            supported = None
             try:
-                cache[model] = list(pricing.supported_parameters(model))
+                supported = list(pricing.supported_parameters(model))
+                st.session_state.setdefault(_METADATA_CACHE_KEY, {})[model] = supported
             except Exception:  # noqa: BLE001 - metadata is best-effort
-                pass
+                supported = None
+            client.test_connection(supported_parameters=supported)
         st.success("Connection OK.")
     except OpenRouterError as exc:
         st.error(exc.message)

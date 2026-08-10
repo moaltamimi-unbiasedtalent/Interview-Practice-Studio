@@ -265,6 +265,7 @@ class OpenRouterClient:
         max_tokens: int,
         response_format: dict[str, Any] | None = None,
         supported_parameters: Sequence[str] | None = None,
+        reasoning: dict[str, Any] | None = None,
     ) -> ChatResult:
         """Make a single non-streaming chat-completion request.
 
@@ -272,6 +273,13 @@ class OpenRouterClient:
         known to support it. If it is requested for a model whose
         ``supported_parameters`` do not include ``response_format``, an
         :class:`UnsupportedParameterError` is raised before any network call.
+
+        ``reasoning`` (e.g. ``{"effort": "minimal", "exclude": True}``) is
+        **optional** and off by default — normal interview generation never
+        sends it. It is added to the payload only when explicitly requested and
+        not known to be unsupported: if ``supported_parameters`` is provided and
+        does not list ``reasoning``, the field is silently omitted rather than
+        sent as an unsupported parameter.
         """
         # Validate the key up front so a missing key fails clearly and early.
         self._auth_headers()
@@ -297,6 +305,11 @@ class OpenRouterClient:
                     category="unsupported_parameter",
                 )
             payload["response_format"] = response_format
+
+        if reasoning is not None and (
+            supported_parameters is None or "reasoning" in supported_parameters
+        ):
+            payload["reasoning"] = reasoning
 
         return self._post_chat(payload, model)
 
@@ -464,23 +477,30 @@ class OpenRouterClient:
 
     # -- connection test ------------------------------------------------------
 
-    def test_connection(self) -> ChatResult:
+    def test_connection(
+        self, supported_parameters: Sequence[str] | None = None
+    ) -> ChatResult:
         """Make a small request to verify connectivity, auth and visible output.
 
         Intended to run only when the user presses a "Test connection" button.
         It proves authentication works, the selected model is reachable, and the
-        model can return visible text. The output budget is deliberately small
-        but large enough for reasoning models (e.g. GPT-5) that spend tokens
-        reasoning before emitting content.
+        model can return visible text.
 
-        Because a reasoning model can occasionally return an empty (no-text)
-        generation, the connection test — and *only* the connection test —
-        retries once on :class:`EmptyContentError`. Authentication (401),
-        credit (402), rate-limit (429) and provider errors are never retried;
-        they propagate as their specific errors. Normal interview generation
-        does not gain any retry behaviour from this.
+        Reasoning models (e.g. GPT-5) can spend the whole output budget on
+        internal reasoning before emitting content, so the test asks for the
+        **minimal** reasoning allocation and excludes reasoning from the output
+        (``{"effort": "minimal", "exclude": True}``). This is sent only when the
+        model's ``supported_parameters`` advertise ``reasoning`` (or when
+        metadata is unavailable); otherwise it is omitted. A modest 256-token
+        budget gives headroom either way.
+
+        Because a reasoning model can still occasionally return an empty
+        (no-text) generation, the connection test — and *only* the connection
+        test — retries once on :class:`EmptyContentError`. Authentication (401),
+        credit (402), rate-limit (429) and provider errors are never retried.
         """
         messages = [{"role": "user", "content": constants.CONNECTION_TEST_PROMPT}]
+        reasoning = {"effort": "minimal", "exclude": True}
         attempts = constants.CONNECTION_TEST_MAX_RETRIES + 1
         for attempt in range(attempts):
             try:
@@ -489,6 +509,8 @@ class OpenRouterClient:
                     messages=messages,
                     temperature=0.0,
                     max_tokens=constants.CONNECTION_TEST_MAX_TOKENS,
+                    supported_parameters=supported_parameters,
+                    reasoning=reasoning,
                 )
             except EmptyContentError:
                 # Retry once (last attempt falls through to the controlled error).
