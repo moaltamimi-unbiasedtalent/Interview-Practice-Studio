@@ -30,6 +30,12 @@ DEFAULT_TEMPERATURE = 0.3
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 1.0
 
+# How many times a structured generation is attempted before giving up. Each
+# attempt is a fresh request (plus its own one repair round), so a one-off
+# malformed model response self-heals instead of surfacing an error. Kept small
+# so a genuinely broken model cannot loop or run up cost.
+GENERATION_MAX_ATTEMPTS = 2
+
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
 # Floor for the output budget. Every use case produces a structured JSON object
 # (a strategy or final report can be ~600-900 tokens plus a repair round), so a

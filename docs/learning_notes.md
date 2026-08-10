@@ -1096,3 +1096,26 @@ still holds because a `chain_of_thought` key is dropped, not surfaced).
 Reviewer question: what is the difference in risk between an unexpected key in
 *user input* versus in *model output*, and why does that justify different
 `extra` policies?
+
+### Root cause and the durable fix — generation retry
+
+All the parse errors shared **one** root cause: the app enforces a strict,
+validated schema on a *probabilistic* language model. The same request can
+return a clean object one moment and an off-shape one the next. Each earlier
+error was that single event surfacing at a different point (no text, truncated,
+prose-wrapped, an off-vocabulary enum, a surplus key). Those five structural
+causes are now fixed, but any *new* one-off deviation (a too-long field, a
+missing key, a bad number) could still fail a single attempt.
+
+Durable fix: `_generate` now retries the whole generation up to
+`GENERATION_MAX_ATTEMPTS` (2) times. Each attempt is a **fresh** request — not
+just a repair of the same bad text — so because model output varies run to run,
+a one-off malformed generation self-heals and the user never sees an error.
+Guarantees kept: validation stays strict (an always-invalid value such as an
+out-of-range score is still rejected — a test proves it), attempts are bounded
+so a broken model cannot loop, a safety block is raised immediately and never
+retried, and cost accounting bills every call made across all attempts.
+
+Reviewer question: why is retrying with a fresh generation more effective than
+only repairing the same response, and what stops the retry from hiding a real,
+persistent defect?

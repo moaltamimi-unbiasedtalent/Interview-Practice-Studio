@@ -164,6 +164,17 @@ class TestGenerateStrategy:
         assert client.calls[0]["reasoning"] == {"effort": "minimal"}
         assert client.calls[0]["reasoning"]["effort"] == constants.DEFAULT_REASONING_EFFORT
 
+    def test_bad_first_generation_self_heals_on_retry(self) -> None:
+        # Attempt 1: primary + repair both unparseable → whole attempt fails.
+        # Attempt 2: a fresh, valid generation succeeds. The user sees no error.
+        client = FakeClient(["not json", "still not json", _strategy_json()])
+        service = InterviewService(client, _pricing())
+        strategy, usage = service.generate_strategy(_config(), _settings())
+        assert isinstance(strategy, InterviewStrategy)
+        assert len(client.calls) == 3  # 2 failed calls + 1 successful
+        # Cost is honest: it includes every billed call, not just the last one.
+        assert usage.total_tokens == 150 * 3
+
 
 # --- Next question -----------------------------------------------------------
 
@@ -283,11 +294,16 @@ class TestServiceBehaviour:
         assert isinstance(strategy, InterviewStrategy)
         assert len(client.calls) == 2  # primary + one repair
 
-    def test_two_bad_responses_raise_model_response_error(self) -> None:
-        client = FakeClient(["nope", "still nope"])
+    def test_all_bad_responses_raise_model_response_error(self) -> None:
+        # Every call is unparseable across all attempts (each attempt: 1 primary
+        # + 1 repair), so it gives up after the bounded number of calls rather
+        # than looping forever.
+        calls_before_giving_up = constants.GENERATION_MAX_ATTEMPTS * 2
+        client = FakeClient(["nope"] * calls_before_giving_up)
         service = InterviewService(client, _pricing())
         with pytest.raises(ModelResponseError):
             service.generate_strategy(_config(), _settings())
+        assert len(client.calls) == calls_before_giving_up
 
     def test_response_format_requested_when_supported(self) -> None:
         client = FakeClient([_strategy_json()])

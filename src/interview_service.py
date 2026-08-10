@@ -139,47 +139,73 @@ class BaseGenerationService:
             {"type": "json_object"} if "response_format" in supported else None
         )
 
-        results: list[ChatResult] = []
-        primary = self._call_model(
-            messages, settings, response_format, supported
-        )
-        results.append(primary)
+        # A language model is probabilistic: the same request can return a
+        # perfectly-shaped object one moment and an off-shape one the next. Each
+        # attempt makes a *fresh* request (not just a repair of the same bad
+        # text), so a one-off malformed generation self-heals without the user
+        # ever seeing an error. Every attempt still gets its own single repair
+        # round for cheap format fixes. Attempts are bounded so a genuinely
+        # broken model can never loop forever.
+        attempts = max(1, constants.GENERATION_MAX_ATTEMPTS)
+        billed: list[ChatResult] = []  # every call made, for honest cost
+        last_error: ResponseParseError | None = None
 
-        # Safety scan of the raw text (size, system-prompt leakage, secrets).
-        self._guard_output(primary.content)
+        for attempt in range(1, attempts + 1):
+            results: list[ChatResult] = []
+            primary = self._call_model(
+                messages, settings, response_format, supported
+            )
+            results.append(primary)
 
-        def repair(bad_text: str, error: str) -> str:
-            repair_messages = self._repair_messages(bad_text, error, schema)
-            repaired = self._call_model(
-                repair_messages, settings, response_format, supported
-            )
-            results.append(repaired)
-            return repaired.content
+            # Safety scan of the raw text (size, leakage, secrets). A block is a
+            # deterministic safety decision, so it is raised immediately and is
+            # never retried.
+            self._guard_output(primary.content)
 
-        try:
-            obj = parse_structured_output(
-                primary.content, schema, repair=repair, overrides=overrides
-            )
-        except ResponseParseError as exc:
-            # Log the reason and a truncated copy of each raw attempt to the
-            # server console so a formatting failure can be diagnosed. Model
-            # output is not a secret; the output guard has already screened it
-            # for system-prompt leakage, and API keys are never echoed here.
-            _LOGGER.warning(
-                "Structured parse failed for %s: %s", schema.__name__, exc.message
-            )
-            for position, result in enumerate(results):
-                _LOGGER.warning(
-                    "%s attempt %d raw output (first 1200 chars): %s",
-                    schema.__name__,
-                    position,
-                    result.content[:1200],
+            def repair(bad_text: str, error: str, _results=results) -> str:
+                repair_messages = self._repair_messages(bad_text, error, schema)
+                repaired = self._call_model(
+                    repair_messages, settings, response_format, supported
                 )
-            raise ModelResponseError(exc.message) from exc
+                _results.append(repaired)
+                return repaired.content
 
-        usage = self._build_usage(settings.model, results)
-        self._pricing.record_usage(usage)
-        return obj, usage
+            try:
+                obj = parse_structured_output(
+                    primary.content, schema, repair=repair, overrides=overrides
+                )
+            except ResponseParseError as exc:
+                last_error = exc
+                billed.extend(results)
+                # Log the reason and a truncated copy of each raw attempt to the
+                # server console so a formatting failure can be diagnosed. Model
+                # output is not a secret; the output guard has already screened
+                # it for leakage, and API keys are never echoed here.
+                _LOGGER.warning(
+                    "Structured parse attempt %d/%d failed for %s: %s",
+                    attempt,
+                    attempts,
+                    schema.__name__,
+                    exc.message,
+                )
+                for position, result in enumerate(results):
+                    _LOGGER.warning(
+                        "%s attempt %d.%d raw output (first 1200 chars): %s",
+                        schema.__name__,
+                        attempt,
+                        position,
+                        result.content[:1200],
+                    )
+                continue
+
+            # Success — bill every call made across all attempts, then return.
+            billed.extend(results)
+            usage = self._build_usage(settings.model, billed)
+            self._pricing.record_usage(usage)
+            return obj, usage
+
+        # Every attempt failed; surface the last controlled reason.
+        raise ModelResponseError(last_error.message) from last_error
 
     def _call_model(
         self, messages, settings: ModelSettings, response_format, supported

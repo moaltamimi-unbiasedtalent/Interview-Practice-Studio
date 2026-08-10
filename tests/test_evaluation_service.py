@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from src import constants
 from src.evaluation_service import EvaluationService
 from src.interview_service import ModelResponseError
 from src.models import AnswerEvaluation, InterviewConfiguration, ModelSettings
@@ -126,14 +127,20 @@ class TestEvaluateAnswer:
         assert evaluation.overall_score == 72
         assert len(client.calls) == 2
 
-    def test_two_failures_raise_model_response_error(self) -> None:
-        client = FakeClient(["bad", "worse"])
-        service = EvaluationService(client, _pricing())
+    def test_all_failures_raise_model_response_error(self) -> None:
+        # Unparseable on every attempt (each: 1 primary + 1 repair).
+        bad = ["bad"] * (constants.GENERATION_MAX_ATTEMPTS * 2)
+        service = EvaluationService(FakeClient(bad), _pricing())
         with pytest.raises(ModelResponseError):
             service.evaluate_answer(_config(), "Q", "A", _settings())
 
     def test_out_of_range_scores_are_rejected(self) -> None:
-        client = FakeClient([_evaluation_json(overall_score=250), _evaluation_json(overall_score=250)])
-        service = EvaluationService(client, _pricing())
+        # Out-of-range scores stay strictly rejected on every retry — the
+        # retry loop never makes an invalid score acceptable.
+        bad = [
+            _evaluation_json(overall_score=250)
+            for _ in range(constants.GENERATION_MAX_ATTEMPTS * 2)
+        ]
+        service = EvaluationService(FakeClient(bad), _pricing())
         with pytest.raises(ModelResponseError):
             service.evaluate_answer(_config(), "Q", "A", _settings())

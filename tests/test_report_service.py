@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from src import constants
 from src.interview_service import ModelResponseError, ServiceInputError
 from src.models import (
     AnswerEvaluation,
@@ -165,8 +166,10 @@ class TestGenerateReport:
                 _settings(),
             )
 
-    def test_two_failures_raise_model_response_error(self) -> None:
-        service = ReportService(FakeClient(["bad", "still bad"]), _pricing())
+    def test_all_failures_raise_model_response_error(self) -> None:
+        # Unparseable on every attempt (each: 1 primary + 1 repair).
+        bad = ["bad"] * (constants.GENERATION_MAX_ATTEMPTS * 2)
+        service = ReportService(FakeClient(bad), _pricing())
         with pytest.raises(ModelResponseError):
             service.generate_report(
                 _config(),
