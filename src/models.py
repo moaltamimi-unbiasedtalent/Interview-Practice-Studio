@@ -72,20 +72,57 @@ class _StudioModel(BaseModel):
     )
 
 
+def _stringify_text(value: object) -> str:
+    """Flatten a non-string model value into readable single-string text.
+
+    A model often answers a free-text field with a list of steps or a small
+    object (``["Situation", "Task", ...]`` or ``{"situation": "…"}``) instead of
+    a sentence. Rather than reject it, join it into one readable string. Nested
+    lists/objects are flattened recursively; a plain scalar becomes ``str``.
+    """
+    if isinstance(value, list):
+        parts = [_stringify_text(item) for item in value]
+        return "\n".join(part for part in parts if part)
+    if isinstance(value, dict):
+        return "\n".join(
+            f"{key}: {_stringify_text(val)}" for key, val in value.items()
+        )
+    return str(value)
+
+
 class _GeneratedModel(_StudioModel):
     """Base for objects parsed from *model output* (not user input).
 
-    Identical to :class:`_StudioModel` except that unknown keys are **ignored**
-    rather than rejected. A language model routinely adds an extra, well-meant
-    field (e.g. a ``notes`` or ``stronger_answer_structure`` key) that is not
-    part of the schema; failing the whole interview over such a surplus tag is
-    the wrong trade-off. Every *required* field is still validated, so missing
-    or malformed values are still rejected and nothing is invented — the raw
-    text has also already passed the output safety scan before it reaches here.
-    Input models keep ``extra="forbid"`` so caller mistakes are still caught.
+    It differs from :class:`_StudioModel` in two model-tolerant ways, applied
+    only to generated output (never to user input, which stays strict):
+
+    * Unknown keys are **ignored** rather than rejected — a model routinely adds
+      a well-meant surplus field, and failing the whole interview over an extra
+      tag is the wrong trade-off.
+    * A text field that arrives as a **list or object** is flattened to a
+      string, because a model often answers a free-text field (e.g.
+      ``stronger_answer_structure``) with a list of steps instead of a sentence.
+
+    Every *required* field is still validated, so missing or malformed values
+    are still rejected and nothing is invented — and the raw text has already
+    passed the output safety scan before it reaches here.
     """
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_text_fields(cls, data: object) -> object:
+        """Coerce a non-string value in a string field into readable text."""
+        if not isinstance(data, dict):
+            return data
+        coerced = dict(data)
+        for name, field in cls.model_fields.items():
+            if field.annotation is str and name in coerced:
+                value = coerced[name]
+                if value is not None and not isinstance(value, str):
+                    coerced[name] = _stringify_text(value)
+        return coerced
 
 
 # --- Reusable validators and field types ------------------------------------

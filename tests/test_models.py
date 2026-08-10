@@ -484,6 +484,36 @@ class TestStructuredOutputsBuild:
         evaluation = AnswerEvaluation(**_valid_evaluation_kwargs())
         assert evaluation.overall_score == 72
 
+    def test_text_field_given_as_list_is_flattened(self) -> None:
+        # Models often answer a free-text field (e.g. a suggested structure)
+        # with a list of steps instead of a sentence. It is flattened to a
+        # readable string rather than failing validation.
+        evaluation = AnswerEvaluation(
+            **{
+                **_valid_evaluation_kwargs(),
+                "stronger_answer_structure": ["Situation", "Task", "Action", "Result"],
+            }
+        )
+        assert isinstance(evaluation.stronger_answer_structure, str)
+        assert evaluation.stronger_answer_structure == "Situation\nTask\nAction\nResult"
+
+    def test_text_field_given_as_object_is_flattened(self) -> None:
+        evaluation = AnswerEvaluation(
+            **{
+                **_valid_evaluation_kwargs(),
+                "stronger_answer_structure": {"situation": "x", "task": "y"},
+            }
+        )
+        assert isinstance(evaluation.stronger_answer_structure, str)
+        assert "situation: x" in evaluation.stronger_answer_structure
+
+    def test_list_field_is_not_stringified(self) -> None:
+        # Coercion targets string fields only; genuine list fields stay lists.
+        evaluation = AnswerEvaluation(
+            **{**_valid_evaluation_kwargs(), "strengths": ["clear", "concise"]}
+        )
+        assert evaluation.strengths == ["clear", "concise"]
+
     def test_report_builds(self) -> None:
         report = FinalInterviewReport(**_valid_report_kwargs())
         assert report.overall_readiness_score == 68

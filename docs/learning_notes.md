@@ -1134,3 +1134,23 @@ Three small, requested improvements:
    every vocabulary value is selectable.
 3. **More generous self-healing.** `GENERATION_MAX_ATTEMPTS` raised from 2 to 3,
    giving one more fresh generation before an error can surface. Still bounded.
+
+### Follow-up — flatten text fields the model returns as a list/object
+
+The evaluation kept failing on `stronger_answer_structure`. That field is a
+*real, required* free-text (string) field — not a surplus key — so `extra=ignore`
+never applied. The model was answering it with a **list of steps** (STAR-style)
+or a small object, which fails the "must be a string" rule *consistently*, so
+the fresh retries could not help either.
+
+Fix: `_GeneratedModel` now runs a `mode="before"` validator that flattens a
+list/object into a readable string, but only for fields the schema types as a
+plain string. Genuine list fields (`strengths`, `improvement_areas`, …) are
+untouched, and every required field is still validated. This closes the last
+common shape mismatch in model output.
+
+Root-cause summary for the whole series: a strict schema meeting probabilistic
+output. The fixes fall into three families — content/budget (reasoning control,
+token floor, retries), shape (JSON extraction, ignore surplus keys, flatten
+text), and vocabulary (tolerant + lenient enums). Input validation stayed
+strict throughout; only *model output* was made tolerant.
