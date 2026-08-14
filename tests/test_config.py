@@ -93,6 +93,30 @@ class TestLoadConfig:
         assert config.temperature == constants.DEFAULT_TEMPERATURE
         assert config.max_output_tokens == constants.DEFAULT_MAX_OUTPUT_TOKENS
 
+    def test_speech_unconfigured_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("src.config._read_setting", lambda name: None)
+        monkeypatch.setenv(API_KEY_NAME, "test-key-not-real")
+        config = load_config()
+        # Text interview still works even though speech is not configured.
+        assert config.is_configured is True
+        assert config.is_speech_configured is False
+        assert config.google_speech_project_id is None
+
+    def test_speech_configured_from_setting(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "src.config._read_setting",
+            lambda name: "gcp-proj" if name.endswith("PROJECT_ID") else None,
+        )
+        monkeypatch.delenv(API_KEY_NAME, raising=False)
+        config = load_config()
+        assert config.is_speech_configured is True
+        assert config.google_speech_project_id == "gcp-proj"
+        assert config.google_speech_location == constants.SPEECH_LOCATION_DEFAULT
+
 
 class TestSecretSafety:
     """The API key must never leak through printing or logging."""

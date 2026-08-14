@@ -51,6 +51,7 @@ __all__ = [
     "UsageRecord",
     "ModelPricing",
     "BranchQuestion",
+    "ExternalServiceUsage",
 ]
 
 
@@ -647,6 +648,41 @@ class ModelPricing(_StudioModel):
     @classmethod
     def _check_currency(cls, value: str) -> str:
         """Only USD is supported (OpenRouter reports in US dollars)."""
+        value = value.upper()
+        if value not in constants.SUPPORTED_CURRENCIES:
+            raise ValueError(
+                f"currency must be one of {list(constants.SUPPORTED_CURRENCIES)}; "
+                f"got {value!r}"
+            )
+        return value
+
+
+class ExternalServiceUsage(_StudioModel):
+    """Usage/cost for a non-LLM external service (e.g. speech-to-text).
+
+    Kept separate from :class:`UsageRecord` (LLM tokens) so each cost stream is
+    reported honestly. ``cost_usd`` is ``None`` and ``cost_source`` is
+    ``"unavailable"`` unless a real rate is known — pricing is never invented.
+    """
+
+    provider: ShortText = Field(description="External provider identifier.")
+    operation: ShortText = Field(description="Operation performed, e.g. speech_to_text.")
+    units: float = Field(ge=0, description="Billable units consumed (e.g. audio seconds).")
+    unit_name: ShortText = Field(description="Name of the unit, e.g. audio_seconds.")
+    cost_usd: float | None = Field(
+        default=None, ge=0, description="USD cost, or None when not calculable."
+    )
+    cost_source: CostSource = Field(
+        default="unavailable",
+        description="How the cost was obtained: reported, calculated or unavailable.",
+    )
+    currency: str = Field(
+        default=constants.DEFAULT_CURRENCY, description="ISO currency code; USD."
+    )
+
+    @field_validator("currency")
+    @classmethod
+    def _check_currency(cls, value: str) -> str:
         value = value.upper()
         if value not in constants.SUPPORTED_CURRENCIES:
             raise ValueError(

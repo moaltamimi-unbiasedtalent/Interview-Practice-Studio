@@ -19,6 +19,8 @@ from pydantic import BaseModel, SecretStr
 from src import constants
 
 API_KEY_NAME = "OPENROUTER_API_KEY"
+SPEECH_PROJECT_NAME = "GOOGLE_SPEECH_PROJECT_ID"
+SPEECH_LOCATION_NAME = "GOOGLE_SPEECH_LOCATION"
 
 
 class AppConfig(BaseModel):
@@ -32,6 +34,12 @@ class AppConfig(BaseModel):
     model: str = constants.DEFAULT_MODEL
     temperature: float = constants.DEFAULT_TEMPERATURE
     max_output_tokens: int = constants.DEFAULT_MAX_OUTPUT_TOKENS
+
+    # Speech-to-text (optional). Only the non-secret project/location are stored;
+    # credentials themselves come from Google Application Default Credentials
+    # (e.g. GOOGLE_APPLICATION_CREDENTIALS) and are never read or stored here.
+    google_speech_project_id: str | None = None
+    google_speech_location: str = constants.SPEECH_LOCATION_DEFAULT
 
     # OpenRouter connection settings (defaults from constants). These are not
     # secrets and are safe to display or log.
@@ -48,6 +56,16 @@ class AppConfig(BaseModel):
             self.api_key is not None
             and self.api_key.get_secret_value().strip() != ""
         )
+
+    @property
+    def is_speech_configured(self) -> bool:
+        """Return ``True`` when a speech project is set (voice answers enabled).
+
+        This gates the feature on a configured Google project; credentials are
+        resolved separately via Application Default Credentials, and a genuine
+        auth failure surfaces as a controlled error at transcription time.
+        """
+        return bool(self.google_speech_project_id)
 
     @property
     def chat_completions_url(self) -> str:
@@ -87,6 +105,26 @@ def _read_environment_secret() -> str | None:
     return None
 
 
+def _read_setting(name: str) -> str | None:
+    """Read a non-secret setting from Streamlit secrets, then the environment.
+
+    Used for values that are configuration (not credentials), such as the
+    Google Cloud project id and location for speech-to-text.
+    """
+    try:
+        import streamlit as st
+
+        value = st.secrets.get(name)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    except Exception:
+        pass
+    env_value = os.environ.get(name)
+    if env_value and env_value.strip():
+        return env_value.strip()
+    return None
+
+
 def load_config() -> AppConfig:
     """Build the application configuration.
 
@@ -97,4 +135,12 @@ def load_config() -> AppConfig:
     load_dotenv(override=False)
     raw_key = _read_streamlit_secret() or _read_environment_secret()
     api_key = SecretStr(raw_key) if raw_key else None
-    return AppConfig(api_key=api_key)
+
+    speech_project = _read_setting(SPEECH_PROJECT_NAME)
+    speech_location = _read_setting(SPEECH_LOCATION_NAME) or constants.SPEECH_LOCATION_DEFAULT
+
+    return AppConfig(
+        api_key=api_key,
+        google_speech_project_id=speech_project,
+        google_speech_location=speech_location,
+    )

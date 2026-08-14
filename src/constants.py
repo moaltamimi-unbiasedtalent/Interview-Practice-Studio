@@ -255,6 +255,41 @@ CONNECTION_TEST_MAX_RETRIES = 1
 # Sent only to models whose metadata advertises "reasoning"; omitted otherwise.
 DEFAULT_REASONING_EFFORT = "minimal"
 
+# --- Speech-to-text (voice answers) ------------------------------------------
+# Recorded answers are transcribed by an external speech provider. Audio is
+# validated before transcription and never persisted. Limits are deliberate: a
+# hard 10-minute ceiling and a byte cap bound cost and abuse.
+SPEECH_MAX_AUDIO_SECONDS = 600  # 10-minute hard maximum
+SPEECH_MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB
+SPEECH_TARGET_SAMPLE_RATE = 16_000  # 16 kHz is ideal for speech recognition
+SPEECH_ALLOWED_MIME_TYPES = (
+    "audio/wav",
+    "audio/x-wav",
+    "audio/wave",
+    "audio/webm",
+    "audio/ogg",
+    "audio/mp4",
+    "audio/mpeg",
+)
+# Provider, model and default routing for Google Cloud Speech-to-Text V2.
+SPEECH_PROVIDER_GOOGLE = "google_chirp3"
+SPEECH_MODEL_CHIRP3 = "chirp_3"
+SPEECH_LOCATION_DEFAULT = "global"
+# Language options offered in the UI (label, code). "auto" asks the provider to
+# detect the language; the vocabulary is easy to extend later.
+SPEECH_LANGUAGE_OPTIONS = (
+    ("Automatic", "auto"),
+    ("English", "en-US"),
+    ("German", "de-DE"),
+)
+SPEECH_DEFAULT_LANGUAGE_CODES = ("en-US", "de-DE")
+# Shown to the candidate near the recorder. Only true because audio is never
+# written to disk or kept in session beyond the active request.
+SPEECH_PRIVACY_NOTICE = (
+    "Your recording is used to create the transcript. Raw audio is not saved by "
+    "Interview Practice Studio."
+)
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

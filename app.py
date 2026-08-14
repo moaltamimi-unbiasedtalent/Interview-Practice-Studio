@@ -25,6 +25,11 @@ from src.openrouter_client import OpenRouterClient, OpenRouterError
 from src.pricing_service import PricingService
 from src.report_service import ReportService
 from src.session_manager import SessionManager, SessionState
+from src.speech_service import (
+    SpeechError,
+    build_speech_service,
+    transcribe_recording,
+)
 
 _METADATA_CACHE_KEY = "_model_supported_params"
 
@@ -585,6 +590,96 @@ def _render_branch_controls(session: SessionManager) -> None:
         st.rerun()
 
 
+def _render_answer_input(session, *, on_submit, ns: str, placeholder: str) -> None:
+    """Answer input offering both typing and recording; typing is the default.
+
+    ``on_submit(text)`` is called with the final answer text (typed, or the
+    reviewed/edited transcript). The caller wires it to the existing evaluation
+    handlers, so voice and typed answers share one pipeline.
+    """
+    method = st.radio(
+        "Answer method", ["Type", "Record"], horizontal=True, key=f"{ns}_method"
+    )
+    if method == "Type":
+        answer = st.chat_input(placeholder, max_chars=constants.MAX_ANSWER_CHARS)
+        if answer:
+            on_submit(answer)
+            st.rerun()
+        return
+    _render_voice_answer(session, on_submit=on_submit, ns=ns)
+
+
+def _render_voice_answer(session, *, on_submit, ns: str) -> None:
+    """Record → playback → transcribe → editable transcript → submit."""
+    config = load_config()
+    service = build_speech_service(config)
+    transcript_key = f"{ns}_transcript"
+    metrics_key = f"{ns}_metrics"
+
+    if not service.is_available:
+        st.info(
+            "Voice answers are unavailable: speech-to-text is not configured. "
+            "Please switch to **Type** to answer."
+        )
+        return
+
+    st.caption(constants.SPEECH_PRIVACY_NOTICE)
+    language_map = dict(constants.SPEECH_LANGUAGE_OPTIONS)
+    language_label = st.selectbox(
+        "Spoken language", list(language_map), key=f"{ns}_lang"
+    )
+    language_code = language_map[language_label]
+
+    audio = st.audio_input("Record your answer", key=f"{ns}_audio")
+    if audio is not None and st.button("Transcribe", key=f"{ns}_transcribe"):
+        with st.spinner("Transcribing…"):
+            try:
+                result, metrics, usage = transcribe_recording(
+                    service,
+                    audio.getvalue(),
+                    mime_type=audio.type,
+                    language=language_code,
+                )
+            except SpeechError as exc:
+                st.error(exc.message)
+            else:
+                # Store only text and metrics — never the raw audio bytes.
+                st.session_state[transcript_key] = result.transcript
+                st.session_state[metrics_key] = metrics
+                session.record_transcription_usage(usage)
+                st.rerun()
+
+    if transcript_key in st.session_state:
+        st.markdown("**Review your transcript**")
+        edited = st.text_area(
+            "Edit before submitting",
+            value=st.session_state[transcript_key],
+            key=f"{ns}_edit",
+            height=140,
+        )
+        columns = st.columns(4)
+        if columns[0].button("Submit answer", type="primary", key=f"{ns}_submit"):
+            metrics = st.session_state.pop(metrics_key, None)
+            if metrics is not None:
+                session.record_voice_metrics(metrics)
+            st.session_state.pop(transcript_key, None)
+            on_submit(edited)
+            st.rerun()
+        if columns[1].button("Record again", key=f"{ns}_again"):
+            st.session_state.pop(transcript_key, None)
+            st.session_state.pop(metrics_key, None)
+            st.rerun()
+        if columns[2].button("Clear", key=f"{ns}_clear"):
+            st.session_state.pop(transcript_key, None)
+            st.session_state.pop(metrics_key, None)
+            st.rerun()
+        if columns[3].button("Switch to typing", key=f"{ns}_totype"):
+            st.session_state.pop(transcript_key, None)
+            st.session_state.pop(metrics_key, None)
+            st.session_state[f"{ns}_method"] = "Type"
+            st.rerun()
+
+
 def render_interview(session: SessionManager) -> None:
     data = session.data
     planned = data.config.number_of_questions
@@ -604,13 +699,12 @@ def render_interview(session: SessionManager) -> None:
     # --- Deep Dive (branch) mode ---------------------------------------------
     if data.branch_active:
         if session.state is SessionState.BRANCH_AWAITING_ANSWER:
-            answer = st.chat_input(
-                "Answer the deep-dive question…",
-                max_chars=constants.MAX_ANSWER_CHARS,
+            _render_answer_input(
+                session,
+                on_submit=lambda text: _handle_branch_answer(session, text),
+                ns="branch_answer",
+                placeholder="Answer the deep-dive question…",
             )
-            if answer:
-                _handle_branch_answer(session, answer)
-                st.rerun()
             st.caption("Deep-dive questions use additional AI requests.")
             if st.button("Return to main interview", key="branch_return_await"):
                 session.return_to_main_interview()
@@ -627,12 +721,12 @@ def render_interview(session: SessionManager) -> None:
         st.divider()
 
     if session.state is SessionState.AWAITING_ANSWER:
-        answer = st.chat_input(
-            "Type your answer…", max_chars=constants.MAX_ANSWER_CHARS
+        _render_answer_input(
+            session,
+            on_submit=lambda text: _handle_answer(session, text),
+            ns="main_answer",
+            placeholder="Type your answer…",
         )
-        if answer:
-            _handle_answer(session, answer)
-            st.rerun()
         if answered >= 1 and st.button("End interview early"):
             session.end_interview_early()
             st.rerun()
@@ -805,10 +899,30 @@ def render_usage(session: SessionManager) -> None:
         else (latest.calculated_cost if latest.cost_source != "unavailable" else None)
     )
     st.sidebar.write(f"Current request cost: {ui_helpers.format_usd(current)}")
-    st.sidebar.write(
-        f"Cumulative session cost: {ui_helpers.format_usd(data.cumulative_cost_usd)}"
-    )
     st.sidebar.caption(f"Cost source: {latest.cost_source}")
+
+    # Speech-to-text usage is tracked and displayed separately from LLM cost.
+    if data.transcription_usage:
+        total_seconds = sum(u.units for u in data.transcription_usage)
+        known_costs = [
+            u.cost_usd for u in data.transcription_usage if u.cost_usd is not None
+        ]
+        st.sidebar.write(
+            f"Transcribed audio: {total_seconds:.0f}s "
+            f"({len(data.transcription_usage)} recording(s))"
+        )
+        if known_costs:
+            st.sidebar.write(
+                f"Transcription cost: {ui_helpers.format_usd(sum(known_costs))}"
+            )
+        else:
+            st.sidebar.caption(
+                "Transcription cost: not calculated (no rate configured)."
+            )
+
+    st.sidebar.write(
+        f"Total session cost: {ui_helpers.format_usd(data.cumulative_cost_usd)}"
+    )
 
 
 def render_reset(session: SessionManager) -> None:

@@ -95,3 +95,20 @@ boundaries of the tool.
   compares the output-token budget (always supported) and temperature only when
   supported; sweeping reasoning effort would require threading it through
   `ModelSettings` and is deferred.
+
+---
+
+## Voice answers (Phase 16)
+
+- **Provider dependence.** Voice requires a configured Google Cloud project and
+  Application Default Credentials. Without them, voice shows an unavailable state
+  and typing still works.
+- **Transcription cost is not priced.** Audio-second usage is recorded, but no
+  dollar cost is displayed unless a real rate is configured (pricing is never
+  invented).
+- **Duration checks are WAV-based.** The 10-minute cap is enforced from the WAV
+  header; non-WAV formats are bounded by the byte-size cap instead.
+- **Recorded-only.** This phase uses Streamlit's native audio input (record then
+  transcribe). Real-time streaming (Gemini Live) is not implemented.
+- **Voice metrics captured, not scored.** Duration/word-count/WPM are stored for
+  the later timing/coaching phase.
