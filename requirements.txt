@@ -1,4 +1,12 @@
-# Interview Practice Studio — Sprint 1 dependencies.
+# Interview Practice Studio — runtime dependencies.
+#
+# pyproject.toml is the source of truth ([project.dependencies]); this file
+# mirrors those RUNTIME pins for `pip install -r requirements.txt` convenience.
+# Keep the two consistent when changing a pin.
+#
+# Test/development tools live under pyproject's optional-dependencies and are
+# installed separately with:  pip install -e ".[dev]"
+#
 # Deliberately minimal: no LangChain, no vector databases, no agents.
 
 streamlit>=1.40,<2.0
@@ -7,5 +15,3 @@ pydantic>=2.9,<3.0
 python-dotenv>=1.0,<2.0
 pandas>=2.2,<3.0
 openpyxl>=3.1,<4.0
-pytest>=8.3,<9.0
-pytest-mock>=3.14,<4.0

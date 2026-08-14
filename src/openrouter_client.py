@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import json
 import logging
+import random
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -194,6 +195,7 @@ class OpenRouterClient:
         *,
         debug: bool = False,
         http_client: httpx.Client | None = None,
+        sleeper: "Callable[[float], None] | None" = None,
     ) -> None:
         self._config = config
         self._debug = debug
@@ -201,6 +203,8 @@ class OpenRouterClient:
         # otherwise a client with explicit timeouts is created lazily.
         self._http = http_client
         self._owns_http = http_client is None
+        # Injectable so tests exercise the retry path without real delays.
+        self._sleep = sleeper if sleeper is not None else time.sleep
 
     # -- lifecycle ------------------------------------------------------------
 
@@ -261,25 +265,30 @@ class OpenRouterClient:
         *,
         model: str,
         messages: Sequence[dict[str, str]],
-        temperature: float,
+        temperature: float | None,
         max_tokens: int,
         response_format: dict[str, Any] | None = None,
         supported_parameters: Sequence[str] | None = None,
         reasoning: dict[str, Any] | None = None,
+        require_parameters: bool = False,
     ) -> ChatResult:
         """Make a single non-streaming chat-completion request.
 
-        ``response_format`` (structured output) is only sent when the model is
-        known to support it. If it is requested for a model whose
-        ``supported_parameters`` do not include ``response_format``, an
-        :class:`UnsupportedParameterError` is raised before any network call.
+        Every optional parameter is capability-gated against
+        ``supported_parameters`` (from model metadata): a parameter the model
+        does not advertise is silently omitted rather than sent and rejected.
 
-        ``reasoning`` (e.g. ``{"effort": "minimal", "exclude": True}``) is
-        **optional** and off by default — normal interview generation never
-        sends it. It is added to the payload only when explicitly requested and
-        not known to be unsupported: if ``supported_parameters`` is provided and
-        does not list ``reasoning``, the field is silently omitted rather than
-        sent as an unsupported parameter.
+        * ``temperature`` is omitted when the model does not support it (many
+          reasoning models do not). Pass ``None`` to omit it explicitly.
+        * ``response_format`` (a json_object hint or a strict json_schema) is
+          only sent when the model advertises ``response_format`` or
+          ``structured_outputs``; otherwise :class:`UnsupportedParameterError`
+          is raised before any network call.
+        * ``reasoning`` is added only when the model advertises ``reasoning``.
+        * ``require_parameters`` adds OpenRouter provider routing
+          (``provider.require_parameters``) so the request is routed to a
+          provider that can satisfy the requested parameters (e.g. strict
+          schema) rather than silently degrading.
         """
         # Validate the key up front so a missing key fails clearly and early.
         self._auth_headers()
@@ -287,17 +296,23 @@ class OpenRouterClient:
         payload: dict[str, Any] = {
             "model": model,
             "messages": list(messages),
-            "temperature": temperature,
             "max_tokens": max_tokens,
             "stream": False,
             # Ask OpenRouter to include cost in the usage block when available.
             "usage": {"include": True},
         }
 
+        # Temperature is capability-gated: omit it for models that do not
+        # support it (sending it would be rejected as an unsupported parameter).
+        if temperature is not None and (
+            supported_parameters is None or "temperature" in supported_parameters
+        ):
+            payload["temperature"] = temperature
+
         if response_format is not None:
-            if (
-                supported_parameters is not None
-                and "response_format" not in supported_parameters
+            if supported_parameters is not None and not (
+                "response_format" in supported_parameters
+                or constants.STRUCTURED_OUTPUT_PARAMETER in supported_parameters
             ):
                 raise UnsupportedParameterError(
                     f"Model {model!r} does not support structured output "
@@ -311,39 +326,93 @@ class OpenRouterClient:
         ):
             payload["reasoning"] = reasoning
 
+        if require_parameters:
+            # Route to a provider that can actually satisfy the requested
+            # parameters (e.g. strict JSON Schema) instead of degrading silently.
+            payload["provider"] = {"require_parameters": True}
+
         return self._post_chat(payload, model)
 
     def _post_chat(self, payload: dict[str, Any], model: str) -> ChatResult:
+        """POST the request, retrying once on a *transient* failure only.
+
+        Transient = a temporary network error, timeout, or one of
+        ``TRANSIENT_RETRY_STATUSES`` (429/502/503). These usually produce no
+        completion, so a bounded single retry does not multiply billable
+        requests. Every other error (400/401/402/403, unsupported parameters,
+        schema errors, other 4xx) is raised immediately and never retried.
+        """
         headers = self._auth_headers()
         url = self._config.chat_completions_url
-        start = time.monotonic()
+        attempts = 1 + constants.MAX_TRANSIENT_RETRIES
 
-        try:
-            response = self._client().post(url, headers=headers, json=payload)
-        except httpx.TimeoutException as exc:
-            raise RequestTimeoutError(
-                "The request to OpenRouter timed out. Please try again.",
-                category="timeout",
-            ) from exc
-        except httpx.RequestError as exc:
-            raise NetworkError(
-                "Could not reach OpenRouter due to a network error.",
-                category="network_error",
-            ) from exc
+        for attempt in range(attempts):
+            can_retry = attempt < attempts - 1
+            start = time.monotonic()
+            try:
+                response = self._client().post(url, headers=headers, json=payload)
+            except httpx.TimeoutException as exc:
+                if can_retry:
+                    self._backoff(None)
+                    continue
+                raise RequestTimeoutError(
+                    "The request to OpenRouter timed out. Please try again.",
+                    category="timeout",
+                ) from exc
+            except httpx.RequestError as exc:
+                if can_retry:
+                    self._backoff(None)
+                    continue
+                raise NetworkError(
+                    "Could not reach OpenRouter due to a network error.",
+                    category="network_error",
+                ) from exc
 
-        duration = time.monotonic() - start
-        self._raise_for_status(response, duration, model)
+            duration = time.monotonic() - start
+            if (
+                response.status_code in constants.TRANSIENT_RETRY_STATUSES
+                and can_retry
+            ):
+                self._backoff(response.headers.get("retry-after"))
+                continue
 
-        try:
-            body = response.json()
-        except (json.JSONDecodeError, ValueError) as exc:
-            raise InvalidResponseError(
-                "OpenRouter returned a response that could not be parsed as JSON.",
-                status_code=response.status_code,
-                category="invalid_response",
-            ) from exc
+            # Non-transient status, or the final attempt: map errors and parse.
+            self._raise_for_status(response, duration, model)
 
-        return self._parse_success(body, duration, model)
+            try:
+                body = response.json()
+            except (json.JSONDecodeError, ValueError) as exc:
+                raise InvalidResponseError(
+                    "OpenRouter returned a response that could not be parsed "
+                    "as JSON.",
+                    status_code=response.status_code,
+                    category="invalid_response",
+                ) from exc
+
+            return self._parse_success(body, duration, model)
+
+        # Unreachable: the loop always returns or raises on the final attempt.
+        raise NetworkError(
+            "Could not reach OpenRouter after retrying.", category="network_error"
+        )
+
+    def _backoff(self, retry_after: str | None) -> None:
+        """Sleep before a transient retry, honouring ``Retry-After`` when given.
+
+        A provided ``Retry-After`` (seconds) is used but capped, so a hostile or
+        very large value cannot block the UI. Otherwise a small base delay plus
+        jitter is used to avoid synchronised retries.
+        """
+        delay = constants.TRANSIENT_RETRY_BASE_DELAY_SECONDS + random.uniform(
+            0.0, constants.TRANSIENT_RETRY_BASE_DELAY_SECONDS
+        )
+        if retry_after is not None:
+            try:
+                delay = float(retry_after)
+            except (TypeError, ValueError):
+                pass
+        delay = max(0.0, min(delay, constants.TRANSIENT_RETRY_MAX_DELAY_SECONDS))
+        self._sleep(delay)
 
     def _raise_for_status(
         self, response: httpx.Response, duration: float, model: str

@@ -30,12 +30,6 @@ DEFAULT_TEMPERATURE = 0.3
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 1.0
 
-# How many times a structured generation is attempted before giving up. Each
-# attempt is a fresh request (plus its own one repair round), so a one-off
-# malformed model response self-heals instead of surfacing an error. Kept small
-# so a genuinely broken model cannot loop or run up cost.
-GENERATION_MAX_ATTEMPTS = 3
-
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
 # Floor for the output budget. Every use case produces a structured JSON object
 # (a strategy or final report can be ~600-900 tokens plus a repair round), so a
@@ -220,6 +214,30 @@ OPENROUTER_APP_TITLE = APP_NAME
 # problems; a longer read timeout tolerates slower model responses.
 CONNECT_TIMEOUT_SECONDS = 10.0
 READ_TIMEOUT_SECONDS = 60.0
+
+# --- Transient HTTP retry ----------------------------------------------------
+# A single bounded retry at the HTTP boundary for errors that are likely
+# temporary. Only the statuses below (plus timeouts and network failures) are
+# retried; 4xx client errors (400/401/402/403), unsupported parameters, schema
+# errors and security blocks are never retried. Kept at one retry so a single
+# user action can never fan out into many billable requests.
+MAX_TRANSIENT_RETRIES = 1
+TRANSIENT_RETRY_STATUSES = (429, 502, 503)
+# Backoff used when the response carries no Retry-After header. A small base
+# delay plus jitter; the effective wait is capped so a hostile Retry-After
+# cannot block the UI for long.
+TRANSIENT_RETRY_BASE_DELAY_SECONDS = 0.5
+TRANSIENT_RETRY_MAX_DELAY_SECONDS = 5.0
+
+# --- Structured output -------------------------------------------------------
+# When the selected model/provider enforces JSON Schema structured output, the
+# request carries a strict schema generated from the target Pydantic model and
+# no model-based JSON repair is used (a schema violation is then an exceptional
+# provider issue, not an everyday formatting slip). Models without schema
+# enforcement fall back to the defensive parser with one bounded repair.
+STRUCTURED_OUTPUT_PARAMETER = "structured_outputs"
+# Non-strict (JSON Schema unavailable) generation allows a single repair round.
+MAX_REPAIR_ATTEMPTS = 1
 
 # The connection-test request is deliberately small but must leave enough
 # output budget for reasoning models (e.g. GPT-5) that spend tokens on internal

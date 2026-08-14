@@ -233,16 +233,16 @@ class TestGenerateStrategy:
         assert client.calls[0]["reasoning"] == {"effort": "minimal"}
         assert client.calls[0]["reasoning"]["effort"] == constants.DEFAULT_REASONING_EFFORT
 
-    def test_bad_first_generation_self_heals_on_retry(self) -> None:
-        # Attempt 1: primary + repair both unparseable → whole attempt fails.
-        # Attempt 2: a fresh, valid generation succeeds. The user sees no error.
-        client = FakeClient(["not json", "still not json", _strategy_json()])
+    def test_bad_primary_self_heals_via_single_repair(self) -> None:
+        # Without schema enforcement, a malformed primary is corrected by
+        # exactly one repair round (no extra fresh generations).
+        client = FakeClient(["not json", _strategy_json()])
         service = InterviewService(client, _pricing())
         strategy, usage = service.generate_strategy(_config(), _settings())
         assert isinstance(strategy, InterviewStrategy)
-        assert len(client.calls) == 3  # 2 failed calls + 1 successful
-        # Cost is honest: it includes every billed call, not just the last one.
-        assert usage.total_tokens == 150 * 3
+        assert len(client.calls) == 2  # primary + one repair
+        # Cost is honest: it includes both billed calls, not just the last one.
+        assert usage.total_tokens == 150 * 2
 
 
 # --- Token-budget hardening --------------------------------------------------
@@ -363,13 +363,79 @@ class TestTokenBudgetHardening:
         # Failed attempts still consume billed tokens; they are recorded for
         # honest session totals even though no object is returned.
         pricing = _pricing()
-        bad = ["nope"] * (constants.GENERATION_MAX_ATTEMPTS * 2)
-        service = InterviewService(FakeClient(bad), pricing)
+        # Defensive path: primary + one repair, both unparseable.
+        service = InterviewService(FakeClient(["nope", "still nope"]), pricing)
         with pytest.raises(ModelResponseError):
             service.generate_strategy(_config(), _settings())
         totals = pricing.session_totals()
         assert totals.requests == 1  # one aggregated record for the failed call
         assert totals.total_tokens > 0
+
+
+def _strict_pricing():
+    """Pricing whose metadata advertises strict structured-output support."""
+    return PricingService(
+        models_fetcher=lambda: [
+            {
+                "id": MODEL,
+                "pricing": {"prompt": "0.0000006", "completion": "0.0000018"},
+                "supported_parameters": [
+                    "structured_outputs",
+                    "response_format",
+                    "max_tokens",
+                ],
+            }
+        ]
+    )
+
+
+class TestStructuredOutputPath:
+    def test_strict_schema_request_when_supported(self) -> None:
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, _strict_pricing())
+        strategy, _ = service.generate_strategy(_config(), _settings())
+        assert isinstance(strategy, InterviewStrategy)
+        assert len(client.calls) == 1  # strict path: no repair round
+        response_format = client.calls[0]["response_format"]
+        assert response_format["type"] == "json_schema"
+        assert response_format["json_schema"]["strict"] is True
+        assert client.calls[0]["require_parameters"] is True
+
+    def test_strict_failure_falls_back_to_defensive_once(self) -> None:
+        # Strict primary unparseable -> one controlled fallback to the
+        # defensive (json_object) path, which then succeeds.
+        client = FakeClient(["not json", _strategy_json()])
+        service = InterviewService(client, _strict_pricing())
+        strategy, _ = service.generate_strategy(_config(), _settings())
+        assert isinstance(strategy, InterviewStrategy)
+        assert len(client.calls) == 2
+        assert client.calls[0]["response_format"]["type"] == "json_schema"
+        assert client.calls[1]["response_format"] == {"type": "json_object"}
+        assert client.calls[1]["require_parameters"] is False
+
+    def test_unsupported_structured_output_uses_defensive(self) -> None:
+        # No structured_outputs in metadata -> json_object hint, no strict schema.
+        client = FakeClient([_strategy_json()])
+        service = InterviewService(client, _pricing())  # response_format only
+        service.generate_strategy(_config(), _settings())
+        assert client.calls[0]["response_format"] == {"type": "json_object"}
+        assert client.calls[0]["require_parameters"] is False
+
+    def test_strict_success_records_usage_once(self) -> None:
+        pricing = _strict_pricing()
+        service = InterviewService(FakeClient([_strategy_json()]), pricing)
+        service.generate_strategy(_config(), _settings())
+        totals = pricing.session_totals()
+        assert totals.requests == 1
+        assert totals.total_tokens == 150  # single strict call, not double-counted
+
+    def test_fallback_bills_every_call_once(self) -> None:
+        pricing = _strict_pricing()
+        service = InterviewService(FakeClient(["not json", _strategy_json()]), pricing)
+        service.generate_strategy(_config(), _settings())
+        totals = pricing.session_totals()
+        assert totals.requests == 1  # one aggregated record
+        assert totals.total_tokens == 300  # strict call + fallback call
 
 
 # --- Next question -----------------------------------------------------------
@@ -491,15 +557,13 @@ class TestServiceBehaviour:
         assert len(client.calls) == 2  # primary + one repair
 
     def test_all_bad_responses_raise_model_response_error(self) -> None:
-        # Every call is unparseable across all attempts (each attempt: 1 primary
-        # + 1 repair), so it gives up after the bounded number of calls rather
-        # than looping forever.
-        calls_before_giving_up = constants.GENERATION_MAX_ATTEMPTS * 2
-        client = FakeClient(["nope"] * calls_before_giving_up)
+        # Defensive path: a malformed primary plus a malformed single repair
+        # (two calls) is the bound — it gives up rather than looping.
+        client = FakeClient(["nope", "still nope"])
         service = InterviewService(client, _pricing())
         with pytest.raises(ModelResponseError):
             service.generate_strategy(_config(), _settings())
-        assert len(client.calls) == calls_before_giving_up
+        assert len(client.calls) == 2  # primary + one repair, then stop
 
     def test_response_format_requested_when_supported(self) -> None:
         client = FakeClient([_strategy_json()])

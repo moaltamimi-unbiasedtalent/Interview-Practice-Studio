@@ -486,3 +486,53 @@ does **not** use any of them.
 - No secrets in the repository history.
 - Documentation (README, architecture, learning notes, review prep)
   complete and consistent with the code.
+
+---
+
+## Product hardening (Phase 15) — structured outputs, retries, capabilities
+
+This layer runs on the `product/full-fledged-interview-app` branch to remove
+technical debt before real-time features.
+
+### Structured-output generation path
+
+`BaseGenerationService._generate` chooses a strategy from **model metadata**:
+
+- **Strict JSON Schema (preferred).** When the model advertises
+  `structured_outputs`, the request carries a strict schema generated from the
+  target Pydantic model (`src/structured_output.build_structured_response_format`,
+  via `model_json_schema()` — never hand-duplicated) plus provider routing
+  (`provider.require_parameters`) so OpenRouter routes to a provider that can
+  enforce it instead of silently degrading. The shape is then guaranteed, so no
+  model-based JSON repair is run. The returned object is still validated by the
+  Pydantic model.
+- **Defensive fallback.** For models without schema enforcement — and as a
+  single controlled fallback when a strict request unexpectedly fails
+  validation — the existing defensive parser runs with **one** bounded repair
+  round (a `json_object` hint when supported).
+
+### Capability layer
+
+`PricingService.capabilities(model)` returns a typed `ModelCapabilities`
+(temperature, reasoning, max_tokens, response_format, structured_outputs, seed)
+derived from `supported_parameters`. The client capability-gates every optional
+parameter, and the UI hides the temperature control for models that do not
+support it, so nothing implies a setting works when the model rejects it.
+
+### Transient HTTP retry policy
+
+A single bounded retry lives at the HTTP boundary (`OpenRouterClient._post_chat`)
+for **transient** failures only: network errors, timeouts, and HTTP 429/502/503.
+It honours `Retry-After` (capped) or a small jittered backoff. Non-transient
+errors (400/401/402/403, unsupported parameters, schema errors, security blocks)
+are never retried.
+
+### Maximum requests per user action
+
+- Strict path, success: **1** request.
+- Strict path → defensive fallback: **1 (strict) + 2 (defensive primary + repair)
+  = 3** requests.
+- Defensive path only: **2** (primary + one repair).
+- Each of those may incur **at most one** extra transient retry (only on
+  network/429/502/503, which produce no completion), so the absolute ceiling for
+  one action is small and bounded — no stacking of many application retries.

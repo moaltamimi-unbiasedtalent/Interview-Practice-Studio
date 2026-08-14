@@ -122,13 +122,26 @@ def render_developer_settings(config: AppConfig) -> dict:
             format_func=lambda tid: technique_labels.get(tid, tid),
         )
 
-        temperature = st.slider(
-            "Temperature",
-            min_value=constants.MIN_TEMPERATURE,
-            max_value=constants.MAX_TEMPERATURE,
-            value=constants.DEFAULT_TEMPERATURE,
-            step=0.1,
-        )
+        # Capability gating from cached metadata only (no network on render).
+        # A parameter the model does not support is not offered, so the UI never
+        # implies a setting works when OpenRouter says the model rejects it.
+        supported = st.session_state.get(_METADATA_CACHE_KEY, {}).get(model)
+        temperature_supported = supported is None or "temperature" in supported
+
+        if temperature_supported:
+            temperature = st.slider(
+                "Temperature",
+                min_value=constants.MIN_TEMPERATURE,
+                max_value=constants.MAX_TEMPERATURE,
+                value=constants.DEFAULT_TEMPERATURE,
+                step=0.1,
+            )
+        else:
+            temperature = constants.DEFAULT_TEMPERATURE
+            st.caption(
+                "⚙️ This model does not support a temperature setting, so it is "
+                "disabled and never sent."
+            )
         max_tokens = st.number_input(
             "Maximum output tokens",
             min_value=constants.MIN_OUTPUT_TOKENS,
@@ -138,16 +151,22 @@ def render_developer_settings(config: AppConfig) -> dict:
         )
         show_usage = st.checkbox("Show usage details", value=False)
 
-        # Explain structured-output support only from cached metadata (no
-        # network on a normal render).
-        supported = st.session_state.get(_METADATA_CACHE_KEY, {}).get(model)
+        # Explain structured-output support only from cached metadata.
         if supported is not None:
-            if "response_format" in supported:
-                st.caption("This model supports strict JSON (response_format).")
+            if constants.STRUCTURED_OUTPUT_PARAMETER in supported:
+                st.caption(
+                    "This model enforces strict JSON Schema (structured "
+                    "outputs); repair is not needed."
+                )
+            elif "response_format" in supported:
+                st.caption(
+                    "This model supports a JSON response hint; the app validates "
+                    "and repairs once if needed."
+                )
             else:
                 st.caption(
-                    "This model does not support strict JSON mode; the app "
-                    "relies on a prompt-only JSON contract."
+                    "This model has no JSON mode; the app relies on a prompt-only "
+                    "JSON contract with one repair."
                 )
         else:
             st.caption("Use 'Test connection' to check model capabilities.")

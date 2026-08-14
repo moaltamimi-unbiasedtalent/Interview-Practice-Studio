@@ -30,6 +30,7 @@ __all__ = [
     "UNAVAILABLE",
     "COST_ESTIMATE_DISCLAIMER",
     "SessionUsageTotals",
+    "ModelCapabilities",
     "PricingService",
     "format_usd",
 ]
@@ -66,6 +67,28 @@ class SessionUsageTotals:
     def best_effort_cost_usd(self) -> float:
         """Reported cost where available, otherwise the calculated estimate."""
         return self.reported_cost_usd + self.calculated_cost_usd
+
+
+@dataclass(frozen=True)
+class ModelCapabilities:
+    """Which request parameters a model supports, per OpenRouter metadata.
+
+    Every field is derived from the model's advertised ``supported_parameters``
+    so the app can gate settings and choose a generation strategy from metadata
+    rather than hard-coded assumptions about specific model names.
+    """
+
+    temperature: bool
+    reasoning: bool
+    max_tokens: bool
+    response_format: bool
+    structured_outputs: bool
+    seed: bool
+
+    @property
+    def supports_strict_schema(self) -> bool:
+        """Whether provider-enforced strict JSON Schema output can be used."""
+        return self.structured_outputs
 
 
 def _to_decimal(raw: object) -> Decimal | None:
@@ -165,8 +188,37 @@ class PricingService:
         return ()
 
     def supports_response_format(self, model_id: str) -> bool:
-        """Whether the model supports structured output (response_format)."""
+        """Whether the model supports a response_format hint (e.g. json_object)."""
         return "response_format" in self.supported_parameters(model_id)
+
+    def supports_structured_outputs(self, model_id: str) -> bool:
+        """Whether the model/provider enforces a strict JSON Schema.
+
+        OpenRouter advertises this as the ``structured_outputs`` supported
+        parameter (distinct from a plain ``response_format`` hint). Only when it
+        is present can we rely on provider-side schema enforcement.
+        """
+        return (
+            constants.STRUCTURED_OUTPUT_PARAMETER
+            in self.supported_parameters(model_id)
+        )
+
+    def capabilities(self, model_id: str) -> "ModelCapabilities":
+        """Return which request parameters the model supports, from metadata.
+
+        A single metadata-driven view so the UI and the services never assume a
+        parameter works when OpenRouter says the model does not support it. An
+        unknown model yields all-False capabilities (safe default).
+        """
+        params = set(self.supported_parameters(model_id))
+        return ModelCapabilities(
+            temperature="temperature" in params,
+            reasoning="reasoning" in params,
+            max_tokens="max_tokens" in params,
+            response_format="response_format" in params,
+            structured_outputs=constants.STRUCTURED_OUTPUT_PARAMETER in params,
+            seed="seed" in params,
+        )
 
     @staticmethod
     def _positive_int(value: object) -> int | None:

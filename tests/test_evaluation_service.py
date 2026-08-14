@@ -4,7 +4,6 @@ import json
 
 import pytest
 
-from src import constants
 from src.evaluation_service import EvaluationService
 from src.interview_service import ModelResponseError
 from src.models import AnswerEvaluation, InterviewConfiguration, ModelSettings
@@ -128,19 +127,40 @@ class TestEvaluateAnswer:
         assert len(client.calls) == 2
 
     def test_all_failures_raise_model_response_error(self) -> None:
-        # Unparseable on every attempt (each: 1 primary + 1 repair).
-        bad = ["bad"] * (constants.GENERATION_MAX_ATTEMPTS * 2)
-        service = EvaluationService(FakeClient(bad), _pricing())
+        # Defensive path: unparseable primary + unparseable single repair.
+        service = EvaluationService(FakeClient(["bad", "worse"]), _pricing())
         with pytest.raises(ModelResponseError):
             service.evaluate_answer(_config(), "Q", "A", _settings())
 
     def test_out_of_range_scores_are_rejected(self) -> None:
-        # Out-of-range scores stay strictly rejected on every retry — the
-        # retry loop never makes an invalid score acceptable.
-        bad = [
-            _evaluation_json(overall_score=250)
-            for _ in range(constants.GENERATION_MAX_ATTEMPTS * 2)
-        ]
+        # Out-of-range scores stay strictly rejected: validation is never
+        # weakened, so the primary and its repair both fail.
+        bad = [_evaluation_json(overall_score=250), _evaluation_json(overall_score=250)]
         service = EvaluationService(FakeClient(bad), _pricing())
         with pytest.raises(ModelResponseError):
             service.evaluate_answer(_config(), "Q", "A", _settings())
+
+
+class TestFailureLoggingPrivacy:
+    def test_failure_logs_no_response_body_or_candidate_data(self, caplog) -> None:
+        import logging
+
+        secret_answer = "SECRET_ANSWER_TOKEN_please_never_log_me"
+        # Both the primary and the single repair are unparseable, forcing the
+        # failure path that emits the safe-metadata log line.
+        client = FakeClient(
+            ["RAW_MODEL_BODY_SHOULD_NOT_APPEAR", "RAW_MODEL_BODY_2_NOR_THIS"]
+        )
+        service = EvaluationService(client, _pricing())
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(ModelResponseError):
+                service.evaluate_answer(
+                    _config(), "Describe a conflict.", secret_answer, _settings()
+                )
+        blob = " ".join(record.getMessage() for record in caplog.records)
+        # Never log the raw model response body...
+        assert "RAW_MODEL_BODY" not in blob
+        # ...nor the candidate's answer content.
+        assert "SECRET_ANSWER_TOKEN" not in blob
+        # Safe metadata (schema name) is fine and expected.
+        assert "AnswerEvaluation" in blob
