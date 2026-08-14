@@ -1254,3 +1254,38 @@ object, so lenient coercions (text flattening, enum synonyms) and strict bounds
 3. What is the maximum number of API requests one user action can make?
 4. Which request parameters are gated by metadata, and where is that enforced?
 5. What exactly may and may not appear in a generation-failure log line?
+
+---
+
+## Phase 16 — recorded voice answers + speech-to-text
+
+Branch `product/full-fledged-interview-app` (continued).
+
+### What and why
+
+Candidates can now answer by voice as well as by typing. A provider-agnostic
+`SpeechTranscriptionService` keeps the interview services decoupled from any one
+speech vendor: the first provider is Google Cloud Speech-to-Text V2 (Chirp 3),
+but adding another later needs no change to evaluation or the app flow. The
+Google SDK is imported lazily and the client is injectable, so the app runs
+(and every test passes) without the SDK or credentials.
+
+Key decisions:
+- **Verbatim transcripts** — never rewritten — so evaluation sees the real
+  answer. The candidate reviews/edits the transcript before submitting; a
+  transcription is never auto-submitted.
+- **Audio is never persisted** and never logged; only transcript text and
+  numeric metrics are kept. The privacy notice is therefore truthful.
+- **Cost separation** — speech usage is an `ExternalServiceUsage` (audio
+  seconds) tracked apart from LLM tokens; a dollar cost is shown only when a
+  real rate is known.
+- **Graceful degradation** — no credentials ⇒ voice unavailable, text still
+  works, no crash.
+
+### Review questions
+
+1. How does the app stay independent of the speech provider?
+2. Where is raw audio, and why can we claim it is not saved?
+3. Why must the transcript be verbatim and candidate-editable before submission?
+4. How is transcription cost kept honest and separate from LLM cost?
+5. What happens when speech credentials are missing?

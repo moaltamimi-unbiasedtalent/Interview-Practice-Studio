@@ -536,3 +536,44 @@ are never retried.
 - Each of those may incur **at most one** extra transient retry (only on
   network/429/502/503, which produce no completion), so the absolute ceiling for
   one action is small and bounded — no stacking of many application retries.
+
+---
+
+## Voice answers + speech-to-text (Phase 16)
+
+Candidates can answer each question (main interview and Deep Dive) by **typing**
+or **recording**. Typing remains the default and is fully supported.
+
+### Provider-agnostic speech layer (`src/speech_service.py`)
+
+- `SpeechTranscriptionService` — the interface the app depends on.
+- `TranscriptionResult` — `transcript`, `detected_language`, `duration_seconds`,
+  `quality`, `provider`. The transcript is **verbatim** — never rewritten — so
+  the evaluator assesses what the candidate actually said.
+- `GoogleSpeechTranscriptionService` — Google Cloud Speech-to-Text V2 (Chirp 3).
+  The SDK is imported lazily and a client can be injected for tests, so the app
+  neither requires the SDK nor credentials to run.
+- `UnavailableSpeechService` — used when speech is not configured; the text
+  interview keeps working and the voice control shows a clear unavailable state.
+- `build_speech_service(config)` — returns the configured provider or the
+  unavailable one, gated on `config.google_speech_project_id`.
+- `transcribe_recording(...)` — single testable entry point returning
+  `(result, metrics, usage)`; the interview services never call a provider
+  directly, so another provider can be added later without touching them.
+
+### Flow
+
+Record → playback → **Transcribe** → **editable transcript** (`Review your
+transcript`) → **Submit** → the existing evaluation pipeline. A transcription is
+never auto-submitted; the candidate reviews/edits first. Actions: Submit, Record
+again, Clear, Switch to typing.
+
+### Audio, privacy and cost
+
+- Audio is validated (MIME, size, duration, empty) with a 10-minute hard cap and
+  is **never persisted** — bytes live only for the active transcription request.
+- Voice metrics (duration, word count, words-per-minute) are stored for the
+  future timing/coaching phase; not scored yet.
+- Transcription usage is recorded as `ExternalServiceUsage` (audio seconds),
+  **separate** from LLM token cost. A dollar cost is shown only when a real rate
+  is known — pricing is never invented.

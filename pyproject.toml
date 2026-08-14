@@ -21,6 +21,12 @@ dev = [
     "pytest>=8.3,<9.0",
     "pytest-mock>=3.14,<4.0",
 ]
+# Speech-to-text (recorded voice answers). Optional: the base app runs without
+# it, and the provider lazily imports it so a missing SDK degrades gracefully.
+# Install with:  pip install -e ".[speech]"
+speech = [
+    "google-cloud-speech>=2.26,<3.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

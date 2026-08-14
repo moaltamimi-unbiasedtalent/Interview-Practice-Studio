@@ -94,6 +94,32 @@ class TestAppRenders:
         labels = [b.label for b in at.button]
         assert any("Generate strategy" in label for label in labels)
 
+    def test_awaiting_answer_offers_type_and_record(self) -> None:
+        from src.models import InterviewQuestion
+
+        question = InterviewQuestion(
+            question_id=1,
+            question="Tell me about a challenge you handled.",
+            question_type="behavioural",
+            competency="resilience",
+            difficulty="moderate",
+            interviewer_intent="Assess how they cope under pressure.",
+            expected_answer_elements=["situation", "action", "result"],
+        )
+        at = _seed(
+            SessionData(
+                state=SessionState.AWAITING_ANSWER,
+                config=_config(),
+                questions=[question],
+                current_question_number=1,
+            )
+        )
+        at.run()
+        assert not at.exception
+        # The answer-method toggle exposes both Type and Record.
+        options = [opt for radio in at.radio for opt in radio.options]
+        assert "Type" in options and "Record" in options
+
     def test_strategy_state_renders_role_analysis(self) -> None:
         at = _seed(
             SessionData(

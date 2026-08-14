@@ -29,6 +29,7 @@ from src import constants
 from src.models import (
     AnswerEvaluation,
     BranchQuestion,
+    ExternalServiceUsage,
     FinalInterviewReport,
     InterviewConfiguration,
     InterviewQuestion,
@@ -117,6 +118,11 @@ class SessionData:
     # Usage and cost.
     usage_records: list[UsageRecord] = field(default_factory=list)
     cumulative_cost_usd: float = 0.0
+    # External (non-LLM) service usage, e.g. speech-to-text transcription.
+    transcription_usage: list["ExternalServiceUsage"] = field(default_factory=list)
+    # Voice delivery metrics per spoken answer (duration, word count, wpm),
+    # captured for the timing/coaching phase; not scored yet.
+    voice_metrics: list[dict[str, Any]] = field(default_factory=list)
 
     # Interview Deep Dive (branching) — tracked separately from main progress so
     # a branch can never move the main interview forward.
@@ -496,6 +502,20 @@ class SessionManager:
             else usage.calculated_cost
         )
         self.data.cumulative_cost_usd += float(best_effort)
+
+    def record_transcription_usage(self, usage: ExternalServiceUsage) -> None:
+        """Record a speech-to-text usage entry (kept separate from LLM cost).
+
+        Adds to the cumulative session cost only when a real cost is known, so
+        an unpriced transcription never inflates the displayed total.
+        """
+        self.data.transcription_usage.append(usage)
+        if usage.cost_usd is not None:
+            self.data.cumulative_cost_usd += float(usage.cost_usd)
+
+    def record_voice_metrics(self, metrics: dict[str, Any]) -> None:
+        """Store delivery metrics for a spoken answer (not scored yet)."""
+        self.data.voice_metrics.append(dict(metrics))
 
     def add_chat_message(self, role: str, content: str) -> None:
         """Append a message to the persistent chat history."""

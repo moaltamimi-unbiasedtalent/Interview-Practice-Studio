@@ -75,6 +75,20 @@ autonomous agent or a general-purpose chatbot: branch questions are anchored to
 the parent question and the candidate's actual answer, branch answers are framed
 as untrusted data, and a branch never advances the main interview's progress.
 
+## Voice answers (speech-to-text)
+
+For every question — main interview and Deep Dive — the candidate can **type** or
+**record** an answer (typing remains the default). A recording is played back,
+transcribed, and shown as an **editable transcript** the candidate reviews before
+submitting; nothing is auto-submitted, and the edited transcript flows into the
+same evaluation pipeline. Transcription uses a provider-agnostic
+`SpeechTranscriptionService` (`src/speech_service.py`); the first provider is
+Google Cloud Speech-to-Text V2 (Chirp 3). Raw audio is never saved, transcripts
+are verbatim, and speech is optional — without credentials the text interview
+works unchanged and the voice control shows a clear unavailable state. Install
+the speech extra with `pip install -e ".[speech]"` and configure a Google project
+(see Configuration). Details in [docs/architecture.md](docs/architecture.md).
+
 ## Architecture
 
 A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:

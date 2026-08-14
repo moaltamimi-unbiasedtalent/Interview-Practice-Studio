@@ -275,3 +275,22 @@ Answer-length enforcement (`MAX_ANSWER_CHARS`) is applied before any state
 change or API call for both main and Deep Dive answers; injection screening is
 still deliberately *not* applied to answers (they must always be evaluated) —
 they are framed as untrusted data in the prompt.
+
+---
+
+## Voice answers (Phase 16)
+
+- **No raw audio persistence.** Recorded audio is passed to the transcription
+  provider for the active request only and is never written to disk or kept in
+  session state. The UI states this to the candidate. Only the transcript
+  (text) and numeric delivery metrics are retained.
+- **No audio or transcript logging.** The speech layer logs only safe metadata
+  (provider name, error *type*) — never audio bytes, transcript content, or the
+  provider's raw error detail.
+- **Credentials.** Speech uses Google Application Default Credentials
+  (`GOOGLE_APPLICATION_CREDENTIALS`); the app stores only the non-secret project
+  id/location. Service-account files and tokens are never read, stored, logged
+  or committed. `.env.example` / `.streamlit/secrets.toml.example` carry
+  placeholders only.
+- **Verbatim transcripts.** Transcription never "improves" the answer, so the
+  evaluator assesses the real wording (mistakes and repetition included).
