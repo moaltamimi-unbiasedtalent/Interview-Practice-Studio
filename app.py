@@ -30,6 +30,13 @@ from src.speech_service import (
     build_speech_service,
     transcribe_recording,
 )
+from src.live_interview import (
+    GeminiLiveTokenService,
+    LiveInterviewError,
+    LiveInterviewService,
+)
+from components.live_interviewer import is_available as live_component_available
+from components.live_interviewer import live_interviewer
 
 _METADATA_CACHE_KEY = "_model_supported_params"
 
@@ -591,14 +598,18 @@ def _render_branch_controls(session: SessionManager) -> None:
 
 
 def _render_answer_input(session, *, on_submit, ns: str, placeholder: str) -> None:
-    """Answer input offering both typing and recording; typing is the default.
+    """Answer input offering three modes; typing is the default.
 
-    ``on_submit(text)`` is called with the final answer text (typed, or the
-    reviewed/edited transcript). The caller wires it to the existing evaluation
-    handlers, so voice and typed answers share one pipeline.
+    Modes: **Type** (text), **Record** (recorded voice → transcript) and **Live**
+    (experimental real-time interviewer). ``on_submit(text)`` is called with the
+    final answer text, so every mode shares the one evaluation pipeline.
     """
     method = st.radio(
-        "Answer method", ["Type", "Record"], horizontal=True, key=f"{ns}_method"
+        "Answer method",
+        ["Type", "Record", "Live"],
+        horizontal=True,
+        key=f"{ns}_method",
+        help="Type, record a voice answer, or try the experimental live interviewer.",
     )
     if method == "Type":
         answer = st.chat_input(placeholder, max_chars=constants.MAX_ANSWER_CHARS)
@@ -606,7 +617,50 @@ def _render_answer_input(session, *, on_submit, ns: str, placeholder: str) -> No
             on_submit(answer)
             st.rerun()
         return
-    _render_voice_answer(session, on_submit=on_submit, ns=ns)
+    if method == "Record":
+        _render_voice_answer(session, on_submit=on_submit, ns=ns)
+        return
+    _render_live_answer(session, on_submit=on_submit, ns=ns)
+
+
+def _render_transcript_review(session, *, on_submit, ns: str) -> None:
+    """Shared 'Review your transcript' block for voice and live answers.
+
+    The final, candidate-edited transcript is what reaches the evaluator; a
+    transcript is never auto-submitted.
+    """
+    transcript_key = f"{ns}_transcript"
+    metrics_key = f"{ns}_metrics"
+    if transcript_key not in st.session_state:
+        return
+    st.markdown("**Review your transcript**")
+    edited = st.text_area(
+        "Edit before submitting",
+        value=st.session_state[transcript_key],
+        key=f"{ns}_edit",
+        height=140,
+    )
+    columns = st.columns(4)
+    if columns[0].button("Submit answer", type="primary", key=f"{ns}_submit"):
+        metrics = st.session_state.pop(metrics_key, None)
+        if metrics is not None:
+            session.record_voice_metrics(metrics)
+        st.session_state.pop(transcript_key, None)
+        on_submit(edited)
+        st.rerun()
+    if columns[1].button("Redo", key=f"{ns}_again"):
+        st.session_state.pop(transcript_key, None)
+        st.session_state.pop(metrics_key, None)
+        st.rerun()
+    if columns[2].button("Clear", key=f"{ns}_clear"):
+        st.session_state.pop(transcript_key, None)
+        st.session_state.pop(metrics_key, None)
+        st.rerun()
+    if columns[3].button("Switch to typing", key=f"{ns}_totype"):
+        st.session_state.pop(transcript_key, None)
+        st.session_state.pop(metrics_key, None)
+        st.session_state[f"{ns}_method"] = "Type"
+        st.rerun()
 
 
 def _render_voice_answer(session, *, on_submit, ns: str) -> None:
@@ -649,35 +703,53 @@ def _render_voice_answer(session, *, on_submit, ns: str) -> None:
                 session.record_transcription_usage(usage)
                 st.rerun()
 
-    if transcript_key in st.session_state:
-        st.markdown("**Review your transcript**")
-        edited = st.text_area(
-            "Edit before submitting",
-            value=st.session_state[transcript_key],
-            key=f"{ns}_edit",
-            height=140,
-        )
-        columns = st.columns(4)
-        if columns[0].button("Submit answer", type="primary", key=f"{ns}_submit"):
-            metrics = st.session_state.pop(metrics_key, None)
-            if metrics is not None:
-                session.record_voice_metrics(metrics)
-            st.session_state.pop(transcript_key, None)
-            on_submit(edited)
-            st.rerun()
-        if columns[1].button("Record again", key=f"{ns}_again"):
-            st.session_state.pop(transcript_key, None)
-            st.session_state.pop(metrics_key, None)
-            st.rerun()
-        if columns[2].button("Clear", key=f"{ns}_clear"):
-            st.session_state.pop(transcript_key, None)
-            st.session_state.pop(metrics_key, None)
-            st.rerun()
-        if columns[3].button("Switch to typing", key=f"{ns}_totype"):
-            st.session_state.pop(transcript_key, None)
-            st.session_state.pop(metrics_key, None)
-            st.session_state[f"{ns}_method"] = "Type"
-            st.rerun()
+    _render_transcript_review(session, on_submit=on_submit, ns=ns)
+
+
+def _live_fallback(ns: str) -> None:
+    """Show the live-unavailable message and offer voice/text without data loss."""
+    st.warning(constants.LIVE_FALLBACK_MESSAGE)
+    columns = st.columns(2)
+    if columns[0].button("Continue with recorded voice", key=f"{ns}_fb_voice"):
+        st.session_state[f"{ns}_method"] = "Record"
+        st.rerun()
+    if columns[1].button("Continue with text", key=f"{ns}_fb_text"):
+        st.session_state[f"{ns}_method"] = "Type"
+        st.rerun()
+
+
+def _render_live_answer(session, *, on_submit, ns: str) -> None:
+    """Experimental live interviewer; falls back cleanly when unavailable."""
+    config = load_config()
+    st.caption(
+        "**Live Interview — Experimental.** " + constants.SPEECH_PRIVACY_NOTICE
+    )
+    token_service = GeminiLiveTokenService(config)
+    if not token_service.is_available or not live_component_available():
+        _live_fallback(ns)
+        return
+
+    try:
+        _token, session_config = LiveInterviewService(
+            token_service=token_service
+        ).start_session()
+    except LiveInterviewError:
+        _live_fallback(ns)
+        return
+
+    question = (
+        session.data.questions[-1].question if session.data.questions else ""
+    )
+    session_config["question"] = question
+    event = live_interviewer(session_config=session_config, key=f"{ns}_live")
+
+    # The component reports a final candidate transcript; the candidate reviews
+    # and edits it before it is submitted to the existing evaluation pipeline.
+    if isinstance(event, dict) and event.get("transcript_final"):
+        text = (event.get("candidate_transcript") or "").strip()
+        if text:
+            st.session_state[f"{ns}_transcript"] = text
+    _render_transcript_review(session, on_submit=on_submit, ns=ns)
 
 
 def render_interview(session: SessionManager) -> None:

@@ -21,6 +21,8 @@ from src import constants
 API_KEY_NAME = "OPENROUTER_API_KEY"
 SPEECH_PROJECT_NAME = "GOOGLE_SPEECH_PROJECT_ID"
 SPEECH_LOCATION_NAME = "GOOGLE_SPEECH_LOCATION"
+GEMINI_API_KEY_NAME = "GEMINI_API_KEY"
+GEMINI_MODEL_NAME = "GEMINI_LIVE_MODEL"
 
 
 class AppConfig(BaseModel):
@@ -40,6 +42,12 @@ class AppConfig(BaseModel):
     # (e.g. GOOGLE_APPLICATION_CREDENTIALS) and are never read or stored here.
     google_speech_project_id: str | None = None
     google_speech_location: str = constants.SPEECH_LOCATION_DEFAULT
+
+    # Live interview (optional). The permanent Gemini key is a secret used only
+    # on the backend to mint short-lived ephemeral tokens; it is never sent to
+    # the browser. Stored as SecretStr so it is masked if printed or logged.
+    gemini_api_key: SecretStr | None = None
+    gemini_live_model: str = constants.LIVE_INTERVIEW_MODEL
 
     # OpenRouter connection settings (defaults from constants). These are not
     # secrets and are safe to display or log.
@@ -66,6 +74,14 @@ class AppConfig(BaseModel):
         auth failure surfaces as a controlled error at transcription time.
         """
         return bool(self.google_speech_project_id)
+
+    @property
+    def is_live_configured(self) -> bool:
+        """Return ``True`` when a Gemini key is available (live mode enabled)."""
+        return (
+            self.gemini_api_key is not None
+            and self.gemini_api_key.get_secret_value().strip() != ""
+        )
 
     @property
     def chat_completions_url(self) -> str:
@@ -139,8 +155,16 @@ def load_config() -> AppConfig:
     speech_project = _read_setting(SPEECH_PROJECT_NAME)
     speech_location = _read_setting(SPEECH_LOCATION_NAME) or constants.SPEECH_LOCATION_DEFAULT
 
+    # The Gemini key is read from secrets first, then the environment, and wrapped
+    # in SecretStr so it is masked if the config is ever printed or logged.
+    raw_gemini = _read_setting(GEMINI_API_KEY_NAME)
+    gemini_api_key = SecretStr(raw_gemini) if raw_gemini else None
+    gemini_model = _read_setting(GEMINI_MODEL_NAME) or constants.LIVE_INTERVIEW_MODEL
+
     return AppConfig(
         api_key=api_key,
         google_speech_project_id=speech_project,
         google_speech_location=speech_location,
+        gemini_api_key=gemini_api_key,
+        gemini_live_model=gemini_model,
     )

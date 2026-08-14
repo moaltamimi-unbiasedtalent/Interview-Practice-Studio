@@ -112,3 +112,20 @@ boundaries of the tool.
   transcribe). Real-time streaming (Gemini Live) is not implemented.
 - **Voice metrics captured, not scored.** Duration/word-count/WPM are stored for
   the later timing/coaching phase.
+
+---
+
+## Live interview (Phase 17, experimental)
+
+- **Experimental and optional.** Requires a Gemini key and a built frontend
+  component; otherwise the mode shows a fallback and Voice/Text still work.
+- **Frontend not built or exercised in CI.** The TypeScript component is shipped
+  as source; it is not built or run in automated tests, and no live Gemini call
+  is made in CI. Only the Python backend and the graceful-fallback path are
+  covered by the automated suite; browser behaviour is covered by the manual QA
+  plan (`docs/live_interview_qa.md`).
+- **Gemini cost is not priced.** Session usage is tracked separately from LLM
+  cost; no dollar figure is shown unless a real rate is configured.
+- **Single engine preserved.** Gemini never authors questions or changes
+  progression; it only voices the canonical OpenRouter question and may make
+  brief acknowledgements.

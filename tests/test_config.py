@@ -117,6 +117,29 @@ class TestLoadConfig:
         assert config.google_speech_project_id == "gcp-proj"
         assert config.google_speech_location == constants.SPEECH_LOCATION_DEFAULT
 
+    def test_live_unconfigured_by_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("src.config._read_setting", lambda name: None)
+        monkeypatch.delenv(API_KEY_NAME, raising=False)
+        config = load_config()
+        assert config.is_live_configured is False
+        assert config.gemini_api_key is None
+
+    def test_live_configured_from_gemini_key(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "src.config._read_setting",
+            lambda name: "gemini-secret" if name == "GEMINI_API_KEY" else None,
+        )
+        monkeypatch.delenv(API_KEY_NAME, raising=False)
+        config = load_config()
+        assert config.is_live_configured is True
+        # The Gemini key is masked if the config is printed/logged.
+        assert "gemini-secret" not in repr(config)
+        assert "gemini-secret" not in str(config)
+
 
 class TestSecretSafety:
     """The API key must never leak through printing or logging."""

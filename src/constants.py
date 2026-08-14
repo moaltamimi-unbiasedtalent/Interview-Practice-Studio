@@ -290,6 +290,26 @@ SPEECH_PRIVACY_NOTICE = (
     "Interview Practice Studio."
 )
 
+# --- Live interview (Gemini Live, experimental) ------------------------------
+# A real-time voice interface. OpenRouter stays the authoritative interview
+# intelligence (questions, evaluation, Deep Dive, report); Gemini Live only
+# speaks the canonical question and streams the candidate's audio/transcript.
+LIVE_PROVIDER = "gemini_live"
+# Default Gemini Live model; configurable so it can track the current release.
+LIVE_INTERVIEW_MODEL = "gemini-2.0-flash-live-001"
+LIVE_AUDIO_SAMPLE_RATE = 16_000  # 16 kHz input, as Gemini Live expects
+LIVE_AUDIO_OUTPUT_SAMPLE_RATE = 24_000  # Gemini streams 24 kHz output audio
+# Small low-latency chunks (20-40 ms) rather than buffering seconds of audio.
+LIVE_AUDIO_CHUNK_MS = 30
+# Ephemeral tokens are short-lived; the browser only ever receives one of these.
+LIVE_EPHEMERAL_TOKEN_TTL_SECONDS = 1_800  # 30 minutes
+LIVE_NEW_SESSION_WINDOW_SECONDS = 60  # window to start a session with the token
+# Bounded reconnect so a failing session can never loop forever.
+LIVE_MAX_RECONNECTS = 3
+LIVE_RECONNECT_BASE_DELAY_SECONDS = 1.0
+LIVE_RECONNECT_MAX_DELAY_SECONDS = 8.0
+LIVE_FALLBACK_MESSAGE = "Live interview is temporarily unavailable."
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

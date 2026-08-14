@@ -1289,3 +1289,45 @@ Key decisions:
 3. Why must the transcript be verbatim and candidate-editable before submission?
 4. How is transcription cost kept honest and separate from LLM cost?
 5. What happens when speech credentials are missing?
+
+---
+
+## Phase 17 — real-time AI interviewer (Gemini Live, experimental)
+
+Branch `product/full-fledged-interview-app` (continued). Adds a third optional
+mode (Live Interview) without replacing Text or Voice practice.
+
+### Key decision: one engine, two roles
+
+OpenRouter stays the single interview intelligence (questions, evaluation, Deep
+Dive, report); Gemini Live is only the real-time voice *interface*. This avoids
+two competing engines: `LiveInterviewService` delegates every substantive step
+back to the existing services and adds only token minting, the non-secret
+browser config, and separate usage accounting.
+
+### Security: ephemeral tokens
+
+The permanent Gemini key must never reach the browser, so the backend mints
+short-lived ephemeral tokens and hands the browser only those. The key is a
+`SecretStr`, tokens are masked and never logged, expiry is explicit, and a test
+proves the permanent key never appears in the browser config.
+
+### Explicit turn state machine
+
+`LiveTurnState` replaces loose booleans with an auditable lifecycle, and
+`ReconnectPolicy` bounds reconnection. Barge-in is modelled as a validated
+transition that also flags stale interviewer audio for discard.
+
+### Graceful degradation
+
+The frontend component isn't built in CI, so `is_available()` returns `False`
+and the app falls back to Voice/Text without losing answers — the same path used
+if a live session fails at runtime.
+
+### Review questions
+
+1. Why is OpenRouter still the only interview engine, and how is that enforced?
+2. How does the permanent Gemini key stay off the browser?
+3. What states make up a live turn, and how is barge-in handled?
+4. What stops reconnection from looping forever?
+5. What happens when live mode is unavailable mid-interview?

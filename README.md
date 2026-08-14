@@ -89,6 +89,24 @@ works unchanged and the voice control shows a clear unavailable state. Install
 the speech extra with `pip install -e ".[speech]"` and configure a Google project
 (see Configuration). Details in [docs/architecture.md](docs/architecture.md).
 
+## Live interview (experimental)
+
+An optional third mode alongside Text and Voice practice: a real-time voice
+interviewer powered by Gemini Live. **OpenRouter remains the only interview
+engine** — it still authors the questions, evaluates answers, runs Deep Dive and
+writes the report; Gemini Live only *speaks* the canonical question and streams
+the candidate's audio and live transcript, which flows into the same evaluation
+pipeline. The permanent Gemini key never reaches the browser — the backend mints
+short-lived **ephemeral tokens** ([src/live_interview.py](src/live_interview.py))
+and the real-time audio/WebSocket work lives in a package-based Streamlit
+component ([components/live_interviewer/](components/live_interviewer/)). It is
+experimental and fully optional: without a Gemini key or a built component, Live
+shows a fallback and Text/Voice work unchanged. Enable with
+`pip install -e ".[live]"`, `GEMINI_API_KEY`, and building the component
+(`cd components/live_interviewer/frontend && npm install && npm run build`). See
+[docs/architecture.md](docs/architecture.md) and the manual QA plan in
+[docs/live_interview_qa.md](docs/live_interview_qa.md).
+
 ## Architecture
 
 A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:

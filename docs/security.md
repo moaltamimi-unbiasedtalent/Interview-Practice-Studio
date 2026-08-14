@@ -294,3 +294,20 @@ they are framed as untrusted data in the prompt.
   placeholders only.
 - **Verbatim transcripts.** Transcription never "improves" the answer, so the
   evaluator assesses the real wording (mistakes and repetition included).
+
+---
+
+## Live interview (Phase 17)
+
+- **Permanent key stays on the backend.** The Gemini key is used only to mint
+  short-lived ephemeral tokens (`GeminiLiveTokenService`); the browser receives
+  only the ephemeral token. The permanent key is stored as `SecretStr`, never
+  logged, and a test asserts it never appears in the browser-bound config.
+- **No token logging.** Ephemeral tokens are masked in `repr` and never logged;
+  token-minting failures log only the error type.
+- **Explicit expiry/renewal.** Tokens carry an expiry and are re-minted per
+  session; `is_expired(now)` makes the check explicit.
+- **Bounded reconnect.** `ReconnectPolicy` (and the frontend) stop after a fixed
+  number of attempts — no infinite reconnect loop.
+- **Verbatim transcript to the evaluator.** The live candidate transcript is
+  submitted to the existing evaluation pipeline unchanged.

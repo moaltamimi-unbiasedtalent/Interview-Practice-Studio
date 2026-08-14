@@ -577,3 +577,53 @@ again, Clear, Switch to typing.
 - Transcription usage is recorded as `ExternalServiceUsage` (audio seconds),
   **separate** from LLM token cost. A dollar cost is shown only when a real rate
   is known — pricing is never invented.
+
+---
+
+## Live interview — real-time Gemini interviewer (Phase 17, experimental)
+
+A third, optional mode alongside Text Practice and Voice Practice. **One
+interview engine is preserved**: OpenRouter remains authoritative for the
+strategy, questions, evaluation, Deep Dive and report; Gemini Live is only the
+real-time voice interface that *speaks the canonical question* and streams the
+candidate's audio/transcript.
+
+```
+OpenRouter → canonical question → Gemini Live speaks it → candidate answers by
+voice → live transcript → existing evaluation pipeline → OpenRouter next question
+```
+
+### Backend (`src/live_interview.py`)
+
+- `GeminiLiveTokenService` — mints short-lived **ephemeral tokens** from the
+  permanent Gemini key. The permanent key is used only here and never returned,
+  logged, or placed in a browser-bound payload. Expiry/renewal are explicit and
+  the token string is masked in `repr`.
+- `LiveInterviewService` — coordinates the live concerns only: `start_session()`
+  returns the ephemeral token plus the non-secret browser config (model, sample
+  rates, chunk size, reconnect bound), and delegates `next_question`,
+  `evaluate_transcript` and `deep_dive_question` to the existing OpenRouter
+  services. Gemini usage is recorded as a separate `ExternalServiceUsage`.
+- `LiveInterviewSession` — the explicit turn state machine: `PREPARING →
+  INTERVIEWER_SPEAKING → CANDIDATE_THINKING → CANDIDATE_SPEAKING →
+  PROCESSING_TRANSCRIPT → EVALUATING → READY_FOR_NEXT`, plus `ERROR`
+  (recoverable) and `COMPLETE` (terminal). Barge-in (`interrupt`) is only valid
+  while the interviewer is speaking and sets a discard-stale-audio flag.
+- `ReconnectPolicy` — bounded exponential backoff (`next_delay` returns `None`
+  once the max is passed) so reconnection can never loop forever.
+
+### Frontend component (`components/live_interviewer/`)
+
+A package-based Streamlit component (TypeScript). The browser owns microphone
+capture, 16 kHz resampling, ~30 ms PCM chunking, the Gemini Live WebSocket
+(ephemeral token only), playback, interruption/discard, transcripts, status,
+mute/stop and bounded reconnect. It is isolated from Python interview logic and
+returns only event payloads (state, transcript). The Python wrapper serves the
+built `frontend/dist`; when it is not built, `is_available()` is `False` and the
+app falls back to Voice/Text.
+
+### Fallback
+
+If live mode is unconfigured, the component is unbuilt, or a session fails, the
+app shows *"Live interview is temporarily unavailable."* and offers **Continue
+with recorded voice** / **Continue with text** without losing completed answers.
