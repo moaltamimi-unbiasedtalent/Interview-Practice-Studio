@@ -129,3 +129,16 @@ boundaries of the tool.
 - **Single engine preserved.** Gemini never authors questions or changes
   progression; it only voices the canonical OpenRouter question and may make
   brief acknowledgements.
+
+---
+
+## Answer timing & delivery coaching (Phase 18)
+
+- **Guidance, not limits.** Recommended durations never stop the candidate and
+  never change the interview-content score.
+- **Pause/segment metrics need voice-activity data.** They are available in live
+  mode (VAD segments from the browser). Recorded voice provides only
+  duration-based metrics (speaking time, words per minute); pause counts are left
+  unknown rather than estimated. Typed answers get no speech metrics at all.
+- **Recommended durations are heuristic.** They come from per-type target word
+  counts × a professional speaking rate, not from grading an ideal answer.

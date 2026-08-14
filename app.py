@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from scripts import compare_model_settings as cm
 from scripts import compare_prompts as cp
-from src import constants, security, ui_helpers
+from src import constants, security, timing, ui_helpers
 from src.config import AppConfig, load_config
 from src.evaluation_service import EvaluationService
 from src.interview_service import InterviewService, QuestionHistory, ServiceError
@@ -407,6 +407,8 @@ def _generate_next_question(session: SessionManager, *, first: bool = False) -> 
     operation = "first_question" if first else "next_question"
     if not session.begin_operation(operation):
         return
+    # The delivery notes belong to the previous answer; clear before the next.
+    st.session_state.pop("_delivery_notes", None)
     config = load_config()
     if not config.is_configured:
         session.end_operation()
@@ -487,6 +489,7 @@ def _run_branch_generation(session: SessionManager) -> None:
     """Generate the next deep-dive question (level 1 or deeper)."""
     if not session.begin_operation("branch_question"):
         return
+    st.session_state.pop("_delivery_notes", None)
     config = load_config()
     if not config.is_configured:
         session.end_operation()
@@ -585,6 +588,7 @@ def _render_branch_controls(session: SessionManager) -> None:
     )
     if data.branch_evaluations:
         render_feedback(data.branch_evaluations[-1])
+        _render_delivery_section()
     columns = st.columns(2)
     if session.can_go_deeper():
         if columns[0].button("Go deeper", type="primary", key="branch_deeper"):
@@ -597,13 +601,18 @@ def _render_branch_controls(session: SessionManager) -> None:
         st.rerun()
 
 
-def _render_answer_input(session, *, on_submit, ns: str, placeholder: str) -> None:
+def _render_answer_input(
+    session, *, on_submit, ns: str, placeholder: str, question=None,
+    is_deep_dive: bool = False,
+) -> None:
     """Answer input offering three modes; typing is the default.
 
     Modes: **Type** (text), **Record** (recorded voice → transcript) and **Live**
     (experimental real-time interviewer). ``on_submit(text)`` is called with the
-    final answer text, so every mode shares the one evaluation pipeline.
+    final answer text, so every mode shares the one evaluation pipeline. Voice
+    and live modes also show recommended answer-length guidance (never a limit).
     """
+    guidance = timing.guidance_for_question(question, is_deep_dive=is_deep_dive) if question else None
     method = st.radio(
         "Answer method",
         ["Type", "Record", "Live"],
@@ -617,13 +626,42 @@ def _render_answer_input(session, *, on_submit, ns: str, placeholder: str) -> No
             on_submit(answer)
             st.rerun()
         return
+    if guidance is not None:
+        st.caption(
+            f"Recommended: ~{round(guidance.recommended_seconds / 60, 1)} min "
+            f"(~{guidance.target_words} words). Guidance only — take the time you need."
+        )
     if method == "Record":
-        _render_voice_answer(session, on_submit=on_submit, ns=ns)
+        _render_voice_answer(session, on_submit=on_submit, ns=ns, guidance=guidance)
         return
-    _render_live_answer(session, on_submit=on_submit, ns=ns)
+    _render_live_answer(session, on_submit=on_submit, ns=ns, guidance=guidance)
 
 
-def _render_transcript_review(session, *, on_submit, ns: str) -> None:
+def _record_delivery(session, *, ns: str, transcript: str, guidance) -> None:
+    """Compute + store delivery metrics for a spoken answer (never a score).
+
+    Uses voice-activity segments when the recorder/live client provided them;
+    otherwise falls back to the recording duration. Stores plain-language
+    delivery notes for display and aggregation. Typed answers never reach here.
+    """
+    pending = st.session_state.pop(f"{ns}_metrics", None) or {}
+    word_count = len((transcript or "").split())
+    metrics = timing.compute_delivery_metrics(
+        word_count=word_count,
+        segments=pending.get("segments"),
+        total_duration_seconds=pending.get("duration_seconds"),
+        response_start_latency_seconds=pending.get("response_start_latency_seconds"),
+    )
+    notes = timing.delivery_feedback(guidance, metrics) if guidance else []
+    entry = metrics.as_dict()
+    if guidance is not None:
+        entry["recommended_seconds"] = guidance.recommended_seconds
+    entry["feedback"] = notes
+    session.record_voice_metrics(entry)
+    st.session_state["_delivery_notes"] = notes
+
+
+def _render_transcript_review(session, *, on_submit, ns: str, guidance=None) -> None:
     """Shared 'Review your transcript' block for voice and live answers.
 
     The final, candidate-edited transcript is what reaches the evaluator; a
@@ -642,9 +680,7 @@ def _render_transcript_review(session, *, on_submit, ns: str) -> None:
     )
     columns = st.columns(4)
     if columns[0].button("Submit answer", type="primary", key=f"{ns}_submit"):
-        metrics = st.session_state.pop(metrics_key, None)
-        if metrics is not None:
-            session.record_voice_metrics(metrics)
+        _record_delivery(session, ns=ns, transcript=edited, guidance=guidance)
         st.session_state.pop(transcript_key, None)
         on_submit(edited)
         st.rerun()
@@ -663,7 +699,7 @@ def _render_transcript_review(session, *, on_submit, ns: str) -> None:
         st.rerun()
 
 
-def _render_voice_answer(session, *, on_submit, ns: str) -> None:
+def _render_voice_answer(session, *, on_submit, ns: str, guidance=None) -> None:
     """Record → playback → transcribe → editable transcript → submit."""
     config = load_config()
     service = build_speech_service(config)
@@ -703,7 +739,7 @@ def _render_voice_answer(session, *, on_submit, ns: str) -> None:
                 session.record_transcription_usage(usage)
                 st.rerun()
 
-    _render_transcript_review(session, on_submit=on_submit, ns=ns)
+    _render_transcript_review(session, on_submit=on_submit, ns=ns, guidance=guidance)
 
 
 def _live_fallback(ns: str) -> None:
@@ -718,7 +754,7 @@ def _live_fallback(ns: str) -> None:
         st.rerun()
 
 
-def _render_live_answer(session, *, on_submit, ns: str) -> None:
+def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
     """Experimental live interviewer; falls back cleanly when unavailable."""
     config = load_config()
     st.caption(
@@ -741,15 +777,40 @@ def _render_live_answer(session, *, on_submit, ns: str) -> None:
         session.data.questions[-1].question if session.data.questions else ""
     )
     session_config["question"] = question
+    if guidance is not None:
+        # The live timer uses these to nudge (never to stop the candidate).
+        session_config["recommended_seconds"] = guidance.recommended_seconds
+        session_config["soft_warning_seconds"] = guidance.soft_warning_seconds
+        session_config["hard_guidance_seconds"] = guidance.hard_guidance_seconds
     event = live_interviewer(session_config=session_config, key=f"{ns}_live")
 
-    # The component reports a final candidate transcript; the candidate reviews
-    # and edits it before it is submitted to the existing evaluation pipeline.
+    # The component reports a final candidate transcript (plus voice-activity
+    # segments); the candidate reviews and edits it before it is submitted to the
+    # existing evaluation pipeline.
     if isinstance(event, dict) and event.get("transcript_final"):
         text = (event.get("candidate_transcript") or "").strip()
         if text:
             st.session_state[f"{ns}_transcript"] = text
-    _render_transcript_review(session, on_submit=on_submit, ns=ns)
+            st.session_state[f"{ns}_metrics"] = {
+                "segments": event.get("segments"),
+                "response_start_latency_seconds": event.get("response_start_latency"),
+            }
+    _render_transcript_review(session, on_submit=on_submit, ns=ns, guidance=guidance)
+
+
+def _render_delivery_section() -> None:
+    """Show 'Delivery & pacing' notes for the most recent spoken answer.
+
+    Timing is coaching only: it never appears for typed answers and never
+    affects the interview-content score.
+    """
+    notes = st.session_state.get("_delivery_notes")
+    if not notes:
+        return
+    with st.expander("Delivery & pacing", expanded=False):
+        for note in notes:
+            st.markdown(f"- {note}")
+        st.caption("Guidance on pacing only — it does not affect your score.")
 
 
 def render_interview(session: SessionManager) -> None:
@@ -776,6 +837,10 @@ def render_interview(session: SessionManager) -> None:
                 on_submit=lambda text: _handle_branch_answer(session, text),
                 ns="branch_answer",
                 placeholder="Answer the deep-dive question…",
+                question=(
+                    data.branch_questions[-1] if data.branch_questions else None
+                ),
+                is_deep_dive=True,
             )
             st.caption("Deep-dive questions use additional AI requests.")
             if st.button("Return to main interview", key="branch_return_await"):
@@ -790,6 +855,7 @@ def render_interview(session: SessionManager) -> None:
     # --- Normal main interview -----------------------------------------------
     if data.evaluations:
         render_feedback(data.evaluations[-1])
+        _render_delivery_section()
         st.divider()
 
     if session.state is SessionState.AWAITING_ANSWER:
@@ -798,6 +864,8 @@ def render_interview(session: SessionManager) -> None:
             on_submit=lambda text: _handle_answer(session, text),
             ns="main_answer",
             placeholder="Type your answer…",
+            question=data.questions[-1] if data.questions else None,
+            is_deep_dive=False,
         )
         if answered >= 1 and st.button("End interview early"):
             session.end_interview_early()
@@ -912,6 +980,36 @@ def render_complete(session: SessionManager) -> None:
         st.rerun()
 
 
+def _render_delivery_summary(session: SessionManager) -> None:
+    """Aggregated delivery/pacing metrics across spoken answers (report only).
+
+    Typed answers contribute nothing here; when there were no spoken answers the
+    section is omitted entirely (no fabricated speech metrics).
+    """
+    summary = timing.aggregate_delivery(session.data.voice_metrics)
+    if not summary.get("spoken_answers"):
+        return
+    st.divider()
+    st.markdown("**Delivery & pacing (spoken answers)**")
+
+    def _fmt(seconds) -> str:
+        return f"{seconds:.0f}s" if seconds is not None else "—"
+
+    cols = st.columns(3)
+    cols[0].metric("Avg answer", _fmt(summary["average_answer_seconds"]))
+    cols[1].metric("Avg recommended", _fmt(summary["average_recommended_seconds"]))
+    wpm = summary["average_words_per_minute"]
+    cols[2].metric("Avg pace", f"{wpm:.0f} wpm" if wpm is not None else "—")
+    st.caption(
+        f"Longest uninterrupted: {_fmt(summary['longest_uninterrupted_seconds'])} · "
+        f"Over target: {summary['answers_substantially_over_target']} · "
+        f"Under target: {summary['answers_substantially_under_target']}"
+    )
+    for note in summary.get("coaching", []):
+        st.markdown(f"- {note}")
+    st.caption("Delivery guidance only — it does not affect the readiness score.")
+
+
 def render_report(session: SessionManager) -> None:
     report = session.data.report
     st.subheader("Interview readiness report")
@@ -931,6 +1029,8 @@ def render_report(session: SessionManager) -> None:
         _bullet_block("Highest-risk questions", report.highest_risk_questions)
         _bullet_block("Practice actions", report.recommended_practice_actions)
         _bullet_block("Final checklist", report.final_interview_checklist)
+
+    _render_delivery_summary(session)
 
     st.divider()
     columns = st.columns(2)

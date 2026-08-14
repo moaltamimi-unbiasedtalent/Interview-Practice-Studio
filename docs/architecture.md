@@ -627,3 +627,36 @@ app falls back to Voice/Text.
 If live mode is unconfigured, the component is unbuilt, or a session fails, the
 app shows *"Live interview is temporarily unavailable."* and offers **Continue
 with recorded voice** / **Continue with text** without losing completed answers.
+
+---
+
+## Answer timing & delivery coaching (Phase 18)
+
+Guidance, never a limit — and never a score input. `src/timing.py`:
+
+- **`AnswerTimingGuidance`** — `target_words`, `recommended_seconds`,
+  `soft_warning_seconds`, `hard_guidance_seconds`. Recommended duration is
+  derived locally from a per-question-type target word count (scaled by
+  difficulty; Deep Dive uses a shorter focused target) and
+  `TARGET_SPEAKING_WPM`, clamped to [30, 300] s. So durations vary by type
+  (a screening reply is short, a case study is long) rather than a fixed number.
+  Computed from the question's `question_type`/`difficulty` — the model output
+  schema is untouched and no ideal answer is exposed beforehand.
+- **`coaching_message_for_elapsed`** — the live timer nudge: nothing below the
+  recommended mark, "consider wrapping up" at ~100%, "bring it to a conclusion"
+  at ~120%. It never stops the candidate.
+- **`DeliveryMetrics` / `compute_delivery_metrics`** — from voice-activity
+  segments (live): total speaking time, longest uninterrupted segment,
+  meaningful pauses (≥ `MEANINGFUL_PAUSE_SECONDS`), average pause, words per
+  minute, response-start latency. Without segments (a recorded blob) only
+  duration-based metrics are produced; pauses stay `None`, never guessed.
+- **`delivery_feedback`** — plain-language notes (concise / appropriately paced /
+  slightly long / very brief / limited pauses / long uninterrupted stretch /
+  healthy pacing). No medical or psychological language, and no score.
+- **`aggregate_delivery`** — report-level averages and counts over/under target,
+  with short actionable coaching.
+
+In the app, voice and live modes show the recommended length before answering, a
+"Delivery & pacing" note after each evaluation, and an aggregated delivery
+section in the final report. **Typed answers get no speech metrics**, and timing
+never touches `AnswerEvaluation` — the interview-content score is independent.
