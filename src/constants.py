@@ -310,6 +310,51 @@ LIVE_RECONNECT_BASE_DELAY_SECONDS = 1.0
 LIVE_RECONNECT_MAX_DELAY_SECONDS = 8.0
 LIVE_FALLBACK_MESSAGE = "Live interview is temporarily unavailable."
 
+# --- Answer timing & delivery coaching ---------------------------------------
+# Timing is guidance, never a hard limit and never a score input. Recommended
+# durations are derived from a target answer word count and a professional
+# speaking rate, so they vary by question type and difficulty rather than being
+# an unexplained fixed number.
+TARGET_SPEAKING_WPM = 130  # words per minute for a clear professional answer
+MIN_RECOMMENDED_ANSWER_SECONDS = 30
+MAX_RECOMMENDED_ANSWER_SECONDS = 300
+# Live-timer coaching thresholds, as ratios of the recommended duration.
+SOFT_WARNING_RATIO = 1.0  # at ~100% — "consider wrapping up"
+HARD_GUIDANCE_RATIO = 1.2  # at ~120% — "bring it to a conclusion"
+# A pause only "counts" once it is at least this long — small breaths are not
+# conversational pauses.
+MEANINGFUL_PAUSE_SECONDS = 1.2
+# Aggregation thresholds: an answer is "substantially" over/under target beyond
+# these ratios of the recommended duration.
+OVER_TARGET_RATIO = 1.25
+UNDER_TARGET_RATIO = 0.6
+
+# Target answer word counts per question type. Chosen so recommended durations
+# differ appropriately (a screening reply is short; a case study is long) — no
+# question gets an identical, unexplained duration.
+ANSWER_TARGET_WORDS: dict[str, int] = {
+    "screening": 90,
+    "behavioural": 220,
+    "situational": 200,
+    "competency": 220,
+    "technical": 260,
+    "case_study": 300,
+    "portfolio": 240,
+    "panel": 200,
+    "leadership": 240,
+    "culture_values": 160,
+    "stakeholder": 220,
+    "executive_board": 260,
+}
+DEFAULT_ANSWER_TARGET_WORDS = 180
+DEEP_DIVE_TARGET_WORDS = 150  # deeper follow-ups should stay focused
+# Difficulty scales the target length (harder questions warrant fuller answers).
+DIFFICULTY_LENGTH_MULTIPLIER: dict[str, float] = {
+    "easy": 0.85,
+    "moderate": 1.0,
+    "hard": 1.2,
+}
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

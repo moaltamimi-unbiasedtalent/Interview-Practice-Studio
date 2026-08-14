@@ -1331,3 +1331,32 @@ if a live session fails at runtime.
 3. What states make up a live turn, and how is barge-in handled?
 4. What stops reconnection from looping forever?
 5. What happens when live mode is unavailable mid-interview?
+
+---
+
+## Phase 18 — answer timing + conversational coach
+
+Branch `product/full-fledged-interview-app` (continued). Adds delivery/pacing
+coaching without turning the interview into a timed exam.
+
+### Key decisions
+
+- **Explainable durations.** `recommended_seconds = target_words / WPM * 60`,
+  clamped to [30, 300] s, with target words varying by question type and
+  difficulty — no magic 120-second default. Deep Dive uses a shorter target.
+- **Guidance is isolated from scoring.** Timing lives in its own module, is
+  displayed separately ("Delivery & pacing"), and never touches
+  `AnswerEvaluation`. Exceeding the recommended time only nudges; it never stops
+  the candidate or lowers a score.
+- **Honest metrics.** Pause/segment metrics require voice-activity data (live);
+  recorded voice reports duration-based metrics only, and typed answers report
+  none — nothing is fabricated.
+- **Plain language.** Delivery notes avoid medical/psychological framing.
+
+### Review questions
+
+1. How is the recommended duration computed, and why does it vary by question?
+2. Why does timing live outside the evaluation/scoring path?
+3. What is a "meaningful pause", and when can pauses be measured at all?
+4. What do typed answers contribute to delivery metrics? (Nothing.)
+5. What does the live timer do at 100% and at 120%?
