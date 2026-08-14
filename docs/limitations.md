@@ -74,3 +74,24 @@ boundaries of the tool.
 - **No RAG or vector search.** There is no retrieval-augmented generation,
   embeddings or vector database. Also excluded: LangChain, LangGraph, autonomous
   agents and persistent databases. These are candidates for Sprint 2.
+
+---
+
+## Product hardening (Phase 15)
+
+- **Strict schema depends on the provider.** Strict JSON Schema output is used
+  only when the selected model advertises `structured_outputs`; the request asks
+  OpenRouter to route to a provider that can enforce it. If none can, the request
+  surfaces a controlled error rather than silently degrading. Models without
+  enforcement use the defensive parser with one repair.
+- **Bounded transient retry.** Exactly one HTTP-level retry for transient errors
+  (network/timeout/429/502/503); everything else fails immediately. One user
+  action makes at most 3 generation requests (strict → defensive fallback), each
+  with at most one transient retry.
+- **Capabilities are metadata-driven.** Parameter support (e.g. temperature) is
+  read from OpenRouter metadata; a model that does not support a setting hides it
+  in the UI. Metadata is fetched lazily and cached per session.
+- **Reasoning-effort sweep not yet parameterised.** The model-settings experiment
+  compares the output-token budget (always supported) and temperature only when
+  supported; sweeping reasoning effort would require threading it through
+  `ModelSettings` and is deferred.

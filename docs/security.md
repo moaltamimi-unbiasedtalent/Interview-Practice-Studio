@@ -255,3 +255,23 @@ the guard, not a relaxation of any rule. Separately, the wider automated test
 suite stands at **450 tests** passing with no live network calls. These are the
 figures recorded in the repository; if they ever diverge from a regenerated
 run, the generated files are the source of truth.
+
+---
+
+## Product hardening (Phase 15) — logging and privacy
+
+Generation-failure logging was tightened to **safe metadata only**. The service
+never logs request or response *content* — no candidate answers, candidate
+backgrounds, job descriptions, company context, transcripts, or model-generated
+response bodies — and never logs API keys.
+
+A failed generation logs only: task, schema name, model, attempt kind, whether
+strict structured output was enabled, `request_id`, `finish_reason`, duration,
+prompt/completion token counts, and (for HTTP errors) the HTTP status and
+provider error category. A regression test asserts that neither the raw model
+body nor the candidate's answer appears in the logs.
+
+Answer-length enforcement (`MAX_ANSWER_CHARS`) is applied before any state
+change or API call for both main and Deep Dive answers; injection screening is
+still deliberately *not* applied to answers (they must always be evaluated) —
+they are framed as untrusted data in the prompt.

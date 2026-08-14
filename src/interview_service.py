@@ -35,6 +35,7 @@ from src.models import (
 from src.openrouter_client import ChatResult, OpenRouterClient, OpenRouterError
 from src.pricing_service import PricingService
 from src.response_parser import ResponseParseError, parse_structured_output
+from src.structured_output import build_structured_response_format
 
 __all__ = [
     "ServiceError",
@@ -64,6 +65,15 @@ class ServiceInputError(ServiceError):
 
 class ModelResponseError(ServiceError):
     """The model call failed, was unsafe, or could not be parsed."""
+
+
+class _TruncatedOutput(Exception):
+    """Internal signal: a response was cut off at the output-token limit.
+
+    Raised inside the generation helpers and translated by :meth:`_generate`
+    into a controlled, actionable :class:`ModelResponseError`. A same-budget
+    retry cannot help, so it is never retried.
+    """
 
 
 # --- Shared generation base --------------------------------------------------
@@ -133,95 +143,146 @@ class BaseGenerationService:
             task, technique_id, config, **user_message_kwargs
         )
 
-        # Only request structured output when the model supports it.
         supported = self._pricing.supported_parameters(settings.model)
+        caps = self._pricing.capabilities(settings.model)
+        billed: list[ChatResult] = []  # every actual call, for honest cost
+
+        try:
+            if caps.supports_strict_schema:
+                # Provider enforces the schema, so the shape is guaranteed and
+                # no model-based repair is needed. One controlled fallback to
+                # the defensive path is kept for the rare enforcement failure.
+                try:
+                    obj = self._run_strict(
+                        schema, messages, settings, supported, overrides, billed
+                    )
+                except ResponseParseError as strict_error:
+                    self._log_attempt_failure(
+                        task, schema, settings.model, "strict",
+                        strict=True, reason=strict_error.message,
+                        results=list(billed),
+                    )
+                    obj = self._run_defensive(
+                        schema, messages, settings, supported, overrides, billed
+                    )
+            else:
+                # No schema enforcement: keep the defensive parser and exactly
+                # one bounded repair attempt.
+                obj = self._run_defensive(
+                    schema, messages, settings, supported, overrides, billed
+                )
+        except _TruncatedOutput as exc:
+            self._log_attempt_failure(
+                task, schema, settings.model, "truncated",
+                strict=caps.supports_strict_schema, reason="finish_reason=length",
+                results=list(billed),
+            )
+            self._record_billed(settings.model, billed)
+            raise ModelResponseError(
+                "The response was cut off because it reached the output-token "
+                "limit. Increase 'Maximum output tokens' in the developer "
+                "settings and try again."
+            ) from exc
+        except ResponseParseError as exc:
+            self._log_attempt_failure(
+                task, schema, settings.model, "final",
+                strict=caps.supports_strict_schema, reason=exc.message,
+                results=list(billed),
+            )
+            self._record_billed(settings.model, billed)
+            raise ModelResponseError(exc.message) from exc
+
+        usage = self._build_usage(settings.model, billed)
+        self._pricing.record_usage(usage)
+        return obj, usage
+
+    def _run_strict(
+        self, schema, messages, settings, supported, overrides, billed
+    ):
+        """Single strict-JSON-Schema request; no model-based repair.
+
+        The provider is asked (via ``require_parameters`` routing) to enforce a
+        strict schema generated from the Pydantic model, so the returned text is
+        already the right shape. It is still validated by the model afterwards.
+        """
+        response_format = build_structured_response_format(schema, schema.__name__)
+        result = self._call_model(
+            messages, settings, response_format, supported, require_parameters=True
+        )
+        billed.append(result)
+        self._guard_output(result.content)
+        try:
+            return parse_structured_output(result.content, schema, overrides=overrides)
+        except ResponseParseError:
+            if result.finish_reason == "length":
+                raise _TruncatedOutput() from None
+            raise
+
+    def _run_defensive(
+        self, schema, messages, settings, supported, overrides, billed
+    ):
+        """Defensive parse with exactly one bounded model-based repair round.
+
+        Used for models without schema enforcement (and as the single fallback
+        from the strict path). A json_object hint is sent when the model
+        supports it; otherwise the prompt's output contract carries the shape.
+        """
         response_format = (
             {"type": "json_object"} if "response_format" in supported else None
         )
+        attempt_results: list[ChatResult] = []
 
-        # A language model is probabilistic: the same request can return a
-        # perfectly-shaped object one moment and an off-shape one the next. Each
-        # attempt makes a *fresh* request (not just a repair of the same bad
-        # text), so a one-off malformed generation self-heals without the user
-        # ever seeing an error. Every attempt still gets its own single repair
-        # round for cheap format fixes. Attempts are bounded so a genuinely
-        # broken model can never loop forever.
-        attempts = max(1, constants.GENERATION_MAX_ATTEMPTS)
-        billed: list[ChatResult] = []  # every call made, for honest cost
-        last_error: ResponseParseError | None = None
+        primary = self._call_model(messages, settings, response_format, supported)
+        attempt_results.append(primary)
+        billed.append(primary)
+        self._guard_output(primary.content)
 
-        for attempt in range(1, attempts + 1):
-            results: list[ChatResult] = []
-            primary = self._call_model(
-                messages, settings, response_format, supported
+        def repair(bad_text: str, error: str) -> str:
+            repair_messages = self._repair_messages(bad_text, error, schema)
+            repaired = self._call_model(
+                repair_messages, settings, response_format, supported
             )
-            results.append(primary)
+            attempt_results.append(repaired)
+            billed.append(repaired)
+            # The repaired text is model output too: same safety scan as primary.
+            self._guard_output(repaired.content)
+            return repaired.content
 
-            # Safety scan of the raw text (size, leakage, secrets). A block is a
-            # deterministic safety decision, so it is raised immediately and is
-            # never retried.
-            self._guard_output(primary.content)
+        try:
+            return parse_structured_output(
+                primary.content, schema, repair=repair, overrides=overrides
+            )
+        except ResponseParseError:
+            if any(r.finish_reason == "length" for r in attempt_results):
+                raise _TruncatedOutput() from None
+            raise
 
-            def repair(bad_text: str, error: str, _results=results) -> str:
-                repair_messages = self._repair_messages(bad_text, error, schema)
-                repaired = self._call_model(
-                    repair_messages, settings, response_format, supported
-                )
-                _results.append(repaired)
-                # The repaired text is model output too: apply the same safety
-                # scan as the primary response before it is parsed or used.
-                self._guard_output(repaired.content)
-                return repaired.content
+    def _log_attempt_failure(
+        self, task, schema, model, attempt, *, strict, reason, results
+    ) -> None:
+        """Log SAFE metadata only about a failed generation.
 
-            try:
-                obj = parse_structured_output(
-                    primary.content, schema, repair=repair, overrides=overrides
-                )
-            except ResponseParseError as exc:
-                last_error = exc
-                billed.extend(results)
-                # Log the reason and a truncated copy of each raw attempt to the
-                # server console so a formatting failure can be diagnosed. Model
-                # output is not a secret; the output guard has already screened
-                # it for leakage, and API keys are never echoed here.
-                _LOGGER.warning(
-                    "Structured parse attempt %d/%d failed for %s: %s",
-                    attempt,
-                    attempts,
-                    schema.__name__,
-                    exc.message,
-                )
-                for position, result in enumerate(results):
-                    _LOGGER.warning(
-                        "%s attempt %d.%d raw output (first 1200 chars): %s",
-                        schema.__name__,
-                        attempt,
-                        position,
-                        result.content[:1200],
-                    )
-                # If the response was cut off at the output-token limit, a fresh
-                # attempt with the *same* budget cannot succeed either. Stop and
-                # return a distinct, actionable error rather than burning further
-                # identical attempts.
-                if any(r.finish_reason == "length" for r in results):
-                    self._record_billed(settings.model, billed)
-                    raise ModelResponseError(
-                        "The response was cut off because it reached the "
-                        "output-token limit. Increase 'Maximum output tokens' "
-                        "in the developer settings and try again."
-                    ) from exc
-                continue
-
-            # Success — bill every call made across all attempts, then return.
-            billed.extend(results)
-            usage = self._build_usage(settings.model, billed)
-            self._pricing.record_usage(usage)
-            return obj, usage
-
-        # Every attempt failed; still record the tokens every attempt consumed
-        # (they were billed by the provider), then surface the last reason.
-        self._record_billed(settings.model, billed)
-        raise ModelResponseError(last_error.message) from last_error
+        Never logs request or response content (candidate answers, backgrounds,
+        job descriptions, transcripts or model-generated bodies) or API keys —
+        only the metadata needed to diagnose a failure.
+        """
+        last = results[-1] if results else None
+        _LOGGER.warning(
+            "generation failed: task=%s schema=%s model=%s attempt=%s strict=%s "
+            "request_id=%s finish_reason=%s duration=%.3fs prompt_tokens=%s "
+            "completion_tokens=%s reason=%s",
+            task,
+            schema.__name__,
+            model,
+            attempt,
+            strict,
+            getattr(last, "request_id", None),
+            getattr(last, "finish_reason", None),
+            getattr(last, "duration_seconds", 0.0) or 0.0,
+            getattr(last, "prompt_tokens", None),
+            getattr(last, "completion_tokens", None),
+            reason,
+        )
 
     def _record_billed(self, model: str, billed: list[ChatResult]) -> None:
         """Record usage for calls that were made but did not yield a result.
@@ -255,12 +316,20 @@ class BaseGenerationService:
         return settings.max_tokens
 
     def _call_model(
-        self, messages, settings: ModelSettings, response_format, supported
+        self,
+        messages,
+        settings: ModelSettings,
+        response_format,
+        supported,
+        *,
+        require_parameters: bool = False,
     ) -> ChatResult:
         try:
             return self._client.create_chat_completion(
                 model=settings.model,
                 messages=messages,
+                # Capability-gated by the client: temperature is omitted for
+                # models that do not support it, so passing it here is safe.
                 temperature=settings.temperature,
                 max_tokens=self._effective_max_tokens(settings),
                 response_format=response_format,
@@ -272,8 +341,16 @@ class BaseGenerationService:
                 # The client only forwards this to models that advertise
                 # "reasoning" in their metadata; it is dropped for the rest.
                 reasoning={"effort": constants.DEFAULT_REASONING_EFFORT},
+                require_parameters=require_parameters,
             )
         except OpenRouterError as exc:
+            # Log SAFE metadata only (status + category, never content/keys).
+            _LOGGER.warning(
+                "openrouter call failed: model=%s status=%s category=%s",
+                settings.model,
+                exc.status_code,
+                exc.category,
+            )
             # Convert transport/API errors into a controlled domain error.
             raise ModelResponseError(exc.message) from exc
 

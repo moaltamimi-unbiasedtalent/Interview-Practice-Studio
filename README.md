@@ -131,6 +131,13 @@ Validated Pydantic v2 models (`src/models.py`): `InterviewStrategy`,
 stripped, `json.loads` only — never `eval`/`exec`), validated, and given exactly
 **one** repair attempt before a controlled error.
 
+On the `product/full-fledged-interview-app` branch this is upgraded to
+**provider-enforced strict JSON Schema** (generated from the same Pydantic
+models via `model_json_schema()`) when the selected model advertises
+`structured_outputs`; enforcement removes the need for JSON repair. Models
+without enforcement keep the defensive parser and one repair. See
+[docs/architecture.md](docs/architecture.md).
+
 ## Security and privacy controls
 
 A deterministic, best-effort guard (`src/security.py`): input normalisation and
@@ -188,6 +195,15 @@ cp .streamlit/secrets.toml.example .streamlit/secrets.toml
 ```
 
 Requires Python 3.10+ (developed and tested on 3.12).
+
+`pyproject.toml` is the source of truth for dependencies: runtime pins live under
+`[project.dependencies]` (mirrored by `requirements.txt` for convenience) and the
+test/development tools under `[project.optional-dependencies]`. To install the
+project with its dev tools (pytest):
+
+```bash
+pip install -e ".[dev]"
+```
 
 ## Configuration
 

@@ -1206,3 +1206,51 @@ Fix (two small, safe parts):
 
 The cap still only ever *lowers* the request to a model's advertised limit and
 is a no-op when metadata omits one.
+
+---
+
+## Phase 15 — product foundation hardening
+
+Work on branch `product/full-fledged-interview-app` (not `main`).
+
+### Why strict JSON Schema replaced most repair logic
+
+The Sprint 1 code coped with imperfect model output defensively: a `json_object`
+hint, manual JSON extraction, Pydantic validation, a model-based repair round,
+and (later) several fresh generations. That is the right approach when the model
+can return *any* shape. But OpenRouter can ask a capable provider to **enforce**
+a strict JSON Schema, so the returned text is guaranteed to be an object of the
+right shape. Once enforcement is available, repeatedly asking a model to "fix its
+JSON" is wasted effort and extra billable requests. So:
+
+- When metadata advertises `structured_outputs`, we send a strict schema
+  generated from the Pydantic model (no duplication) and **skip repair** — a
+  schema violation then means a genuine provider/model issue, handled by a single
+  controlled fallback to the defensive path.
+- When enforcement is unavailable, we keep the defensive parser with exactly
+  **one** repair round (not three fresh generations).
+
+Validation is never weakened: the Pydantic model still validates every returned
+object, so lenient coercions (text flattening, enum synonyms) and strict bounds
+(scores, list sizes) still apply.
+
+### Other decisions
+
+- **Capability layer over metadata.** `ModelCapabilities` answers "does this
+  model support temperature / reasoning / structured outputs?" from
+  `supported_parameters`, so the UI and services never assume a parameter works.
+- **One transient retry at the HTTP boundary**, never stacked with the
+  application retries, so a single action stays within a small, documented
+  request ceiling.
+- **Safe-metadata-only logging** so no candidate content or model body is ever
+  written to logs.
+- **pyproject is the dependency source of truth**; `requirements.txt` mirrors the
+  runtime pins and dev tools live under `optional-dependencies.dev`.
+
+### Review questions
+
+1. When is strict JSON Schema used, and why does it remove the need for repair?
+2. What happens when a provider cannot enforce the requested schema?
+3. What is the maximum number of API requests one user action can make?
+4. Which request parameters are gated by metadata, and where is that enforced?
+5. What exactly may and may not appear in a generation-failure log line?

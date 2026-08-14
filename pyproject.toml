@@ -4,6 +4,24 @@ version = "0.1.0"
 description = "Prepare for any role. Practise realistically. Improve every answer."
 requires-python = ">=3.10"
 
+# Runtime dependencies — the single source of truth. requirements.txt mirrors
+# this list for convenience; keep the two consistent.
+dependencies = [
+    "streamlit>=1.40,<2.0",
+    "httpx>=0.27,<1.0",
+    "pydantic>=2.9,<3.0",
+    "python-dotenv>=1.0,<2.0",
+    "pandas>=2.2,<3.0",
+    "openpyxl>=3.1,<4.0",
+]
+
+[project.optional-dependencies]
+# Test/development tooling. Install with:  pip install -e ".[dev]"
+dev = [
+    "pytest>=8.3,<9.0",
+    "pytest-mock>=3.14,<4.0",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

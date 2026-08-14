@@ -449,3 +449,156 @@ class TestNoKeyInLogs:
         assert "test-key-not-real" not in combined
         assert "Authorization" not in combined
         assert "Bearer" not in combined
+
+
+# --- Product hardening: parameter gating, routing, transient retries ---------
+
+
+def _client_h(handler, sleeper=None) -> OpenRouterClient:
+    """A client over a MockTransport handler with a no-op sleeper by default."""
+    transport = httpx.MockTransport(handler)
+    return OpenRouterClient(
+        _config(),
+        http_client=httpx.Client(transport=transport),
+        sleeper=sleeper if sleeper is not None else (lambda _s: None),
+    )
+
+
+class TestParameterGating:
+    def test_temperature_omitted_when_unsupported(self) -> None:
+        seen: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        client = _client_h(handler)
+        client.create_chat_completion(
+            model=MODEL,
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.7,
+            max_tokens=64,
+            supported_parameters=["max_tokens"],
+        )
+        assert "temperature" not in seen["payload"]
+
+    def test_temperature_sent_when_supported(self) -> None:
+        seen: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        client = _client_h(handler)
+        client.create_chat_completion(
+            model=MODEL,
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.7,
+            max_tokens=64,
+            supported_parameters=["temperature", "max_tokens"],
+        )
+        assert seen["payload"]["temperature"] == 0.7
+
+    def test_require_parameters_adds_provider_routing(self) -> None:
+        seen: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        client = _client_h(handler)
+        client.create_chat_completion(
+            model=MODEL,
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=None,
+            max_tokens=64,
+            response_format={"type": "json_schema", "json_schema": {"name": "X"}},
+            supported_parameters=["structured_outputs", "response_format"],
+            require_parameters=True,
+        )
+        assert seen["payload"]["provider"] == {"require_parameters": True}
+        assert seen["payload"]["response_format"]["type"] == "json_schema"
+
+
+class TestTransientRetries:
+    def test_retry_after_is_honoured_then_succeeds(self) -> None:
+        calls = {"n": 0}
+        slept: list[float] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return httpx.Response(
+                    429,
+                    headers={"retry-after": "0"},
+                    json={"error": {"message": "slow down"}},
+                )
+            return httpx.Response(200, json=_success_body())
+
+        client = _client_h(handler, sleeper=lambda s: slept.append(s))
+        result = _call(client)
+        assert calls["n"] == 2  # one retry
+        assert slept == [0.0]  # honoured Retry-After
+        assert result.total_tokens == 20  # usage from the successful call only
+
+    def test_network_error_is_retried_once_then_succeeds(self) -> None:
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise httpx.ConnectError("boom")
+            return httpx.Response(200, json=_success_body())
+
+        client = _client_h(handler)
+        result = _call(client)
+        assert calls["n"] == 2
+        assert result.content == "Hello"
+
+    def test_max_one_retry_on_persistent_503(self) -> None:
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            return httpx.Response(503, json={"error": {"message": "overloaded"}})
+
+        client = _client_h(handler)
+        with pytest.raises(ServerError):
+            _call(client)
+        assert calls["n"] == 1 + constants.MAX_TRANSIENT_RETRIES
+
+    def test_persistent_timeout_retried_then_raises(self) -> None:
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            raise httpx.ReadTimeout("t")
+
+        client = _client_h(handler)
+        with pytest.raises(RequestTimeoutError):
+            _call(client)
+        assert calls["n"] == 1 + constants.MAX_TRANSIENT_RETRIES
+
+    def test_invalid_request_is_not_retried(self) -> None:
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            return httpx.Response(400, json={"error": {"message": "bad"}})
+
+        client = _client_h(handler)
+        with pytest.raises(InvalidRequestError):
+            _call(client)
+        assert calls["n"] == 1  # non-transient: no retry
+
+    def test_auth_error_is_not_retried(self) -> None:
+        calls = {"n": 0}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls["n"] += 1
+            return httpx.Response(401, json={"error": {"message": "nope"}})
+
+        client = _client_h(handler)
+        with pytest.raises(AuthenticationError):
+            _call(client)
+        assert calls["n"] == 1
