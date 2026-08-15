@@ -331,3 +331,22 @@ they are framed as untrusted data in the prompt.
   than inventing it.
 - **Candidate control.** Disable at any time and clear metrics; the interview
   completes without it.
+
+---
+
+## Accounts & persistence (Phase 21)
+
+- **Auth is abstracted** (`src/auth.py`); `st.user` is read in exactly one place.
+  Dev mode allows anonymous local use; production (`APP_AUTH_REQUIRED=true`)
+  requires login. Provider secrets live in `.streamlit/secrets.toml [auth]` and
+  are never stored by the app; no provider passwords are ever handled.
+- **Strict per-user isolation.** All persistence goes through the repository and
+  is scoped to `user_id`; one user can never read, export or delete another's
+  data (enforced in the query WHERE clause and covered by isolation tests).
+- **Only appropriate data is stored** — identity, interview content/evaluations,
+  timing metrics, aggregated visual metrics, report and usage/cost. **Never**
+  camera video, face frames, biometric templates, permanent API keys, or raw
+  audio.
+- **Candidate control & retention.** Users can export all their data and delete
+  individual interviews or everything (Settings). Data is retained only until the
+  user deletes it. See `DATA_RETENTION_NOTE`.

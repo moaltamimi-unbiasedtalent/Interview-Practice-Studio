@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.0,<2.0",
     "pandas>=2.2,<3.0",
     "openpyxl>=3.1,<4.0",
+    "sqlalchemy>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
@@ -32,6 +33,13 @@ speech = [
 # Install with:  pip install -e ".[live]"
 live = [
     "google-genai>=0.8,<2.0",
+]
+# Production database tooling: Alembic migrations and the PostgreSQL driver.
+# Development uses SQLite (bundled) and create_all; production runs migrations.
+# Install with:  pip install -e ".[db]"
+db = [
+    "alembic>=1.13,<2.0",
+    "psycopg[binary]>=3.1,<4.0",
 ]
 
 [tool.pytest.ini_options]

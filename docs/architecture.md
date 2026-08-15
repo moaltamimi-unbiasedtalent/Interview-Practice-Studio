@@ -736,3 +736,52 @@ labels/accents via `INTERVIEWER_PERSONA_PRESENTATION`.
   never sends the candidate back to the start.
 - **Developer/advanced settings** stay in a collapsed sidebar expander, out of
   the candidate path.
+
+---
+
+## Accounts, persistence and dashboard (Phase 21)
+
+Makes the app a persistent product. Auth is optional for local development and
+required in production.
+
+### Authentication (`src/auth.py`)
+
+A thin abstraction over Streamlit's native OIDC. The rest of the app never
+touches `st.user` — it calls `current_user(config)` / `resolve_user(...)`.
+`resolve_user` is pure: a logged-in user becomes an `AuthUser`; otherwise, when
+`APP_AUTH_REQUIRED=true`, it returns `None` (must log in); otherwise it returns
+a single anonymous developer identity for local use. Provider client
+ids/secrets live in `.streamlit/secrets.toml [auth]` and are never stored by the
+app.
+
+### Persistence (`src/persistence.py`, `src/repository.py`)
+
+One SQLAlchemy 2.0 layer backs SQLite (dev) and PostgreSQL (prod) via a single
+`DATABASE_URL`. The **UI never queries the database directly** — everything goes
+through `InterviewRepository`, and **every read/write is scoped to a `user_id`**.
+Cross-user access is impossible: another user's interview id resolves to `None`
+(read) or a no-op (delete), proven by isolation tests. Models: `User`,
+`Interview`, `Question`, `Answer`, `Report`. Nested config/evaluation/timing/
+report data is stored as JSON columns.
+
+Stored: user identity, interview configuration/mode/status/timestamps, canonical
+questions (type, difficulty, timing guidance), answers (transcript, evaluation,
+timing metrics, **aggregated** visual metrics), Deep Dive relationships, and the
+final report + usage/cost. **Never stored:** camera video, face frames,
+biometric templates, permanent API keys, or raw audio.
+
+### Migrations
+
+Alembic (`alembic.ini`, `migrations/`) provides the production migration path
+(`alembic upgrade head`); the baseline revision creates the schema from the model
+metadata. Development and tests use `init_db` (`create_all`).
+
+### Candidate pages (`app.py`)
+
+Sidebar menu: **New Practice**, **Dashboard**, **Interview History**,
+**Progress**, **Settings** (plus **Advanced** = Prompt Lab). Completed interviews
+are saved once (best-effort, never breaking the report). Dashboard shows practice
+metrics (framed as guidance, not hiring probabilities). History lets the user
+open past interviews (questions/answers/feedback/Deep Dive/delivery), download a
+report and delete an interview. Settings offers data export, delete-all, the
+retention note and logout.

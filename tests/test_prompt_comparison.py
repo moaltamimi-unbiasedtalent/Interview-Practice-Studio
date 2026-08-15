@@ -225,14 +225,14 @@ class TestPromptLabUI:
     def test_prompt_lab_renders_without_network(self) -> None:
         at = AppTest.from_file(APP_PATH, default_timeout=30)
         at.run()
-        at.radio(key="view_mode").set_value("Prompt Lab").run()
+        at.radio(key="nav_page").set_value("Advanced").run()
         assert not at.exception
         assert any("Prompt Lab" in s.value for s in at.subheader)
 
     def test_run_buttons_are_disabled_until_confirmed(self) -> None:
         at = AppTest.from_file(APP_PATH, default_timeout=30)
         at.run()
-        at.radio(key="view_mode").set_value("Prompt Lab").run()
+        at.radio(key="nav_page").set_value("Advanced").run()
         run_buttons = [
             b for b in at.button if "Run prompt comparison" in b.label or "Run model-setting" in b.label
         ]

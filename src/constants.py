@@ -440,6 +440,19 @@ PRACTICE_MODE_CARDS = (
     },
 )
 
+# --- Accounts & persistence --------------------------------------------------
+# Auth is optional for local development and required in production. The database
+# URL selects SQLite for development or PostgreSQL for production via one mature
+# ORM. Data is written to a local file by default; production overrides this.
+DEFAULT_DATABASE_URL = "sqlite:///data/interview_studio.db"
+# Retention: interview data is kept until the candidate deletes it. They can
+# export everything and delete individual interviews or all of it (Settings).
+DATA_RETENTION_NOTE = (
+    "Your interviews are stored so you can review your progress. You can export "
+    "your data or delete individual interviews or everything, at any time, from "
+    "Settings. Camera video, audio and biometric data are never stored."
+)
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

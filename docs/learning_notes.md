@@ -1418,3 +1418,34 @@ Branch `product/full-fledged-interview-app` (continued). No new provider.
    do they live now?
 3. How does the app recover from a provider failure without losing progress?
 4. Which accessibility affordances are in place for the interview screen?
+
+---
+
+## Phase 21 — accounts, history and personal dashboard
+
+Branch `product/full-fledged-interview-app` (continued). Turns the session-only
+app into a persistent product.
+
+### Key decisions
+
+- **Auth behind an interface.** `st.user` is touched in exactly one place; the
+  pure `resolve_user` makes dev (anonymous) and prod (login-required) modes
+  trivially testable.
+- **Repository pattern with hard user isolation.** The UI never runs queries;
+  every repository method is scoped to `user_id`, and cross-user access resolves
+  to nothing. This is the single most important safety property and is covered by
+  dedicated isolation tests.
+- **One ORM, two databases.** SQLAlchemy over SQLite (dev) and PostgreSQL (prod)
+  via `DATABASE_URL`; Alembic for production migrations, `create_all` for dev.
+- **Store only appropriate data.** No camera video, face frames, biometric
+  templates, permanent keys or raw audio — only aggregated metrics and content.
+- **Candidate control.** Export, per-interview delete and delete-all, with a
+  clear retention note; scores are framed as practice guidance, not hiring odds.
+
+### Review questions
+
+1. How is one user prevented from seeing another's interview history?
+2. Where is `st.user` accessed, and why only there?
+3. What is stored, and what is deliberately never stored?
+4. How do development and production differ for auth and the database?
+5. What controls does a candidate have over their stored data?
