@@ -16,7 +16,7 @@ from pydantic import ValidationError
 
 from scripts import compare_model_settings as cm
 from scripts import compare_prompts as cp
-from src import constants, security, timing, ui_helpers
+from src import constants, security, timing, ui_helpers, visual_coach
 from src.config import AppConfig, load_config
 from src.evaluation_service import EvaluationService
 from src.interview_service import InterviewService, QuestionHistory, ServiceError
@@ -407,8 +407,9 @@ def _generate_next_question(session: SessionManager, *, first: bool = False) -> 
     operation = "first_question" if first else "next_question"
     if not session.begin_operation(operation):
         return
-    # The delivery notes belong to the previous answer; clear before the next.
+    # The delivery/visual notes belong to the previous answer; clear before next.
     st.session_state.pop("_delivery_notes", None)
+    st.session_state.pop("_visual_notes", None)
     config = load_config()
     if not config.is_configured:
         session.end_operation()
@@ -490,6 +491,7 @@ def _run_branch_generation(session: SessionManager) -> None:
     if not session.begin_operation("branch_question"):
         return
     st.session_state.pop("_delivery_notes", None)
+    st.session_state.pop("_visual_notes", None)
     config = load_config()
     if not config.is_configured:
         session.end_operation()
@@ -589,6 +591,7 @@ def _render_branch_controls(session: SessionManager) -> None:
     if data.branch_evaluations:
         render_feedback(data.branch_evaluations[-1])
         _render_delivery_section()
+        _render_visual_section(session)
     columns = st.columns(2)
     if session.can_go_deeper():
         if columns[0].button("Go deeper", type="primary", key="branch_deeper"):
@@ -765,6 +768,12 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
         _live_fallback(ns)
         return
 
+    # Optional Visual Engagement Coach — camera is OFF by default and requires an
+    # explicit opt-in. The live interview works fully without video.
+    camera_on = _render_camera_opt_in(ns)
+    if camera_on is None:
+        return  # awaiting the candidate's camera choice
+
     try:
         _token, session_config = LiveInterviewService(
             token_service=token_service
@@ -782,20 +791,62 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
         session_config["recommended_seconds"] = guidance.recommended_seconds
         session_config["soft_warning_seconds"] = guidance.soft_warning_seconds
         session_config["hard_guidance_seconds"] = guidance.hard_guidance_seconds
+    if camera_on:
+        session_config["enable_visual_coaching"] = True
+        session_config["calibration_seconds"] = constants.VISUAL_COACH_CALIBRATION_SECONDS
+        st.caption(
+            f"🎥 {constants.VISUAL_STATUS_ACTIVE} — processed locally on your "
+            "device; no video is sent or saved."
+        )
+        if st.button("Disable camera coaching", key=f"{ns}_cam_disable"):
+            st.session_state["_camera_coaching"] = False
+            st.rerun()
+
     event = live_interviewer(session_config=session_config, key=f"{ns}_live")
 
     # The component reports a final candidate transcript (plus voice-activity
     # segments); the candidate reviews and edits it before it is submitted to the
     # existing evaluation pipeline.
-    if isinstance(event, dict) and event.get("transcript_final"):
-        text = (event.get("candidate_transcript") or "").strip()
-        if text:
-            st.session_state[f"{ns}_transcript"] = text
-            st.session_state[f"{ns}_metrics"] = {
-                "segments": event.get("segments"),
-                "response_start_latency_seconds": event.get("response_start_latency"),
-            }
+    if isinstance(event, dict):
+        if event.get("transcript_final"):
+            text = (event.get("candidate_transcript") or "").strip()
+            if text:
+                st.session_state[f"{ns}_transcript"] = text
+                st.session_state[f"{ns}_metrics"] = {
+                    "segments": event.get("segments"),
+                    "response_start_latency_seconds": event.get(
+                        "response_start_latency"
+                    ),
+                }
+        # Aggregated visual metrics only — never frames or landmarks.
+        raw_visual = event.get("visual_metrics")
+        if camera_on and raw_visual:
+            metrics = visual_coach.build_metrics(raw_visual)
+            session.record_visual_metrics(metrics.as_dict())
+            st.session_state["_visual_notes"] = visual_coach.coaching_from_metrics(
+                metrics
+            )
     _render_transcript_review(session, on_submit=on_submit, ns=ns, guidance=guidance)
+
+
+def _render_camera_opt_in(ns: str) -> bool | None:
+    """Camera opt-in gate. Returns True (on), False (off), or None (undecided).
+
+    Camera is off by default; the disclaimer makes the coaching-only, local-only
+    nature explicit before any camera use.
+    """
+    decision = st.session_state.get("_camera_coaching")
+    if decision is not None:
+        return bool(decision)
+    st.info(constants.VISUAL_DISCLAIMER)
+    columns = st.columns(2)
+    if columns[0].button("Enable camera coaching", key=f"{ns}_cam_on"):
+        st.session_state["_camera_coaching"] = True
+        st.rerun()
+    if columns[1].button("Continue without camera", key=f"{ns}_cam_off"):
+        st.session_state["_camera_coaching"] = False
+        st.rerun()
+    return None
 
 
 def _render_delivery_section() -> None:
@@ -811,6 +862,28 @@ def _render_delivery_section() -> None:
         for note in notes:
             st.markdown(f"- {note}")
         st.caption("Guidance on pacing only — it does not affect your score.")
+
+
+def _render_visual_section(session) -> None:
+    """Show 'Visual delivery' coaching for the most recent answer, if any.
+
+    Camera coaching only — processed locally, never a judgement of attention and
+    never part of the score. The candidate can clear the metrics here.
+    """
+    notes = st.session_state.get("_visual_notes")
+    if not notes:
+        return
+    with st.expander("Visual delivery", expanded=False):
+        for note in notes:
+            st.markdown(f"- {note}")
+        st.caption(
+            "Camera coaching only — processed locally on your device and not "
+            "part of your score."
+        )
+        if st.button("Clear camera metrics", key="clear_visual_turn"):
+            session.clear_visual_metrics()
+            st.session_state.pop("_visual_notes", None)
+            st.rerun()
 
 
 def render_interview(session: SessionManager) -> None:
@@ -856,6 +929,7 @@ def render_interview(session: SessionManager) -> None:
     if data.evaluations:
         render_feedback(data.evaluations[-1])
         _render_delivery_section()
+        _render_visual_section(session)
         st.divider()
 
     if session.state is SessionState.AWAITING_ANSWER:
@@ -1008,6 +1082,36 @@ def _render_delivery_summary(session: SessionManager) -> None:
     for note in summary.get("coaching", []):
         st.markdown(f"- {note}")
     st.caption("Delivery guidance only — it does not affect the readiness score.")
+
+
+def _render_visual_summary(session: SessionManager) -> None:
+    """Aggregated visual-engagement coaching for the report (kept separate).
+
+    Clearly separated from answer-content scoring; omitted when there are no
+    confident camera metrics (nothing fabricated).
+    """
+    summary = visual_coach.aggregate_visual(session.data.visual_metrics)
+    if not summary.get("visual_answers"):
+        return
+    st.divider()
+    st.markdown("**Visual engagement (camera coaching)**")
+    cols = st.columns(3)
+    cols[0].metric(
+        "Avg screen-facing", f"{summary['average_screen_facing_percentage']:.0f}%"
+    )
+    cols[1].metric(
+        "Longest away", f"{summary['longest_extended_away_seconds']:.0f}s"
+    )
+    cols[2].metric("Extended-away periods", summary["total_extended_away_periods"])
+    for note in summary.get("coaching", []):
+        st.markdown(f"- {note}")
+    st.caption(
+        "Camera coaching only — processed locally, not a judgement of attention "
+        "and not part of the readiness score."
+    )
+    if st.button("Clear camera metrics", key="clear_visual_report"):
+        session.clear_visual_metrics()
+        st.rerun()
 
 
 def render_report(session: SessionManager) -> None:

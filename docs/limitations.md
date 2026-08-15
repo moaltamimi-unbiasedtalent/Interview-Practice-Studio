@@ -142,3 +142,17 @@ boundaries of the tool.
   unknown rather than estimated. Typed answers get no speech metrics at all.
 - **Recommended durations are heuristic.** They come from per-type target word
   counts × a professional speaking rate, not from grading an ideal answer.
+
+---
+
+## Visual Engagement Coach (Phase 19, optional)
+
+- **Opt-in and browser-only.** Requires the built live component and a camera;
+  off by default. The interview works fully without it.
+- **Coaching, not assessment.** It does not measure attention or suitability and
+  never affects any score.
+- **Confidence-gated.** Poor lighting, distance, a partly-out-of-frame face or
+  multiple faces yield a "confidence too low" message instead of metrics.
+- **Frontend not built/exercised in CI.** MediaPipe integration ships as source;
+  automated tests cover the Python coaching/aggregation/privacy logic and the
+  pure JS accumulator (vitest); live camera behaviour is covered by manual QA.

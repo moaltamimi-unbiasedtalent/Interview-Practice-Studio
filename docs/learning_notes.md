@@ -1360,3 +1360,31 @@ coaching without turning the interview into a timed exam.
 3. What is a "meaningful pause", and when can pauses be measured at all?
 4. What do typed answers contribute to delivery metrics? (Nothing.)
 5. What does the live timer do at 100% and at 120%?
+
+---
+
+## Phase 19 — visual engagement coach (optional)
+
+Branch `product/full-fledged-interview-app` (continued). An opt-in, local-only
+camera coaching feature.
+
+### Key decisions
+
+- **Coaching, never assessment.** No attention/truthfulness/suitability claims,
+  no medical/psychological language, and it never touches the score. The gaze
+  signal is a `gaze_direction_proxy`, deliberately not an `attention_score`.
+- **Local-only, no persistence.** MediaPipe runs in the browser; only aggregated
+  metrics cross to Python — never frames, landmarks or biometric templates —
+  and nothing is recorded. `build_metrics` keeps no image data even if sent.
+- **Opt-in and reversible.** Off by default with a plain disclaimer; the
+  candidate can continue without it, disable mid-session, and clear metrics.
+- **Honest under uncertainty.** Poor lighting / distance / multiple faces →
+  "confidence too low", not invented numbers.
+
+### Review questions
+
+1. Why is the gaze signal a proxy and never an attention score?
+2. What exactly leaves the browser, and what never does?
+3. How does the app behave when camera confidence is too low?
+4. How is visual coaching kept out of the interview-content score?
+5. What controls does the candidate have over camera coaching?

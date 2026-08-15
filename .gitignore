@@ -30,3 +30,6 @@ coverage.xml
 *.tmp
 *.log
 tmp/
+
+# Editable-install metadata
+*.egg-info/

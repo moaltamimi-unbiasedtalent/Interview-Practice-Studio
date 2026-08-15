@@ -311,3 +311,23 @@ they are framed as untrusted data in the prompt.
   number of attempts — no infinite reconnect loop.
 - **Verbatim transcript to the evaluator.** The live candidate transcript is
   submitted to the existing evaluation pipeline unchanged.
+
+---
+
+## Visual Engagement Coach (Phase 19)
+
+- **Camera off by default; explicit opt-in** with a disclaimer stating the
+  feature is coaching-only and does not judge attentiveness, truthfulness or
+  suitability.
+- **Local-only.** Camera frames are processed in the browser by MediaPipe. No
+  video, screenshots, frames, face landmarks or biometric templates are sent to
+  the Python backend, OpenRouter, Gemini, logs, a database or analytics — only
+  small aggregated coaching metrics. `build_metrics` retains no image/frame data
+  even if a payload contained it (asserted by a test).
+- **No recording / no persistence** of video or biometric data.
+- **Never a score / never a judgement.** Metrics are separate from
+  `AnswerEvaluation`; coaching avoids "distracted"/"not paying attention" and any
+  medical/psychological framing. Low landmark quality withholds feedback rather
+  than inventing it.
+- **Candidate control.** Disable at any time and clear metrics; the interview
+  completes without it.
