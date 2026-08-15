@@ -140,6 +140,29 @@ class TestLoadConfig:
         assert "gemini-secret" not in repr(config)
         assert "gemini-secret" not in str(config)
 
+    def test_auth_and_database_defaults(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr("src.config._read_setting", lambda name: None)
+        monkeypatch.delenv(API_KEY_NAME, raising=False)
+        config = load_config()
+        # Local development: auth optional, SQLite database.
+        assert config.auth_required is False
+        assert config.database_url == constants.DEFAULT_DATABASE_URL
+
+    def test_auth_required_and_database_from_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        values = {
+            "APP_AUTH_REQUIRED": "true",
+            "DATABASE_URL": "postgresql://example/db",
+        }
+        monkeypatch.setattr("src.config._read_setting", lambda name: values.get(name))
+        monkeypatch.delenv(API_KEY_NAME, raising=False)
+        config = load_config()
+        assert config.auth_required is True
+        assert config.database_url == "postgresql://example/db"
+
 
 class TestSecretSafety:
     """The API key must never leak through printing or logging."""

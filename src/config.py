@@ -23,6 +23,15 @@ SPEECH_PROJECT_NAME = "GOOGLE_SPEECH_PROJECT_ID"
 SPEECH_LOCATION_NAME = "GOOGLE_SPEECH_LOCATION"
 GEMINI_API_KEY_NAME = "GEMINI_API_KEY"
 GEMINI_MODEL_NAME = "GEMINI_LIVE_MODEL"
+AUTH_REQUIRED_NAME = "APP_AUTH_REQUIRED"
+DATABASE_URL_NAME = "DATABASE_URL"
+
+
+def _read_bool(name: str, default: bool = False) -> bool:
+    raw = _read_setting(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
 class AppConfig(BaseModel):
@@ -48,6 +57,12 @@ class AppConfig(BaseModel):
     # the browser. Stored as SecretStr so it is masked if printed or logged.
     gemini_api_key: SecretStr | None = None
     gemini_live_model: str = constants.LIVE_INTERVIEW_MODEL
+
+    # Accounts & persistence. Auth is optional for local development and
+    # required in production. The database URL selects SQLite (dev) or
+    # PostgreSQL (prod); it is configuration, not a secret credential store.
+    auth_required: bool = False
+    database_url: str = constants.DEFAULT_DATABASE_URL
 
     # OpenRouter connection settings (defaults from constants). These are not
     # secrets and are safe to display or log.
@@ -167,4 +182,6 @@ def load_config() -> AppConfig:
         google_speech_location=speech_location,
         gemini_api_key=gemini_api_key,
         gemini_live_model=gemini_model,
+        auth_required=_read_bool(AUTH_REQUIRED_NAME, default=False),
+        database_url=_read_setting(DATABASE_URL_NAME) or constants.DEFAULT_DATABASE_URL,
     )

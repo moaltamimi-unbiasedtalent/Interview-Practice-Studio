@@ -17,8 +17,13 @@ from pydantic import ValidationError
 
 from scripts import compare_model_settings as cm
 from scripts import compare_prompts as cp
-from src import constants, security, timing, ui_helpers, visual_coach
+import dataclasses
+import os
+
+from src import auth, constants, security, timing, ui_helpers, visual_coach
 from src.avatar import LocalAvatarRenderer
+from src.persistence import init_db, make_engine, make_session_factory
+from src.repository import InterviewRepository
 from src.config import AppConfig, load_config
 from src.evaluation_service import EvaluationService
 from src.interview_service import InterviewService, QuestionHistory, ServiceError
@@ -1480,32 +1485,310 @@ def render_prompt_lab(config: AppConfig) -> None:
 
 
 # =============================================================================
+# Accounts & persistence (data-access via the repository only)
+# =============================================================================
+
+
+def _ensure_sqlite_dir(database_url: str) -> None:
+    """Create the parent directory for a SQLite file URL if needed."""
+    prefix = "sqlite:///"
+    if database_url.startswith(prefix):
+        path = database_url[len(prefix):]
+        parent = os.path.dirname(path)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
+
+
+def get_repository(config: AppConfig) -> InterviewRepository:
+    """A per-session repository over the configured database (lazily built)."""
+    key = f"_repo::{config.database_url}"
+    if key not in st.session_state:
+        _ensure_sqlite_dir(config.database_url)
+        engine = make_engine(config.database_url)
+        init_db(engine)  # dev/tests; production applies Alembic migrations
+        st.session_state[key] = InterviewRepository(make_session_factory(engine))
+    return st.session_state[key]
+
+
+def _current_user_id(config: AppConfig, repo: InterviewRepository) -> int | None:
+    """Resolve the signed-in (or anonymous dev) user to an internal id."""
+    user = auth.current_user(config)
+    if user is None:
+        return None
+    return repo.get_or_create_user(
+        subject=user.subject,
+        provider=user.provider,
+        display_name=user.display_name,
+        email=user.email,
+    )
+
+
+def _interview_payload(data) -> dict:
+    """Assemble a persistence payload from the session (appropriate data only)."""
+    questions: list[dict] = []
+    for i, question in enumerate(data.questions):
+        answer_text = data.answers[i] if i < len(data.answers) else ""
+        evaluation = (
+            data.evaluations[i].model_dump() if i < len(data.evaluations) else None
+        )
+        guidance = timing.guidance_for_question(question)
+        timing_metrics = (
+            data.voice_metrics[i] if i < len(data.voice_metrics) else None
+        )
+        visual_metrics = (
+            data.visual_metrics[i] if i < len(data.visual_metrics) else None
+        )
+        questions.append(
+            {
+                "position": i,
+                "canonical_question": question.question,
+                "question_type": question.question_type,
+                "difficulty": question.difficulty,
+                "timing_guidance": dataclasses.asdict(guidance),
+                "is_deep_dive": False,
+                "parent_position": None,
+                "answer": (
+                    {
+                        "text": answer_text,
+                        "evaluation": evaluation,
+                        "timing_metrics": timing_metrics,
+                        "visual_metrics": visual_metrics,
+                    }
+                    if (answer_text or evaluation)
+                    else None
+                ),
+            }
+        )
+    base = len(data.questions)
+    parent = base - 1 if base else None
+    for j, branch in enumerate(data.branch_questions):
+        answer_text = data.branch_answers[j] if j < len(data.branch_answers) else ""
+        evaluation = (
+            data.branch_evaluations[j].model_dump()
+            if j < len(data.branch_evaluations)
+            else None
+        )
+        questions.append(
+            {
+                "position": base + j,
+                "canonical_question": branch.question,
+                "question_type": getattr(branch, "question_type", "behavioural"),
+                "difficulty": branch.difficulty,
+                "timing_guidance": None,
+                "is_deep_dive": True,
+                "parent_position": parent,
+                "answer": (
+                    {"text": answer_text, "evaluation": evaluation}
+                    if (answer_text or evaluation)
+                    else None
+                ),
+            }
+        )
+    report = None
+    if data.report is not None:
+        report = {
+            "report": data.report.model_dump(),
+            "usage": {
+                "total_tokens": sum(r.total_tokens for r in data.usage_records),
+                "requests": len(data.usage_records),
+            },
+            "cost_usd": round(data.cumulative_cost_usd, 6),
+        }
+    return {
+        "configuration": data.config.model_dump() if data.config else {},
+        "mode": st.session_state.get("_practice_mode"),
+        "status": "completed",
+        "questions": questions,
+        "report": report,
+    }
+
+
+def _persist_if_new(session: SessionManager, config: AppConfig) -> None:
+    """Save a completed interview once. Best-effort — never breaks the view."""
+    if st.session_state.get("_saved_report_id"):
+        return
+    try:
+        repo = get_repository(config)
+        user_id = _current_user_id(config, repo)
+        if user_id is None:
+            return
+        interview_id = repo.save_interview(user_id, _interview_payload(session.data))
+        st.session_state["_saved_report_id"] = interview_id
+    except Exception:  # noqa: BLE001 - persistence must not break the report
+        pass
+
+
+# =============================================================================
+# Candidate pages (Dashboard / History / Progress / Settings)
+# =============================================================================
+
+
+def _render_login(config: AppConfig) -> None:
+    st.subheader("Sign in to practise")
+    st.write(
+        "Signing in keeps your interview history and progress across sessions."
+    )
+    st.caption(constants.DATA_RETENTION_NOTE)
+    if st.button("Log in", type="primary"):
+        try:
+            auth.login()
+        except Exception:  # noqa: BLE001 - no OIDC configured
+            st.error(
+                "Login is not configured. Set up an OIDC provider in "
+                "`.streamlit/secrets.toml` under `[auth]`."
+            )
+
+
+def _page_dashboard(config: AppConfig) -> None:
+    st.subheader("Dashboard")
+    repo = get_repository(config)
+    user_id = _current_user_id(config, repo)
+    metrics = repo.dashboard_metrics(user_id) if user_id is not None else {}
+    if not metrics.get("interviews_completed"):
+        st.info("No practice interviews yet — start one from **New Practice**.")
+        return
+    columns = st.columns(3)
+    columns[0].metric("Interviews completed", metrics["interviews_completed"])
+    score = metrics.get("average_practice_score")
+    columns[1].metric("Avg practice score", f"{score}/100" if score else "—")
+    secs = metrics.get("average_answer_seconds")
+    columns[2].metric("Avg answer length", f"{secs:.0f}s" if secs else "—")
+    if metrics.get("most_common_improvement_area"):
+        st.caption(
+            f"Most common area to work on: **{metrics['most_common_improvement_area']}**"
+        )
+    st.caption("Practice guidance only — not an objective hiring probability.")
+    st.markdown("#### Recent interviews")
+    for row in metrics.get("recent_interviews", []):
+        st.write(
+            f"- #{row['id']} · {row.get('target_role') or 'Interview'} · "
+            f"{row.get('questions')} questions · {(row.get('created_at') or '')[:10]}"
+        )
+
+
+def _page_history(config: AppConfig) -> None:
+    st.subheader("Interview History")
+    repo = get_repository(config)
+    user_id = _current_user_id(config, repo)
+    interviews = repo.list_interviews(user_id) if user_id is not None else []
+    if not interviews:
+        st.info("No saved interviews yet.")
+        return
+    labels = {
+        f"#{row['id']} · {row.get('target_role') or 'Interview'} · "
+        f"{(row.get('created_at') or '')[:16]}": row["id"]
+        for row in interviews
+    }
+    choice = st.selectbox("Choose an interview", list(labels))
+    interview_id = labels[choice]
+    detail = repo.get_interview(user_id, interview_id)
+    if detail is None:
+        st.error("That interview could not be found.")
+        return
+
+    columns = st.columns(2)
+    columns[0].download_button(
+        "Download report (JSON)",
+        data=json.dumps(detail, indent=2, default=str),
+        file_name=f"interview_{interview_id}.json",
+        mime="application/json",
+    )
+    if columns[1].button("Delete this interview", type="secondary"):
+        repo.delete_interview(user_id, interview_id)
+        st.rerun()
+
+    for q in detail["questions"]:
+        tag = "🔎 Deep Dive" if q["is_deep_dive"] else f"Q{q['position'] + 1}"
+        with st.expander(f"{tag}: {q['canonical_question'][:80]}"):
+            answer = q.get("answer") or {}
+            st.markdown(f"**Your answer:** {answer.get('text') or '—'}")
+            evaluation = answer.get("evaluation")
+            if evaluation:
+                st.markdown(
+                    f"**Score:** {evaluation.get('overall_score')}/100"
+                )
+                for area in evaluation.get("improvement_areas", []) or []:
+                    st.markdown(f"- Improve: {area}")
+            if answer.get("timing_metrics"):
+                st.caption(f"Delivery: {answer['timing_metrics']}")
+            if answer.get("visual_metrics"):
+                st.caption(f"Visual (aggregated): {answer['visual_metrics']}")
+    if detail.get("report"):
+        with st.expander("Final report"):
+            st.json(detail["report"]["report"])
+
+
+def _page_progress(config: AppConfig) -> None:
+    st.subheader("Progress")
+    repo = get_repository(config)
+    user_id = _current_user_id(config, repo)
+    export = repo.export_user_data(user_id) if user_id is not None else {"interviews": []}
+    scores: list[float] = []
+    durations: list[float] = []
+    for interview in export.get("interviews", []):
+        for q in interview.get("questions", []):
+            answer = q.get("answer") or {}
+            evaluation = answer.get("evaluation") or {}
+            if evaluation.get("overall_score") is not None:
+                scores.append(evaluation["overall_score"])
+            timing_metrics = answer.get("timing_metrics") or {}
+            if timing_metrics.get("total_speaking_seconds"):
+                durations.append(timing_metrics["total_speaking_seconds"])
+    if not scores:
+        st.info("Complete a few interviews to see your progress trend.")
+        return
+    st.markdown("**Practice score trend** (guidance only)")
+    st.line_chart(scores)
+    if durations:
+        st.markdown("**Answer length trend (seconds)**")
+        st.line_chart(durations)
+
+
+def _page_settings(config: AppConfig) -> None:
+    st.subheader("Settings")
+    user = auth.current_user(config)
+    if user is not None:
+        who = user.display_name or user.email or user.subject
+        st.write(f"Signed in as **{who}**" + (" (local dev)" if user.is_anonymous else ""))
+        if not user.is_anonymous and st.button("Log out"):
+            try:
+                auth.logout()
+            except Exception:  # noqa: BLE001
+                pass
+
+    st.markdown("#### Your data")
+    st.caption(constants.DATA_RETENTION_NOTE)
+    repo = get_repository(config)
+    user_id = _current_user_id(config, repo)
+    if user_id is None:
+        return
+    export = repo.export_user_data(user_id)
+    st.download_button(
+        "Export my data (JSON)",
+        data=json.dumps(export, indent=2, default=str),
+        file_name="my_interview_data.json",
+        mime="application/json",
+    )
+    st.divider()
+    st.markdown("#### Danger zone")
+    confirm = st.checkbox("I understand this permanently deletes all my interviews")
+    if st.button("Delete all my interview data", disabled=not confirm):
+        removed = repo.delete_all_for_user(user_id)
+        st.session_state.pop("_saved_report_id", None)
+        st.success(f"Deleted {removed} interview(s).")
+
+
+# =============================================================================
 # Main router
 # =============================================================================
 
 
-def main() -> None:
-    st.set_page_config(page_title=constants.APP_NAME, layout="wide")
-    session = get_session()
-    config = load_config()
-
-    render_header()
-    dev = render_developer_settings(config)
-
-    view = st.sidebar.radio("View", ["Interview", "Prompt Lab"], key="view_mode")
-    if view == "Prompt Lab":
-        render_prompt_lab(config)
-        if dev["show_usage"]:
-            render_usage(session)
-        render_reset(session)
-        return
-
+def _render_practice_page(session: SessionManager, config: AppConfig, dev: dict) -> None:
     if not config.is_configured:
         st.warning(
             "Add an OpenRouter API key to start. You can still explore the "
             "setup form below."
         )
-
     state = session.state
     if state is SessionState.SETUP:
         render_setup(session, config, dev)
@@ -1522,9 +1805,43 @@ def main() -> None:
     elif state is SessionState.INTERVIEW_COMPLETE:
         render_complete(session)
     elif state is SessionState.REPORT_READY:
+        _persist_if_new(session, config)  # save history once, best-effort
         render_report(session)
     elif state is SessionState.ERROR:
         render_error(session)
+
+
+def main() -> None:
+    st.set_page_config(page_title=constants.APP_NAME, layout="wide")
+    session = get_session()
+    config = load_config()
+
+    render_header()
+    dev = render_developer_settings(config)
+
+    # Auth gate: required in production, optional (anonymous) for local dev.
+    if auth.current_user(config) is None:
+        _render_login(config)
+        return
+
+    page = st.sidebar.radio(
+        "Menu",
+        ["New Practice", "Dashboard", "Interview History", "Progress", "Settings", "Advanced"],
+        key="nav_page",
+    )
+
+    if page == "New Practice":
+        _render_practice_page(session, config, dev)
+    elif page == "Dashboard":
+        _page_dashboard(config)
+    elif page == "Interview History":
+        _page_history(config)
+    elif page == "Progress":
+        _page_progress(config)
+    elif page == "Settings":
+        _page_settings(config)
+    elif page == "Advanced":
+        render_prompt_lab(config)
 
     if dev["show_usage"]:
         render_usage(session)

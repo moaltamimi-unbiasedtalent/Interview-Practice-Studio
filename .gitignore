@@ -33,3 +33,7 @@ tmp/
 
 # Editable-install metadata
 *.egg-info/
+
+# Local database (dev)
+data/
+*.db

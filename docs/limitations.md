@@ -156,3 +156,17 @@ boundaries of the tool.
 - **Frontend not built/exercised in CI.** MediaPipe integration ships as source;
   automated tests cover the Python coaching/aggregation/privacy logic and the
   pure JS accumulator (vitest); live camera behaviour is covered by manual QA.
+
+---
+
+## Accounts & persistence (Phase 21)
+
+- **Auth optional in dev, required in production.** Without `[auth]` configured,
+  local use is anonymous; `APP_AUTH_REQUIRED=true` enforces login.
+- **SQLite for dev, PostgreSQL for prod** via one `DATABASE_URL`. Dev/tests use
+  `create_all`; production applies Alembic migrations (`alembic upgrade head`).
+  Alembic/psycopg are an optional `[db]` extra, not installed in CI.
+- **Persistence is best-effort in the UI:** a save failure never breaks the
+  report view; the interview content is still shown.
+- **No raw media stored** — only aggregated metrics; camera/audio/biometrics are
+  never persisted.

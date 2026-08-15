@@ -134,6 +134,23 @@ completed results and offers a concrete next step (retry / switch to text or
 voice / reset) rather than restarting. The avatar is neutral, accessible
 (`aria-label`, reduced-motion aware) and local by default.
 
+## Accounts, history & dashboard
+
+The app can persist your practice across sessions. Sign-in uses Streamlit's
+native OIDC (Google, Microsoft, …) behind a small auth abstraction
+([src/auth.py](src/auth.py)); it is **optional for local development** (anonymous)
+and **required in production** (`APP_AUTH_REQUIRED=true`). Data is stored via one
+SQLAlchemy layer ([src/persistence.py](src/persistence.py)) — **SQLite** for dev,
+**PostgreSQL** for production — accessed only through a user-scoped repository
+([src/repository.py](src/repository.py)), so **one user can never see another's
+history**. Candidate pages: **Dashboard**, **New Practice**, **Interview
+History**, **Progress**, **Settings**. You can export your data and delete
+individual interviews or everything. Only appropriate data is stored — never
+camera video, face frames, biometric templates, permanent keys or raw audio.
+Production migrations use Alembic (`pip install -e ".[db]"`, then
+`alembic upgrade head`); dev creates tables automatically. See
+[docs/architecture.md](docs/architecture.md).
+
 ## Architecture
 
 A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:
