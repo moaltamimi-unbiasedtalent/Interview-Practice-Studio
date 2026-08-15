@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@google/genai": "^0.14.0",
+    "@mediapipe/tasks-vision": "^0.10.0",
     "streamlit-component-lib": "^2.0.0"
   },
   "devDependencies": {

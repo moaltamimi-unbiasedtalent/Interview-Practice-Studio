@@ -355,6 +355,38 @@ DIFFICULTY_LENGTH_MULTIPLIER: dict[str, float] = {
     "hard": 1.2,
 }
 
+# --- Visual engagement coach (optional, camera; local-only) ------------------
+# A practice/coaching feature only. It NEVER decides whether a candidate is
+# attentive, truthful or suitable, is NEVER part of any hiring score, and makes
+# no psychological/medical/personality judgements. Camera is off by default;
+# all frame processing happens locally in the browser and no video, screenshot,
+# frame or biometric template is sent anywhere or stored — only aggregated
+# coaching metrics are returned.
+VISUAL_COACH_CALIBRATION_SECONDS = 3
+# "Away" only counts as an extended period once it lasts at least this long.
+VISUAL_EXTENDED_AWAY_SECONDS = 5.0
+# Below these, feedback is withheld rather than invented (low confidence).
+VISUAL_MIN_LANDMARK_CONFIDENCE = 0.5
+VISUAL_MIN_FACE_PRESENT_PERCENT = 60.0
+VISUAL_DISCLAIMER = (
+    "Visual Engagement Coach analyses camera-facing behaviour locally on your "
+    "device to help you practise video interviews. It does not determine whether "
+    "you are attentive, truthful or suitable for a job."
+)
+VISUAL_LOW_CONFIDENCE_MESSAGE = (
+    "Camera coaching confidence is too low for useful feedback."
+)
+VISUAL_STATUS_ACTIVE = "Camera coaching active"
+# Allowed values for the clearly-named gaze proxy (never an "attention score").
+GAZE_DIRECTION_PROXY_VALUES = (
+    "toward_screen",
+    "left",
+    "right",
+    "up",
+    "down",
+    "unknown",
+)
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

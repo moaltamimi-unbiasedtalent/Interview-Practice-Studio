@@ -123,6 +123,9 @@ class SessionData:
     # Voice delivery metrics per spoken answer (duration, word count, wpm),
     # captured for the timing/coaching phase; not scored yet.
     voice_metrics: list[dict[str, Any]] = field(default_factory=list)
+    # Optional visual-engagement coaching metrics (aggregated, local-only,
+    # never a score). Empty unless the candidate opts in to camera coaching.
+    visual_metrics: list[dict[str, Any]] = field(default_factory=list)
 
     # Interview Deep Dive (branching) — tracked separately from main progress so
     # a branch can never move the main interview forward.
@@ -516,6 +519,14 @@ class SessionManager:
     def record_voice_metrics(self, metrics: dict[str, Any]) -> None:
         """Store delivery metrics for a spoken answer (not scored yet)."""
         self.data.voice_metrics.append(dict(metrics))
+
+    def record_visual_metrics(self, metrics: dict[str, Any]) -> None:
+        """Store aggregated visual-coaching metrics for one answer (not a score)."""
+        self.data.visual_metrics.append(dict(metrics))
+
+    def clear_visual_metrics(self) -> None:
+        """Discard all visual-coaching metrics (candidate privacy control)."""
+        self.data.visual_metrics = []
 
     def add_chat_message(self, role: str, content: str) -> None:
         """Append a message to the persistent chat history."""

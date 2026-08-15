@@ -48,3 +48,24 @@ relying on live mode.
 
 - Gemini usage is shown separately from OpenRouter LLM cost; no dollar figure is
   claimed unless a real rate is configured.
+
+---
+
+## Visual Engagement Coach (manual QA)
+
+Requires the built component and a camera. Off by default.
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| V1 | Camera off by default | No camera prompt until opt-in; disclaimer shown before enabling |
+| V2 | Enable then Continue-without | Both choices work; interview runs either way |
+| V3 | Permission denied | Clear message; interview continues without video |
+| V4 | Camera unavailable | Graceful message; no crash |
+| V5 | Poor lighting / face far | "Camera coaching confidence is too low for useful feedback." |
+| V6 | Multiple faces in frame | Low-confidence message; no metrics invented |
+| V7 | Calibration | ~3 s "look naturally toward the interviewer"; neutral orientation learned |
+| V8 | During answer | Only "Camera coaching active" — no moving score |
+| V9 | Post-answer | "Visual delivery" phrased neutrally (never "distracted") |
+| V10 | Disable mid-session | Camera stops; metrics can be cleared; interview continues |
+| V11 | Privacy | DevTools shows no frames/landmarks sent to any backend; nothing stored |
+| V12 | Report | Aggregated visual section, clearly separate from the readiness score |

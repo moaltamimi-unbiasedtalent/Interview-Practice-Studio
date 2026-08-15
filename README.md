@@ -107,6 +107,20 @@ shows a fallback and Text/Voice work unchanged. Enable with
 [docs/architecture.md](docs/architecture.md) and the manual QA plan in
 [docs/live_interview_qa.md](docs/live_interview_qa.md).
 
+## Visual Engagement Coach (optional, experimental)
+
+An optional camera-based practice aid for the live interview. It is **coaching
+only**: it never decides whether you are attentive, truthful or suitable, never
+affects any score, and makes no psychological/medical judgements. Camera is
+**off by default**; you opt in after a plain disclaimer, and the interview works
+fully without it. All processing is **local in the browser** (MediaPipe Face
+Landmarker) — no video, screenshots, frames or biometric data are ever sent to a
+backend or stored; only small aggregated metrics (e.g. screen-facing percentage,
+extended-away periods) are returned, and a clearly-named `gaze_direction_proxy`
+is used — never an "attention score". You can disable it or clear its metrics at
+any time. Details in [docs/architecture.md](docs/architecture.md); manual checks
+in [docs/live_interview_qa.md](docs/live_interview_qa.md).
+
 ## Architecture
 
 A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:

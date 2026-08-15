@@ -660,3 +660,42 @@ In the app, voice and live modes show the recommended length before answering, a
 "Delivery & pacing" note after each evaluation, and an aggregated delivery
 section in the final report. **Typed answers get no speech metrics**, and timing
 never touches `AnswerEvaluation` — the interview-content score is independent.
+
+---
+
+## Visual Engagement Coach (Phase 19, optional)
+
+A practice/coaching feature only. It **never** decides whether a candidate is
+attentive, truthful or suitable, is **never** part of any score, and makes no
+psychological/medical/personality judgements. Camera is **off by default** and
+requires explicit opt-in.
+
+### Local-only processing
+
+All camera work happens in the browser component (`components/live_interviewer/
+frontend/`): `visual.ts` runs **MediaPipe Face Landmarker**; `visualMetrics.ts`
+is a pure, unit-tested accumulator that turns per-frame head-pose numbers into
+small aggregated metrics. **No frames, screenshots, landmarks or biometric
+templates ever leave the browser or are stored** — only the aggregated metrics
+are returned. A short (3 s) calibration learns the person/device's neutral
+orientation, so the exact camera centre is not assumed.
+
+### Metrics and confidence (`src/visual_coach.py`)
+
+`VisualEngagementMetrics`: `face_present_percentage`, `screen_facing_percentage`,
+`longest_away_interval_seconds`, `number_of_extended_away_periods`,
+`excessive_head_turn_count`, and a clearly-named `gaze_direction_proxy` (never an
+`attention_score`). When landmark quality is poor — low confidence, face out of
+frame, or multiple faces — feedback is withheld ("confidence too low") rather
+than invented. `build_metrics` validates/clamps the browser payload;
+`coaching_from_metrics` produces plain-language "Visual delivery" notes (never
+"distracted"/"not paying attention"); `aggregate_visual` summarises the session.
+
+### UI and privacy
+
+Off by default with an explicit disclaimer and Enable / Continue-without-camera
+choice; the live interview works fully without video. During an answer only a
+minimal "Camera coaching active" status shows (no distracting live score).
+Post-answer shows "Visual delivery"; the report shows an aggregated section kept
+separate from content scoring. The candidate can disable coaching at any time
+and clear all metrics. Typed answers never produce visual metrics.
