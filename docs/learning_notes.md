@@ -1388,3 +1388,33 @@ camera coaching feature.
 3. How does the app behave when camera confidence is too low?
 4. How is visual coaching kept out of the interview-content score?
 5. What controls does the candidate have over camera coaching?
+
+---
+
+## Phase 20 — human-like live interview experience + UX redesign
+
+Branch `product/full-fledged-interview-app` (continued). No new provider.
+
+### Key decisions
+
+- **AvatarRenderer interface.** The interviewer presentation is behind a small
+  interface with a local default, so a realtime digital-human provider can drop
+  in later without changing interview logic. Neutral/professional, no caricature,
+  tasteful animation only (no fake lip-sync), accessible and reduced-motion-aware.
+- **Candidate-first framing.** Friendly Text/Voice/Live mode cards; technical
+  concepts (models, tokens, JSON, reasoning) are kept out of the candidate path
+  in a collapsed developer expander.
+- **Always-useful states.** Labelled waiting states and error recovery that keeps
+  completed results and offers a concrete next step (retry / switch mode /
+  reset) — never restart-from-scratch.
+- **Accessibility.** Captions toggle, `aria-label`s on the avatar, and
+  `prefers-reduced-motion` handling.
+
+### Review questions
+
+1. How could the avatar be swapped for a realtime digital human without touching
+   interview logic?
+2. What technical concepts are deliberately hidden from the candidate, and where
+   do they live now?
+3. How does the app recover from a provider failure without losing progress?
+4. Which accessibility affordances are in place for the interview screen?

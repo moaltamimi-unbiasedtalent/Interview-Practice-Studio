@@ -699,3 +699,40 @@ minimal "Camera coaching active" status shows (no distracting live score).
 Post-answer shows "Visual delivery"; the report shows an aggregated section kept
 separate from content scoring. The candidate can disable coaching at any time
 and clear all metrics. Typed answers never produce visual metrics.
+
+---
+
+## Candidate experience redesign (Phase 20)
+
+Turns the functional modes into a candidate-facing "remote interview" feel,
+without adding any provider.
+
+### Interviewer avatar (`src/avatar.py`)
+
+`AvatarRenderer` is an interface so a future realtime digital-human provider can
+replace the presentation **without touching interview-domain logic**. The default
+`LocalAvatarRenderer` is local and inexpensive: a neutral, professional bust
+silhouette in a persona-accented ring (no caricatures), with tasteful state
+animation — `speaking` pulse, `listening` breathe, `thinking` dots — and **no
+fake lip-sync**. It is accessible (`role="img"` + descriptive `aria-label`) and
+disables animation under `prefers-reduced-motion`. Personas map to friendly
+labels/accents via `INTERVIEWER_PERSONA_PRESENTATION`.
+
+### Candidate-facing UI (`app.py`)
+
+- **Practice Interview** landing with three friendly **mode cards** (Text / Voice
+  / Live) — no OpenRouter/Gemini/JSON/token/reasoning concepts shown. Selecting a
+  card sets the default answer method (still switchable per question).
+- **Interviewer stage** during the interview: the avatar, progress
+  ("Question X of Y" or "Deep Dive · Level N"), a live status line
+  ("Listening…"/"Processing your answer…"), and an interviewer caption.
+- **Captions toggle** (accessibility) governs the interviewer caption and the
+  live transcript; the full conversation lives in a "Transcript" expander.
+- **Waiting states** are always labelled (preparing interviewer / listening /
+  processing / preparing feedback / next question / reconnecting) — never a
+  blank frozen screen.
+- **Error recovery** offers Try again, Switch to text & continue, Switch to voice
+  & continue, and Reset — and explicitly keeps completed results, so one failure
+  never sends the candidate back to the start.
+- **Developer/advanced settings** stay in a collapsed sidebar expander, out of
+  the candidate path.
