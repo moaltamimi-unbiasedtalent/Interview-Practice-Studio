@@ -12,11 +12,13 @@ from __future__ import annotations
 import json
 
 import streamlit as st
+import streamlit.components.v1 as components
 from pydantic import ValidationError
 
 from scripts import compare_model_settings as cm
 from scripts import compare_prompts as cp
 from src import constants, security, timing, ui_helpers, visual_coach
+from src.avatar import LocalAvatarRenderer
 from src.config import AppConfig, load_config
 from src.evaluation_service import EvaluationService
 from src.interview_service import InterviewService, QuestionHistory, ServiceError
@@ -39,6 +41,10 @@ from components.live_interviewer import is_available as live_component_available
 from components.live_interviewer import live_interviewer
 
 _METADATA_CACHE_KEY = "_model_supported_params"
+
+# A future realtime digital-human provider can replace this without touching any
+# interview-domain logic (see src/avatar.AvatarRenderer).
+_AVATAR = LocalAvatarRenderer()
 
 
 # =============================================================================
@@ -223,8 +229,39 @@ def _test_connection(config: AppConfig, model: str) -> None:
 # =============================================================================
 
 
+def _render_mode_cards() -> None:
+    """Friendly practice-mode cards (no technical/provider concepts shown).
+
+    Selecting one sets the default answer method for the interview; the candidate
+    can still switch per question. Camera coaching and models stay out of sight.
+    """
+    st.markdown("#### How would you like to practise?")
+    chosen = st.session_state.get("_practice_mode", "Type")
+    columns = st.columns(len(constants.PRACTICE_MODE_CARDS))
+    for column, card in zip(columns, constants.PRACTICE_MODE_CARDS):
+        with column:
+            selected = card["id"] == chosen
+            st.markdown(f"**{card['title']}**")
+            st.caption(card["tagline"])
+            st.caption(card["description"])
+            if st.button(
+                "Selected ✓" if selected else "Choose",
+                key=f"mode_card_{card['id']}",
+                type="primary" if selected else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["_practice_mode"] = card["id"]
+                # Pre-select this mode for main and Deep Dive answers.
+                st.session_state["main_answer_method"] = card["id"]
+                st.session_state["branch_answer_method"] = card["id"]
+                st.rerun()
+
+
 def render_setup(session: SessionManager, config: AppConfig, dev: dict) -> None:
-    st.subheader("Set up your interview")
+    st.subheader("Practice Interview")
+    _render_mode_cards()
+    st.divider()
+    st.markdown("#### Set up your interview")
     with st.form("interview_setup"):
         target_role = st.text_input("Target role *", help="Required.")
         industry = st.text_input("Industry or sector")
@@ -886,19 +923,88 @@ def _render_visual_section(session) -> None:
             st.rerun()
 
 
+def _avatar_state(session: SessionManager) -> str:
+    """Map the session state to a tasteful interviewer avatar state."""
+    if session.state in (
+        SessionState.AWAITING_ANSWER,
+        SessionState.BRANCH_AWAITING_ANSWER,
+    ):
+        return constants.AVATAR_LISTENING
+    if session.state in (
+        SessionState.EVALUATING,
+        SessionState.BRANCH_EVALUATING,
+    ):
+        return constants.AVATAR_THINKING
+    return constants.AVATAR_IDLE
+
+
+def _current_question_text(session: SessionManager) -> str:
+    data = session.data
+    if data.branch_active and data.branch_questions:
+        return data.branch_questions[-1].question
+    if data.questions:
+        return data.questions[-1].question
+    return ""
+
+
+def _render_interviewer_stage(session: SessionManager) -> None:
+    """The 'remote interview' stage: interviewer avatar, progress and captions."""
+    data = session.data
+    persona = data.config.interviewer_persona if data.config else None
+    planned = data.config.number_of_questions if data.config else 0
+
+    left, right = st.columns([1, 2])
+    with left:
+        components.html(
+            _AVATAR.render(persona=persona, state=_avatar_state(session)),
+            height=220,
+        )
+    with right:
+        if data.branch_active:
+            st.markdown(
+                f"**Deep Dive · Level {data.branch_depth} of "
+                f"{constants.MAX_BRANCH_DEPTH}**"
+            )
+        else:
+            current = min(max(data.current_question_number, 1), planned or 1)
+            st.markdown(f"**Question {current} of {planned}**")
+        answered = len(data.evaluations)
+        st.progress(min(answered / planned, 1.0) if planned else 0.0)
+        state_labels = {
+            constants.AVATAR_LISTENING: constants.STATUS_LISTENING,
+            constants.AVATAR_THINKING: constants.STATUS_PROCESSING_ANSWER,
+        }
+        st.caption(state_labels.get(_avatar_state(session), "In progress"))
+        if st.session_state.get("_captions", True):
+            question = _current_question_text(session)
+            if question:
+                st.markdown(f"> **Interviewer:** {question}")
+    st.divider()
+
+
 def render_interview(session: SessionManager) -> None:
     data = session.data
     planned = data.config.number_of_questions
     answered = len(data.evaluations)
     asked = len(data.questions)
 
-    st.subheader("Mock interview")
-    st.progress(min(answered / planned, 1.0) if planned else 0.0)
-    st.caption(f"Answered {answered} of {planned} planned questions.")
+    _render_interviewer_stage(session)
 
-    for message in data.chat_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Captions toggle (accessibility): governs the interviewer caption + live
+    # transcript. On by default.
+    st.checkbox(
+        "Show captions",
+        value=st.session_state.get("_captions", True),
+        key="_captions",
+        help="Show the interviewer's question and your live transcript as text.",
+    )
+
+    with st.expander("Transcript", expanded=False):
+        if not data.chat_messages:
+            st.caption("The conversation will appear here.")
+        for message in data.chat_messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
     st.divider()
 
@@ -1212,11 +1318,26 @@ def render_reset(session: SessionManager) -> None:
 
 def render_error(session: SessionManager) -> None:
     st.error(session.data.error or "Something went wrong. Please try again.")
-    columns = st.columns(2)
-    if columns[0].button("Try again"):
+    # Every failure offers a useful next step and keeps completed results. We
+    # never send the candidate back to the start because one attempt failed.
+    st.caption("Your completed answers and feedback so far are kept.")
+    columns = st.columns(3)
+    if columns[0].button("Try again", type="primary"):
         session.recover_from_error()
         st.rerun()
-    if columns[1].button("Reset interview"):
+    if columns[1].button("Switch to text & continue"):
+        # Recover and prefer the most robust input mode for the next attempt.
+        st.session_state["main_answer_method"] = "Type"
+        st.session_state["branch_answer_method"] = "Type"
+        session.recover_from_error()
+        st.rerun()
+    if columns[2].button("Switch to voice & continue"):
+        st.session_state["main_answer_method"] = "Record"
+        st.session_state["branch_answer_method"] = "Record"
+        session.recover_from_error()
+        st.rerun()
+    st.divider()
+    if st.button("Reset interview"):
         session.reset_interview()
         st.rerun()
 

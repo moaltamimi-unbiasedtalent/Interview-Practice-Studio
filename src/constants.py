@@ -387,6 +387,59 @@ GAZE_DIRECTION_PROXY_VALUES = (
     "unknown",
 )
 
+# --- Candidate experience (avatar, modes, presentation) ----------------------
+# The candidate-facing screen should feel like a remote interview, not a demo.
+# None of these expose provider/model/token concepts to ordinary users.
+
+# Interviewer avatar states (drive a tasteful animation, never fake lip-sync).
+AVATAR_IDLE = "idle"
+AVATAR_SPEAKING = "speaking"
+AVATAR_LISTENING = "listening"
+AVATAR_THINKING = "thinking"
+AVATAR_STATES = (AVATAR_IDLE, AVATAR_SPEAKING, AVATAR_LISTENING, AVATAR_THINKING)
+
+# Professional, neutral presentation per interviewer persona (no caricatures).
+# label: friendly candidate-facing name; accent: a muted professional colour.
+INTERVIEWER_PERSONA_PRESENTATION: dict[str, dict[str, str]] = {
+    "supportive": {"label": "Friendly recruiter", "accent": "#2E7D32"},
+    "neutral": {"label": "Hiring manager", "accent": "#1565C0"},
+    "formal": {"label": "Formal interviewer", "accent": "#37474F"},
+    "challenging": {"label": "Subject-matter expert", "accent": "#6A1B9A"},
+    "sceptical_executive": {"label": "Executive", "accent": "#4E342E"},
+    "fast_paced_panel": {"label": "Interview panel", "accent": "#00695C"},
+}
+DEFAULT_PERSONA_PRESENTATION = {"label": "Interviewer", "accent": "#1565C0"}
+
+# Candidate-facing status text for waiting states (never a blank frozen screen).
+STATUS_PREPARING_INTERVIEWER = "Preparing your interviewer…"
+STATUS_LISTENING = "Listening…"
+STATUS_PROCESSING_ANSWER = "Processing your answer…"
+STATUS_PREPARING_FEEDBACK = "Preparing your feedback…"
+STATUS_PREPARING_NEXT = "Preparing the next question…"
+STATUS_RECONNECTING = "Reconnecting…"
+
+# Friendly practice-mode cards (no technical jargon).
+PRACTICE_MODE_CARDS = (
+    {
+        "id": "Type",
+        "title": "💬 Text",
+        "tagline": "Quiet, flexible practice.",
+        "description": "Read each question and type your answer at your own pace.",
+    },
+    {
+        "id": "Record",
+        "title": "🎙️ Voice",
+        "tagline": "Record spoken answers and get feedback.",
+        "description": "Speak your answer aloud; we transcribe it and coach delivery.",
+    },
+    {
+        "id": "Live",
+        "title": "🎥 Live",
+        "tagline": "Real-time AI interviewer with voice conversation.",
+        "description": "A spoken, back-and-forth interview. Experimental.",
+    },
+)
+
 # --- Pricing -----------------------------------------------------------------
 # Cost figures are computed with Decimal for precision, then rounded to this
 # many decimal places for display/storage. Prices themselves are always read

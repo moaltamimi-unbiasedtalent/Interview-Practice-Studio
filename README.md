@@ -121,6 +121,19 @@ is used — never an "attention score". You can disable it or clear its metrics 
 any time. Details in [docs/architecture.md](docs/architecture.md); manual checks
 in [docs/live_interview_qa.md](docs/live_interview_qa.md).
 
+## Candidate experience
+
+The app presents a **Practice Interview** with three friendly modes — **Text**,
+**Voice** and **Live** — chosen from simple cards; technical concepts (models,
+tokens, JSON, reasoning) stay out of the candidate's way in a collapsed developer
+expander. During the interview a professional **interviewer avatar**
+([src/avatar.py](src/avatar.py), a swappable `AvatarRenderer`) shows tasteful
+speaking/listening/thinking states next to clear progress ("Question X of Y"),
+a captions toggle, and always-labelled waiting states. Every failure keeps
+completed results and offers a concrete next step (retry / switch to text or
+voice / reset) rather than restarting. The avatar is neutral, accessible
+(`aria-label`, reduced-motion aware) and local by default.
+
 ## Architecture
 
 A thin Streamlit UI (`app.py`) renders only; all behaviour lives in `src/`:
