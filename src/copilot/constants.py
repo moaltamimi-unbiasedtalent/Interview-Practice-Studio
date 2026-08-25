@@ -61,6 +61,35 @@ MAX_QUERY_CHARS = 4_000
 MAX_JOB_DESCRIPTION_CHARS = 12_000
 MAX_CANDIDATE_BACKGROUND_CHARS = 8_000
 
+# --- Knowledge base / ingestion ----------------------------------------------
+
+# Document categories the knowledge base understands. Inferred from the raw
+# subfolder name; anything else is "uncategorized".
+KNOWN_DOCUMENT_TYPES = (
+    "labour_market",
+    "occupation",
+    "skills",
+    "career_guidance",
+    "interview_guidance",
+    "industry_report",
+)
+DEFAULT_DOCUMENT_TYPE = "uncategorized"
+
+# Supported source formats (lower-case extensions).
+SUPPORTED_EXTENSIONS = (".pdf", ".txt", ".md", ".markdown", ".csv")
+
+# Recursive chunking. ~1000 chars keeps a chunk focused but self-contained; the
+# overlap preserves context across boundaries. Sizes are in characters.
+CHUNK_SIZE = 1000
+CHUNK_OVERLAP = 150
+
+# Length of the short, stable hex ids derived from content hashes (for dedup).
+ID_HASH_LENGTH = 16
+
+# Where the ingestion CLI writes processed chunks + a manifest (no embeddings).
+PROCESSED_CHUNKS_FILE = "data/processed/chunks.jsonl"
+PROCESSED_MANIFEST_FILE = "data/processed/manifest.json"
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"

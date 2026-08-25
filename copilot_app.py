@@ -45,10 +45,45 @@ def _page_chat() -> None:
 
 def _page_knowledge_base() -> None:
     st.subheader("Knowledge Base")
-    st.info(
-        "Document ingestion, chunking and the vector index arrive in Phase 2–3. "
-        "This page will show ingested sources and index stats."
-    )
+    from src.copilot.ingestion import indexer
+
+    manifest = indexer.load_manifest()
+    if not manifest:
+        st.info(
+            "No knowledge base ingested yet. Add sources to `data/raw/` (see its "
+            "README) and run `python scripts/ingest.py`."
+        )
+        return
+
+    columns = st.columns(3)
+    columns[0].metric("Documents", manifest.get("documents", 0))
+    columns[1].metric("Chunks", manifest.get("chunks", 0))
+    columns[2].metric("Document types", len(manifest.get("by_type", {})))
+
+    by_type = manifest.get("by_type", {})
+    if by_type:
+        st.markdown("**By document type**")
+        st.write({k: v for k, v in by_type.items()})
+
+    per_doc = manifest.get("per_document", [])
+    if per_doc:
+        st.markdown("**Ingested documents**")
+        st.dataframe(
+            [
+                {
+                    "File": d.get("filename"),
+                    "Type": d.get("document_type"),
+                    "Title": d.get("title"),
+                    "Chunks": d.get("chunks"),
+                }
+                for d in per_doc
+            ],
+            use_container_width=True,
+        )
+    errors = manifest.get("errors", [])
+    if errors:
+        st.warning(f"{len(errors)} document(s) could not be ingested.")
+    st.caption("Ingestion status: ✅ processed (no embeddings yet — added later).")
 
 
 def _page_rag_inspector() -> None:
