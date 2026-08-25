@@ -15,6 +15,17 @@ from src.copilot.config import CopilotConfig, load_config
 from src.copilot.logging_utils import configure_logging
 from src.copilot.rag import build_context
 from src.copilot.retrieval import build_retriever
+from src.ui import shared
+
+# Reviewer-facing starter prompts shown on an empty Chat page.
+STARTER_PROMPTS = [
+    "What skills are most important for this role?",
+    "Analyse this job description.",
+    "Compare my background with this role.",
+    "What skill gaps should I prioritise?",
+    "Build a 30-day preparation plan.",
+    "What does the knowledge base say about this occupation?",
+]
 
 
 # --- Shared resources --------------------------------------------------------
@@ -94,12 +105,19 @@ def _render_sources(results, citations) -> None:
         for citation in citations:
             st.markdown(citation.label)
     if results:
-        with st.expander(f"Retrieved passages ({len(results)})"):
+        with st.expander(f"Source passages ({len(results)})"):
             for index, result in enumerate(results, start=1):
-                title = result.title or "Untitled source"
-                page = f" · page {result.page}" if result.page is not None else ""
-                st.markdown(f"**[{index}] {title}{page}** — score {result.score:.3f}")
-                st.caption(result.text[:600] + ("…" if len(result.text) > 600 else ""))
+                meta = result.metadata or {}
+                source_type = meta.get("document_type") or "source"
+                section = meta.get("section")
+                locator = f"page {result.page}" if result.page is not None else section
+                # Source card: title, page/section, source type, short extract.
+                shared.source_card(
+                    title=f"[{index}] {result.title or 'Untitled source'}",
+                    source=f"{source_type}" + (f" · {locator}" if locator else ""),
+                    page=None,
+                    snippet=result.text,
+                )
 
 
 def _render_tool_executions(executions) -> None:
@@ -143,6 +161,16 @@ def _page_chat() -> None:
         hpw = cols[1].number_input("Hours per week", 0.0, 80.0, 0.0, key="chat_hpw")
 
     st.session_state.setdefault("chat_history", [])
+
+    # Starter prompts on an empty conversation (reviewer-friendly entry points).
+    if not st.session_state["chat_history"]:
+        st.caption("Try a starter question:")
+        cols = st.columns(2)
+        for i, example in enumerate(STARTER_PROMPTS):
+            if cols[i % 2].button(example, key=f"starter_{i}", use_container_width=True):
+                st.session_state["career_pending_prompt"] = example
+                st.rerun()
+
     for message in st.session_state["chat_history"]:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
@@ -150,7 +178,10 @@ def _page_chat() -> None:
                 _render_sources(message.get("results", []), message.get("citations", []))
                 _render_tool_executions(message.get("tool_calls", []))
 
-    prompt = st.chat_input("Ask a career question…")
+    # A queued starter prompt is treated exactly like typed input.
+    prompt = st.chat_input("Ask a career question…") or st.session_state.pop(
+        "career_pending_prompt", None
+    )
     if not prompt:
         return
 
@@ -166,15 +197,29 @@ def _page_chat() -> None:
     service = CareerIntelligenceService(config=config, retriever=retriever)
 
     with st.chat_message("assistant"):
-        with st.status("Understanding question…", expanded=False) as status:
-            status.update(label="Searching & running tools…")
-            result = service.answer(
-                prompt,
-                job_description=job_description.strip() or None,
-                candidate_background=candidate_background.strip() or None,
-                days_until_interview=int(days) or None,
-                hours_per_week=float(hpw) or None,
-            )
+        with st.status("Understanding request…", expanded=False) as status:
+            try:
+                result = service.answer(
+                    prompt,
+                    job_description=job_description.strip() or None,
+                    candidate_background=candidate_background.strip() or None,
+                    days_until_interview=int(days) or None,
+                    hours_per_week=float(hpw) or None,
+                    progress=lambda label: status.update(label=f"{label}…"),
+                )
+            except Exception:  # noqa: BLE001 - never show a raw stack trace
+                status.update(label="Something went wrong", state="error")
+                st.error(
+                    "Sorry — something went wrong preparing that answer. Please try "
+                    "again, or rephrase your question."
+                )
+                st.session_state["chat_history"].append(
+                    {
+                        "role": "assistant",
+                        "content": "Sorry — something went wrong. Please try again.",
+                    }
+                )
+                return
             status.update(label="Done", state="complete")
 
         st.markdown(result.answer)
@@ -197,6 +242,8 @@ def _page_chat() -> None:
         "translated": result.response.translated_query,
         "results": result.retrieved,
         "trace": result.trace,
+        "citations": result.citations,
+        "tool_calls": result.tool_calls,
         "context_text": build_context(result.retrieved).context_text,
         "usage": result.response.usage,
     }
@@ -302,6 +349,12 @@ def _page_rag_inspector() -> None:
         cols[1].write(f"RAG used: {'✅' if trace.rag_used else '❌'}")
         cols[2].write(f"Tools planned: {trace.tools_planned or '—'}")
         st.write(f"Tool decision (invoked): {trace.tools_invoked or '—'}")
+        st.markdown("**Retrieval metrics**")
+        mcols = st.columns(4)
+        mcols[0].metric("Strategy", trace.retrieval_strategy or "—")
+        mcols[1].metric("Queries", trace.translated_query_count)
+        mcols[2].metric("Context", trace.context_count)
+        mcols[3].metric("Latency (ms)", trace.retrieval_latency_ms)
         st.markdown("**Security**")
         scols = st.columns(3)
         scols[0].write(f"Input verdict: `{trace.input_verdict}`")
@@ -359,6 +412,29 @@ def _page_rag_inspector() -> None:
                 st.text(r.text)
     else:
         st.warning("No chunks were retrieved for this query.")
+
+    citations = inspection.get("citations") or []
+    st.markdown(f"**Citations ({len(citations)})**")
+    if citations:
+        for c in citations:
+            st.markdown(f"- {c.label}")
+    else:
+        st.caption("No citations referenced in the answer.")
+
+    tool_calls = inspection.get("tool_calls") or []
+    st.markdown(f"**Tools called ({len(tool_calls)})**")
+    if tool_calls:
+        st.dataframe(
+            [
+                {"Tool": t.tool_name, "Status": t.status,
+                 "Duration (s)": t.duration_seconds, "Result": t.safe_result_summary}
+                for t in tool_calls
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+    else:
+        st.caption("No tools were called for this query.")
 
     st.markdown("**Context sent to the model**")
     st.caption("Exactly the numbered passages the model saw (no system prompt).")
@@ -545,6 +621,20 @@ def _render_practise_this_role(ss, role_req) -> None:
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
+
+    # Sprint technical overview for reviewers (Advanced page — not candidate-facing).
+    with st.container(border=True):
+        st.markdown("**Career Intelligence — Building Applications with AI**")
+        st.caption("Turing College sprint — implemented capabilities:")
+        shared.badges(
+            ["Advanced RAG", "LangChain", "Hybrid Search", "Tool Calling", "Query Translation"],
+            tone="info",
+        )
+        st.caption(
+            "See docs/rag.md, query_translation.md, hybrid_search.md, tool_calling.md, "
+            "security.md. Inspect any query live in the RAG Inspector."
+        )
+
     st.markdown("**Retrieval comparison (vector / keyword / hybrid)**")
     st.caption(
         "Lexical proxy metrics over probes in `data/eval/retrieval_probes.json`. "

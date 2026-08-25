@@ -29,6 +29,9 @@ __all__ = ["main", "_build_configuration"]
 
 def main() -> None:
     st.set_page_config(page_title=nav.APP_TITLE, layout="wide")
+    from src.ui.styles import inject_once
+
+    inject_once()  # emit the small design-system style block for this run
 
     # Home cards queue a route change; apply it before the nav widget is created
     # (mutating a widget key after instantiation is not allowed).

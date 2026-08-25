@@ -131,9 +131,18 @@ class CareerIntelligenceService:
         hours_per_week: float | None = None,
         question_focus: list[str] | None = None,
         model: str | None = None,
+        progress=None,
     ) -> OrchestrationResult:
         trace = PipelineTrace()
 
+        def _step(label: str) -> None:
+            if progress is not None:
+                try:
+                    progress(label)
+                except Exception:  # pragma: no cover - progress must never break the run
+                    pass
+
+        _step("Understanding request")
         # 1) Input validation + injection scan (untrusted user input).
         validation = validate_input(query or "", "query")
         trace.notes.extend(validation.notes)
@@ -164,6 +173,7 @@ class CareerIntelligenceService:
         )
 
         # 2) Intent understanding + 3) query translation (fallback built in).
+        _step("Translating query")
         translated = self.translator.translate(query)
         trace.intent = translated.intent
         if translated.strategy in ("heuristic", "fallback"):
@@ -179,10 +189,12 @@ class CareerIntelligenceService:
         # 5) Hybrid retrieval (controlled).
         results: list[RetrievalResult] = []
         if rag_required:
+            _step("Searching knowledge base")
             trace.translated_query_count = len(translated.all_queries)
             started = time.perf_counter()
             results = self._retrieve(translated, trace)
             trace.retrieval_latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            _step("Combining results")
             # RAG guard: retrieved chunks are untrusted; drop injected ones.
             screen = screen_results(results)
             if screen.excluded or screen.warned:
@@ -197,6 +209,8 @@ class CareerIntelligenceService:
         trace.evidence_sources = [c.label for c in bundle.citations]
 
         # 6) Tool requirement + 7) tool execution (controlled).
+        if route.tools:
+            _step("Running tools")
         tool_execs, tool_summaries = self._run_tools(
             route,
             trace,
@@ -209,6 +223,7 @@ class CareerIntelligenceService:
         )
 
         # 8) Bounded, trust-separated context + 9) OpenRouter synthesis.
+        _step("Preparing response")
         messages = build_synthesis_messages(
             query=query,
             evidence_context=bundle.context_text,

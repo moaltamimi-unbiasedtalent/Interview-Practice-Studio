@@ -12,8 +12,6 @@ from html import escape
 
 import streamlit as st
 
-from src.ui.styles import inject_once
-
 __all__ = [
     "page_header",
     "section_header",
@@ -53,7 +51,6 @@ def card(border: bool = True):
 
 def badge(text: str, tone: str = "neutral") -> None:
     """A small inline badge (neutral | info | success | warn)."""
-    inject_once()
     tone = tone if tone in ("neutral", "info", "success", "warn") else "neutral"
     st.markdown(f'<span class="ios-badge {tone}">{escape(text)}</span>', unsafe_allow_html=True)
 
@@ -62,7 +59,6 @@ def badges(items: list[str], tone: str = "neutral") -> None:
     """Render a row of badges from a list of labels."""
     if not items:
         return
-    inject_once()
     spans = "".join(
         f'<span class="ios-badge {tone}">{escape(str(i))}</span>' for i in items
     )

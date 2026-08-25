@@ -47,6 +47,13 @@ def render_home() -> None:
             if shared.action_button("Start practising", key="home_interview", primary=True):
                 _go(nav.INTERVIEW)
 
+    st.info(
+        "**Recommended journey: Prepare → Practise.** Start in Career Intelligence "
+        "to understand the role and build an evidence-grounded plan, then hand it "
+        "straight to Interview Practice with **Practise this role**.",
+        icon="🧭",
+    )
+
     st.divider()
     shared.section_header("How it works")
     st.markdown(f'<span class="ios-workflow">{nav.WORKFLOW}</span>', unsafe_allow_html=True)

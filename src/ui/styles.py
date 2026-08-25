@@ -29,7 +29,10 @@ _STYLE = """
 
 
 def inject_once() -> None:
-    """Inject the small style block a single time per session run."""
-    if not st.session_state.get("_ios_styles_injected"):
-        st.markdown(_STYLE, unsafe_allow_html=True)
-        st.session_state["_ios_styles_injected"] = True
+    """Inject the small style block for this run.
+
+    Streamlit rebuilds the DOM on every rerun, so the block must be emitted each
+    run (a per-session guard would drop it on later pages). Call this once near
+    the top of the app run; it is cheap and safe to call again.
+    """
+    st.markdown(_STYLE, unsafe_allow_html=True)
