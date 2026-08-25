@@ -30,7 +30,14 @@ from src.copilot.retrieval.fusion import reciprocal_rank_fusion
 from src.copilot.retrieval.hybrid import HybridRetriever
 from src.copilot.retrieval.keyword import KeywordRetriever
 from src.copilot.retrieval.vector import VectorRetriever
+from src.copilot.security import guard_output, scan_text, screen_results, validate_input
 from src.copilot.tools import ToolInvoker, build_tool_registry
+
+_REFUSAL_MESSAGE = (
+    "I can't help with that request — it appears to try to override my "
+    "instructions or access protected information. I can help with career "
+    "guidance, job analysis and interview preparation."
+)
 
 __all__ = ["CareerIntelligenceService", "OrchestrationResult", "PipelineTrace"]
 
@@ -52,6 +59,12 @@ class PipelineTrace:
     keyword_results: list[RetrievalResult] = field(default_factory=list)
     fused_results: list[RetrievalResult] = field(default_factory=list)
     evidence_sources: list[str] = field(default_factory=list)
+    # Security.
+    input_verdict: str = "allow"
+    input_indicators: list[str] = field(default_factory=list)
+    blocked: bool = False
+    excluded_chunks: int = 0
+    output_findings: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -115,13 +128,34 @@ class CareerIntelligenceService:
     ) -> OrchestrationResult:
         trace = PipelineTrace()
 
-        # 1) Input validation.
-        query = (query or "").strip()
-        if not query:
-            return self._plain_result("Please enter a question.", trace)
-        if len(query) > constants.MAX_QUERY_CHARS:
-            query = query[: constants.MAX_QUERY_CHARS]
-            trace.notes.append("Query truncated to the maximum length.")
+        # 1) Input validation + injection scan (untrusted user input).
+        validation = validate_input(query or "", "query")
+        trace.notes.extend(validation.notes)
+        if not validation.ok:
+            return self._plain_result(validation.error or "Please enter a question.", trace)
+        query = validation.cleaned
+
+        scan = scan_text(query)
+        trace.input_verdict = scan.verdict
+        trace.input_indicators = scan.indicators
+        if scan.blocked:
+            trace.blocked = True
+            trace.notes.append(
+                "User input blocked by the injection guard: " + ", ".join(scan.indicators)
+            )
+            return self._plain_result(_REFUSAL_MESSAGE, trace)
+        if scan.flagged:
+            trace.notes.append(
+                "User input flagged (allowed with warning): " + ", ".join(scan.indicators)
+            )
+
+        # Untrusted structured inputs: validate + scan; drop any that are attacks.
+        job_description = self._sanitize_context(
+            job_description, "job_description", "Job description", trace
+        )
+        candidate_background = self._sanitize_context(
+            candidate_background, "candidate_background", "Candidate background", trace
+        )
 
         # 2) Intent understanding + 3) query translation (fallback built in).
         translated = self.translator.translate(query)
@@ -140,6 +174,14 @@ class CareerIntelligenceService:
         results: list[RetrievalResult] = []
         if rag_required:
             results = self._retrieve(translated, trace)
+            # RAG guard: retrieved chunks are untrusted; drop injected ones.
+            screen = screen_results(results)
+            if screen.excluded or screen.warned:
+                trace.notes.append(screen.summary())
+                trace.excluded_chunks = screen.excluded_count
+            results = screen.kept
+            if not results and trace.rag_used:
+                trace.rag_used = False
 
         bundle = build_context(results, max_chars=self.max_context_chars)
         trace.evidence_sources = [c.label for c in bundle.citations]
@@ -169,6 +211,14 @@ class CareerIntelligenceService:
             results=results, tool_summaries=tool_summaries, model=model,
         )
 
+        # Output guard: redact secret-like strings, flag leakage / bad citations.
+        allowed_markers = {c.marker for c in bundle.citations}
+        guarded = guard_output(answer_text, allowed_markers=allowed_markers)
+        answer_text = guarded.safe_answer
+        if guarded.findings:
+            trace.output_findings = guarded.findings
+            trace.notes.extend(guarded.findings)
+
         # 10) Citations map to referenced, real retrieved chunks.
         referenced = {f"[{n}]" for n in _MARKER_RE.findall(answer_text)}
         citations = [c for c in bundle.citations if c.marker in referenced]
@@ -184,6 +234,32 @@ class CareerIntelligenceService:
         return OrchestrationResult(response=response, trace=trace)
 
     # -- stages ------------------------------------------------------------
+
+    def _sanitize_context(
+        self, text: str | None, kind: str, label: str, trace: PipelineTrace
+    ) -> str | None:
+        """Validate + injection-scan an untrusted structured input.
+
+        A blocked input is dropped (not fed to tools or the model); a flagged one
+        is kept with a warning. Returns the cleaned text or ``None``.
+        """
+        if not text:
+            return None
+        validation = validate_input(text, kind)
+        trace.notes.extend(validation.notes)
+        if not validation.ok:
+            trace.notes.append(f"{label} rejected: {validation.error}")
+            return None
+        scan = scan_text(validation.cleaned)
+        if scan.blocked:
+            trace.degraded.append(f"{kind}_input")
+            trace.notes.append(
+                f"{label} contained embedded instructions and was ignored for safety."
+            )
+            return None
+        if scan.flagged:
+            trace.notes.append(f"{label} flagged (allowed with warning).")
+        return validation.cleaned
 
     def _retrieve(
         self, translated: TranslatedQuery, trace: PipelineTrace

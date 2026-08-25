@@ -164,10 +164,10 @@ lets a tool fabricate evidence — grounded facts come from retrieval.
 | Structured retrieval | `src/copilot/rag/translation.py` (`sanitize_filters`) | Done (Ph 4) |
 | **Core: Tool Calling — 4 tools** | `src/copilot/tools/*` | **Done (Ph 6)** |
 | Domain specialisation | career KB + prompts + domain tools | Done |
-| Security / injection | retrieved-context isolation, safe filters, safe tool records | Partial (Ph 4/6) |
+| **Domain security / injection** | `src/copilot/security/*`, enforced in `service.py` | **PASS (Ph 8)** |
 | Error handling / validation | Pydantic models + controlled errors throughout | Done |
 | Streamlit UI (sources, tool visibility, progress) | `copilot_app.py` | Done |
-| **Opt (M):** prompt-injection protection | planned (dedicated guard) | Planned |
+| **Opt (M):** prompt-injection protection | `src/copilot/security/*`; 30-case eval | **PASS (Ph 8)** |
 | **Opt (M):** token/cost tracking | `UsageRecord` surfaced in RAG Inspector | Partial |
 | **Opt (M):** conversation history/export | planned | Planned |
 | **Opt (H):** hybrid search | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | Done (Ph 5) |

@@ -210,6 +210,22 @@ QUESTION_CATEGORIES = (
     "culture_values",
 )
 
+# --- Security / prompt injection ---------------------------------------------
+
+# Explicit input limits (characters). Over-limit input is flagged and bounded,
+# never silently dropped.
+MAX_UPLOAD_CHARS = 50_000
+
+# Weighted-indicator thresholds for the deterministic injection scanner.
+# A single high-weight indicator (3.0) blocks; a medium one (2.0) warns.
+INJECTION_WARN_THRESHOLD = 2.0
+INJECTION_BLOCK_THRESHOLD = 3.0
+
+# Verdicts.
+VERDICT_ALLOW = "allow"
+VERDICT_WARN = "allow_with_warning"
+VERDICT_BLOCK = "block"
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"
