@@ -1,0 +1,25 @@
+{
+  "experiment": "security_classifier_evaluation",
+  "dataset_size": 12,
+  "strategy_a_deterministic_only": {
+    "strategy": "A",
+    "true_positives": 5,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "true_negatives": 7,
+    "latency_ms_total": 0.176,
+    "latency_ms_per_item": 0.0146,
+    "cost": "N/A (offline stub; a real classifier adds per-call API cost)"
+  },
+  "strategy_b_deterministic_plus_classifier": {
+    "strategy": "B",
+    "true_positives": 5,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "true_negatives": 7,
+    "latency_ms_total": 0.117,
+    "latency_ms_per_item": 0.0098,
+    "cost": "N/A (offline stub; a real classifier adds per-call API cost)"
+  },
+  "recommendation": "Retain the deterministic guard as the primary defence. On this set it already catches the obvious attacks at ~zero latency and zero cost. The secondary classifier only changes outcomes on ambiguous cases; before adding it to the production flow, evaluate a real moderation API's true/false-positive rates, latency and cost with the manual live suite. Only adopt it if it reduces false negatives without materially raising false positives or latency."
+}

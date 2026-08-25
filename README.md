@@ -2,6 +2,14 @@
 
 **Prepare for any role. Practise realistically. Improve every answer.**
 
+> **Status note (feature completion during the capstone).** **Text Practice is
+> complete and fully working.** The **Voice** (Google Speech-to-Text) and
+> **Live** (Gemini Live) modes are **wired end to end in code but ship as
+> placeholders**: I will finish and verify them live during the capstone once the
+> required cloud credentials are in place. Until then, the app runs on Text and
+> shows a graceful fallback for Voice/Live (no crashes, no lost progress). See
+> [docs/product_readiness_report.md](docs/product_readiness_report.md).
+
 ## Project overview
 
 Interview Practice Studio is an LLM-powered interview practice application for
@@ -410,3 +418,17 @@ Do not fabricate screenshots; only claim they exist once the files are added.
 
 Interview scores and feedback are **practice guidance only** — not objective
 hiring decisions, and not assessments of personality or psychology.
+
+## Production readiness & operations
+
+Final integration hardening (Phase 22) added: a full mocked E2E pipeline test, a
+consolidated security suite, startup validation + health check (`src/health.py`),
+a Dockerfile (no secrets baked in), a CI workflow, a confirmation-gated manual
+live-API suite (`scripts/manual_live_check.py`), and an offline security-
+classifier experiment. See:
+
+- [docs/product_readiness_report.md](docs/product_readiness_report.md) — status, evidence, blockers
+- [docs/operations_deployment.md](docs/operations_deployment.md) — config, Docker, CI, secrets, migrations
+- [docs/testing.md](docs/testing.md) — test layers and how to run them
+- [docs/privacy.md](docs/privacy.md) — data handling and retention
+- [docs/security.md](docs/security.md) · [docs/architecture.md](docs/architecture.md) · [docs/limitations.md](docs/limitations.md)
