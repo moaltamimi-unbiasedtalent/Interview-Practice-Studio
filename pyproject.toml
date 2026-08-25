@@ -14,6 +14,11 @@ dependencies = [
     "pandas>=2.2,<3.0",
     "openpyxl>=3.1,<4.0",
     "sqlalchemy>=2.0,<3.0",
+    # Career Intelligence Copilot: LLM orchestration via LangChain over
+    # OpenRouter's OpenAI-compatible API. RAG stores live in the [rag] extra so
+    # the base install stays light; the LLM factory imports langchain lazily.
+    "langchain>=0.3,<0.4",
+    "langchain-openai>=0.2,<0.4",
 ]
 
 [project.optional-dependencies]
@@ -40,6 +45,15 @@ live = [
 db = [
     "alembic>=1.13,<2.0",
     "psycopg[binary]>=3.1,<4.0",
+]
+# Career Intelligence Copilot RAG stores & loaders (added from Phase 2 onward).
+# Heavier deps kept optional so the base install and CI stay light.
+# Install with:  pip install -e ".[rag]"
+rag = [
+    "langchain-community>=0.3,<0.4",
+    "chromadb>=0.5,<1.0",
+    "rank-bm25>=0.2,<1.0",
+    "pypdf>=4.0,<6.0",
 ]
 
 [tool.pytest.ini_options]
