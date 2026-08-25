@@ -14,10 +14,7 @@ from src.copilot import constants
 from src.copilot.config import CopilotConfig, load_config
 from src.copilot.logging_utils import configure_logging
 from src.copilot.rag import build_context
-from src.copilot.rag.chain import RagChain, RagChainError
-from src.copilot.rag.translation import QueryTranslator
 from src.copilot.retrieval import build_retriever
-from src.copilot.retrieval.hybrid import HybridRetriever
 
 
 # --- Shared resources --------------------------------------------------------
@@ -105,6 +102,19 @@ def _render_sources(results, citations) -> None:
                 st.caption(result.text[:600] + ("…" if len(result.text) > 600 else ""))
 
 
+def _render_tool_executions(executions) -> None:
+    if not executions:
+        return
+    with st.expander(f"🛠 Tools used ({len(executions)})", expanded=False):
+        for ex in executions:
+            mark = "✓" if ex.status == "ok" else "✗"
+            st.markdown(f"{mark} **{ex.tool_name}** — `{ex.status}` ({ex.duration_seconds:.3f}s)")
+            if ex.safe_result_summary:
+                st.caption(ex.safe_result_summary)
+            if ex.error:
+                st.caption(f"error: {ex.error}")
+
+
 def _page_chat() -> None:
     st.subheader("Chat")
     config = _config()
@@ -119,12 +129,18 @@ def _page_chat() -> None:
 
     store = _get_store(config)
     if store.count() == 0:
-        st.info(
-            "The knowledge base is empty. Add sources to `data/raw/`, then run "
-            "`python scripts/ingest.py` and `python scripts/build_index.py`."
+        st.caption(
+            "Knowledge base is empty — knowledge answers will say so. Pure-tool "
+            "flows (e.g. pasting a job description below) still work."
         )
-        st.chat_input("Ask a career question…", disabled=True)
-        return
+
+    # Optional structured context enables combined RAG + tool flows.
+    with st.expander("Optional context (job description, candidate background)"):
+        job_description = st.text_area("Job description", height=120, key="chat_jd")
+        candidate_background = st.text_area("Candidate background", height=100, key="chat_bg")
+        cols = st.columns(2)
+        days = cols[0].number_input("Days until interview", 0, 365, 0, key="chat_days")
+        hpw = cols[1].number_input("Hours per week", 0.0, 80.0, 0.0, key="chat_hpw")
 
     st.session_state.setdefault("chat_history", [])
     for message in st.session_state["chat_history"]:
@@ -132,6 +148,7 @@ def _page_chat() -> None:
             st.markdown(message["content"])
             if message["role"] == "assistant":
                 _render_sources(message.get("results", []), message.get("citations", []))
+                _render_tool_executions(message.get("tool_calls", []))
 
     prompt = st.chat_input("Ask a career question…")
     if not prompt:
@@ -142,54 +159,46 @@ def _page_chat() -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    from src.copilot.service import CareerIntelligenceService
+
     mode = st.session_state.get("retrieval_mode", config.retrieval_mode)
     retriever = build_retriever(config, mode=mode, store=store)
-    translator = QueryTranslator(config=config)
-    chain = RagChain(retriever, config=config, translator=translator)
+    service = CareerIntelligenceService(config=config, retriever=retriever)
 
-    hybrid_detail = None
     with st.chat_message("assistant"):
         with st.status("Understanding question…", expanded=False) as status:
-            translated = chain.translate(prompt)
-            status.update(label="Searching knowledge base…")
-            results = chain.retrieve_translated(translated)
-            # For the inspector, capture the per-channel detail of the rewritten query.
-            if isinstance(retriever, HybridRetriever) and translated.retrieval_required:
-                hybrid_detail = retriever.search(
-                    translated.rewritten_query,
-                    top_k=chain.top_k,
-                    filters=translated.metadata_filters or None,
-                )
-            bundle = build_context(results)
-            status.update(label="Preparing answer…")
-            try:
-                response = chain.answer(prompt, translated=translated, results=results)
-            except RagChainError as exc:
-                status.update(label="Failed", state="error")
-                st.error(str(exc))
-                return
+            status.update(label="Searching & running tools…")
+            result = service.answer(
+                prompt,
+                job_description=job_description.strip() or None,
+                candidate_background=candidate_background.strip() or None,
+                days_until_interview=int(days) or None,
+                hours_per_week=float(hpw) or None,
+            )
             status.update(label="Done", state="complete")
 
-        st.markdown(response.answer)
-        _render_sources(results, response.citations)
+        st.markdown(result.answer)
+        _render_sources(result.retrieved, result.citations)
+        _render_tool_executions(result.tool_calls)
 
     # Persist for re-render and for the RAG Inspector (no secrets, no prompt).
     st.session_state["chat_history"].append(
         {
             "role": "assistant",
-            "content": response.answer,
-            "citations": response.citations,
-            "results": results,
+            "content": result.answer,
+            "citations": result.citations,
+            "results": result.retrieved,
+            "tool_calls": result.tool_calls,
         }
     )
     st.session_state["last_inspection"] = {
         "query": prompt,
         "mode": mode,
-        "translated": translated,
-        "results": results,
-        "hybrid": hybrid_detail,
-        "context_text": bundle.context_text,
-        "usage": response.usage,
+        "translated": result.response.translated_query,
+        "results": result.retrieved,
+        "trace": result.trace,
+        "context_text": build_context(result.retrieved).context_text,
+        "usage": result.response.usage,
     }
 
 
@@ -279,22 +288,38 @@ def _page_rag_inspector() -> None:
         if translated.strategy != "llm":
             st.caption(f"(translation strategy: {translated.strategy})")
 
-    hybrid = inspection.get("hybrid")
-    if hybrid is not None:
+    trace = inspection.get("trace")
+    if trace is not None:
+        st.markdown("**Pipeline**")
+        cols = st.columns(3)
+        cols[0].write(f"RAG required: {'✅' if trace.rag_required else '❌'}")
+        cols[1].write(f"RAG used: {'✅' if trace.rag_used else '❌'}")
+        cols[2].write(f"Tools planned: {trace.tools_planned or '—'}")
+        st.write(f"Tool decision (invoked): {trace.tools_invoked or '—'}")
+        if trace.degraded:
+            st.warning(f"Degraded stages: {', '.join(trace.degraded)}")
+        if trace.notes:
+            for note in trace.notes:
+                st.caption(f"• {note}")
+
         st.markdown("**Hybrid channels** (rewritten query)")
         st.caption(
-            "Vector (semantic) and BM25 (lexical) hits, then their reciprocal-rank "
-            "fusion. Scores are per-channel and not directly comparable."
+            "Vector (semantic) and BM25 (lexical) hits, then the fused ranking. "
+            "Scores are per-channel and not directly comparable."
         )
         cols = st.columns(2)
         with cols[0]:
-            st.write(f"Vector hits ({len(hybrid.vector)})")
-            _results_table(hybrid.vector)
+            st.write(f"Vector hits ({len(trace.vector_results)})")
+            _results_table(trace.vector_results)
         with cols[1]:
-            st.write(f"Keyword/BM25 hits ({len(hybrid.keyword)})")
-            _results_table(hybrid.keyword)
-        st.write(f"Fused ranking ({len(hybrid.fused)})")
-        _results_table(hybrid.fused)
+            st.write(f"Keyword/BM25 hits ({len(trace.keyword_results)})")
+            _results_table(trace.keyword_results)
+        st.write(f"Fused ranking ({len(trace.fused_results)})")
+        _results_table(trace.fused_results)
+        if trace.evidence_sources:
+            st.write("Final evidence sources:")
+            for src in trace.evidence_sources:
+                st.markdown(f"- {src}")
 
     results = inspection["results"]
     st.markdown(f"**Final result set ({len(results)})**")

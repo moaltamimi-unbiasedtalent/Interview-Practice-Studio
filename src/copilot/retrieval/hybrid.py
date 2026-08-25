@@ -39,6 +39,11 @@ class HybridSearch:
     vector: list[RetrievalResult]
     keyword: list[RetrievalResult]
     fused: list[RetrievalResult]
+    degraded: list[str] = None  # channels that failed, e.g. ["keyword"]
+
+    def __post_init__(self) -> None:
+        if self.degraded is None:
+            self.degraded = []
 
 
 class HybridRetriever:
@@ -65,10 +70,23 @@ class HybridRetriever:
         top_k: int = constants.DEFAULT_TOP_K,
         filters: dict | None = None,
     ) -> HybridSearch:
-        """Run both channels and fuse them, exposing every stage for inspection."""
+        """Run both channels and fuse them, exposing every stage for inspection.
+
+        Each channel is isolated: if one raises, the other still contributes and
+        the failure is recorded in ``degraded`` rather than crashing the query.
+        """
         candidate_k = max(top_k, self.candidate_k)
-        vector_hits = self.vector.retrieve(query, top_k=candidate_k, filters=filters)
-        keyword_hits = self.keyword.retrieve(query, top_k=candidate_k, filters=filters)
+        degraded: list[str] = []
+        try:
+            vector_hits = self.vector.retrieve(query, top_k=candidate_k, filters=filters)
+        except Exception:  # noqa: BLE001 - degrade to keyword-only
+            vector_hits = []
+            degraded.append("vector")
+        try:
+            keyword_hits = self.keyword.retrieve(query, top_k=candidate_k, filters=filters)
+        except Exception:  # noqa: BLE001 - degrade to vector-only
+            keyword_hits = []
+            degraded.append("keyword")
         fused = reciprocal_rank_fusion(
             [vector_hits, keyword_hits],
             weights=[self.vector_weight, self.keyword_weight],
@@ -76,7 +94,11 @@ class HybridRetriever:
             retriever_label="hybrid",
         )
         return HybridSearch(
-            query=query, vector=vector_hits, keyword=keyword_hits, fused=fused
+            query=query,
+            vector=vector_hits,
+            keyword=keyword_hits,
+            fused=fused,
+            degraded=degraded,
         )
 
     def retrieve(
