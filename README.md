@@ -64,6 +64,27 @@ manager, challenging functional expert, sceptical executive, fast-paced panel.
 - Five prompt-engineering techniques and three approved models.
 - A deterministic security guard and an exported jailbreak evaluation.
 
+## Feature status
+
+| Feature | Status | Notes |
+|---|---|---|
+| **Text Practice** | ✅ Complete | Full flow: setup → strategy → questions → answers → feedback → Deep Dive → report. Fully tested. |
+| Interview Deep Dive | ✅ Complete | Bounded two-level follow-ups. |
+| Accounts, history, dashboard | ✅ Complete | OIDC-optional; user-scoped persistence; export/delete. |
+| Delivery & pacing coach | ✅ Complete | Works for recorded voice / live once those are enabled. |
+| **Voice Practice (Speech-to-Text)** | 🚧 Under development | Google Cloud Speech-to-Text V2 (Chirp 3). Wired end to end and unit-tested, but **not yet verified live** — needs a Google Cloud project, billing, the Speech API enabled and Application Default Credentials. Until then, selecting **Voice** shows a clear unavailable state and **Text still works**. |
+| **Live Interview (Gemini Live)** | 🚧 Under development | Real-time voice interviewer via Gemini Live + a built browser component. Wired end to end (backend ephemeral-token service, frontend built, tests pass), but **not yet verified live** — needs a `GEMINI_API_KEY` and a confirmed Live model id. Until then, selecting **Live** shows *"Live interview is temporarily unavailable"* with **Continue with recorded voice / text**, and no answers are lost. |
+| **Visual Engagement Coach** | 🚧 Experimental (opt-in) | Camera-based, local-only coaching for the live interview. Off by default; coaching-only (never a score); processed entirely in the browser. |
+
+> **Why "under development"?** Voice and Live are complete in code and covered by
+> automated tests (with all provider calls mocked), but they depend on paid cloud
+> credentials that are **provisioned and verified live during the capstone**. The
+> product is designed so these are **optional add-ons**: without their keys the app
+> runs fully on **Text Practice** and degrades gracefully — never crashing and
+> never losing completed answers. See
+> [docs/product_readiness_report.md](docs/product_readiness_report.md) for the
+> exact status, evidence and remaining steps.
+
 ## Application workflow
 
 `SETUP` → generate strategy (`STRATEGY_READY`) → ask a question
