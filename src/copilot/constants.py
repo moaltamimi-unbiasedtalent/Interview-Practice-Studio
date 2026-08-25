@@ -131,6 +131,38 @@ INSUFFICIENT_EVIDENCE_MESSAGE = (
     "The knowledge base does not contain enough evidence to answer that."
 )
 
+# --- Query translation -------------------------------------------------------
+
+# Intents the query-understanding stage classifies. "smalltalk" and "other" are
+# the non-knowledge intents; the rest are knowledge questions needing retrieval.
+QUERY_INTENTS = (
+    "factual_career",
+    "role_research",
+    "skill_research",
+    "job_description_analysis",
+    "candidate_comparison",
+    "preparation_planning",
+    "interview_preparation",
+    "smalltalk",
+    "other",
+)
+DEFAULT_INTENT = "other"
+# Intents that do NOT require knowledge-base retrieval.
+NO_RETRIEVAL_INTENTS = ("smalltalk",)
+
+# Whitelist of metadata fields the translator may filter on, mapped to the set of
+# allowed values (None = any scalar). This is what stops the LLM proposing
+# arbitrary filters; only equality on these fields reaches the store.
+ALLOWED_FILTER_FIELDS = {
+    "document_type": set(KNOWN_DOCUMENT_TYPES),
+}
+
+# Number of alternate queries to request for broad questions (2–4 total variants
+# including the rewritten query).
+MAX_ALTERNATE_QUERIES = 3
+# Reciprocal-rank-fusion constant (higher = flatter weighting of ranks).
+RRF_K = 60
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"

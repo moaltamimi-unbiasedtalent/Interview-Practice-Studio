@@ -15,6 +15,7 @@ from src.copilot.config import CopilotConfig, load_config
 from src.copilot.logging_utils import configure_logging
 from src.copilot.rag import build_context
 from src.copilot.rag.chain import RagChain, RagChainError
+from src.copilot.rag.translation import QueryTranslator
 from src.copilot.retrieval.vector import VectorRetriever
 
 
@@ -119,16 +120,18 @@ def _page_chat() -> None:
         st.markdown(prompt)
 
     retriever = VectorRetriever(store)
-    chain = RagChain(retriever, config=config)
+    translator = QueryTranslator(config=config)
+    chain = RagChain(retriever, config=config, translator=translator)
 
     with st.chat_message("assistant"):
         with st.status("Understanding question…", expanded=False) as status:
+            translated = chain.translate(prompt)
             status.update(label="Searching knowledge base…")
-            results = chain.retrieve(prompt)
+            results = chain.retrieve_translated(translated)
             bundle = build_context(results)
             status.update(label="Preparing answer…")
             try:
-                response = chain.answer(prompt, results=results)
+                response = chain.answer(prompt, translated=translated, results=results)
             except RagChainError as exc:
                 status.update(label="Failed", state="error")
                 st.error(str(exc))
@@ -149,6 +152,7 @@ def _page_chat() -> None:
     )
     st.session_state["last_inspection"] = {
         "query": prompt,
+        "translated": translated,
         "results": results,
         "context_text": bundle.context_text,
         "usage": response.usage,
@@ -218,8 +222,26 @@ def _page_rag_inspector() -> None:
         st.info("Ask a question on the Chat page to inspect its retrieval here.")
         return
 
+    translated = inspection.get("translated")
     st.markdown("**Original query**")
     st.code(inspection["query"], language="text")
+
+    if translated is not None:
+        st.markdown("**Query translation**")
+        columns = st.columns(2)
+        columns[0].write(f"Intent: `{translated.intent}`")
+        columns[1].write(f"Retrieval required: {'✅' if translated.retrieval_required else '❌'}")
+        st.write("Rewritten query:")
+        st.code(translated.rewritten_query, language="text")
+        if translated.alternate_queries:
+            st.write("Alternative queries:")
+            for alt in translated.alternate_queries:
+                st.markdown(f"- {alt}")
+        st.write(f"Metadata filters: `{translated.metadata_filters or '{}'}`")
+        if translated.explanation:
+            st.caption(f"Why: {translated.explanation}")
+        if translated.strategy != "llm":
+            st.caption(f"(translation strategy: {translated.strategy})")
 
     results = inspection["results"]
     st.markdown(f"**Retrieved chunks ({len(results)})**")
