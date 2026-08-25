@@ -1,0 +1,15 @@
+{
+  "description": "Probes for comparing vector / keyword / hybrid retrieval. Each probe's expected_terms are exact strings a relevant chunk should contain; term_recall@k checks lexical presence, not semantic relevance. Results depend entirely on the documents you ingest into data/raw/. Add or edit probes to match your corpus.",
+  "probes": [
+    { "query": "Python programming skills for data roles", "expected_terms": ["Python"], "note": "exact technology term" },
+    { "query": "SAP experience in enterprise systems", "expected_terms": ["SAP"], "note": "exact product/acronym" },
+    { "query": "ISO 27001 information security controls", "expected_terms": ["ISO 27001"], "note": "standard code" },
+    { "query": "CIPD qualification for HR professionals", "expected_terms": ["CIPD"], "note": "professional body acronym" },
+    { "query": "SHRM certification for HR", "expected_terms": ["SHRM"], "note": "professional body acronym" },
+    { "query": "SQL and database querying skills", "expected_terms": ["SQL"], "note": "exact technology term" },
+    { "query": "responsibilities of a DevOps engineer", "expected_terms": ["DevOps"], "note": "specific job title" },
+    { "query": "what conceptual skills matter for leadership", "expected_terms": ["leadership"], "note": "conceptual/semantic query" },
+    { "query": "how is automation changing the future of work", "expected_terms": ["automation"], "note": "conceptual/semantic query" },
+    { "query": "communication and teamwork soft skills", "expected_terms": ["communication"], "note": "conceptual/semantic query" }
+  ]
+}

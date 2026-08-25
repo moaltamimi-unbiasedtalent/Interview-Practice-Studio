@@ -16,7 +16,8 @@ from src.copilot.logging_utils import configure_logging
 from src.copilot.rag import build_context
 from src.copilot.rag.chain import RagChain, RagChainError
 from src.copilot.rag.translation import QueryTranslator
-from src.copilot.retrieval.vector import VectorRetriever
+from src.copilot.retrieval import build_retriever
+from src.copilot.retrieval.hybrid import HybridRetriever
 
 
 # --- Shared resources --------------------------------------------------------
@@ -66,6 +67,28 @@ def _render_status(config: CopilotConfig) -> None:
 
 
 # --- Chat --------------------------------------------------------------------
+
+
+def _results_table(results) -> None:
+    """Compact table of retrieval results (used by the RAG Inspector)."""
+    if not results:
+        st.caption("— none —")
+        return
+    st.dataframe(
+        [
+            {
+                "#": i,
+                "Score": round(r.score, 4),
+                "Title": r.title,
+                "Page": r.page,
+                "Type": r.metadata.get("document_type"),
+                "Chunk id": r.chunk.chunk_id,
+            }
+            for i, r in enumerate(results, start=1)
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
 
 
 def _render_sources(results, citations) -> None:
@@ -119,15 +142,24 @@ def _page_chat() -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
-    retriever = VectorRetriever(store)
+    mode = st.session_state.get("retrieval_mode", config.retrieval_mode)
+    retriever = build_retriever(config, mode=mode, store=store)
     translator = QueryTranslator(config=config)
     chain = RagChain(retriever, config=config, translator=translator)
 
+    hybrid_detail = None
     with st.chat_message("assistant"):
         with st.status("Understanding question…", expanded=False) as status:
             translated = chain.translate(prompt)
             status.update(label="Searching knowledge base…")
             results = chain.retrieve_translated(translated)
+            # For the inspector, capture the per-channel detail of the rewritten query.
+            if isinstance(retriever, HybridRetriever) and translated.retrieval_required:
+                hybrid_detail = retriever.search(
+                    translated.rewritten_query,
+                    top_k=chain.top_k,
+                    filters=translated.metadata_filters or None,
+                )
             bundle = build_context(results)
             status.update(label="Preparing answer…")
             try:
@@ -152,8 +184,10 @@ def _page_chat() -> None:
     )
     st.session_state["last_inspection"] = {
         "query": prompt,
+        "mode": mode,
         "translated": translated,
         "results": results,
+        "hybrid": hybrid_detail,
         "context_text": bundle.context_text,
         "usage": response.usage,
     }
@@ -225,6 +259,8 @@ def _page_rag_inspector() -> None:
     translated = inspection.get("translated")
     st.markdown("**Original query**")
     st.code(inspection["query"], language="text")
+    if inspection.get("mode"):
+        st.caption(f"Retrieval mode: `{inspection['mode']}`")
 
     if translated is not None:
         st.markdown("**Query translation**")
@@ -243,8 +279,25 @@ def _page_rag_inspector() -> None:
         if translated.strategy != "llm":
             st.caption(f"(translation strategy: {translated.strategy})")
 
+    hybrid = inspection.get("hybrid")
+    if hybrid is not None:
+        st.markdown("**Hybrid channels** (rewritten query)")
+        st.caption(
+            "Vector (semantic) and BM25 (lexical) hits, then their reciprocal-rank "
+            "fusion. Scores are per-channel and not directly comparable."
+        )
+        cols = st.columns(2)
+        with cols[0]:
+            st.write(f"Vector hits ({len(hybrid.vector)})")
+            _results_table(hybrid.vector)
+        with cols[1]:
+            st.write(f"Keyword/BM25 hits ({len(hybrid.keyword)})")
+            _results_table(hybrid.keyword)
+        st.write(f"Fused ranking ({len(hybrid.fused)})")
+        _results_table(hybrid.fused)
+
     results = inspection["results"]
-    st.markdown(f"**Retrieved chunks ({len(results)})**")
+    st.markdown(f"**Final result set ({len(results)})**")
     if results:
         st.dataframe(
             [
@@ -285,7 +338,49 @@ def _page_rag_inspector() -> None:
 
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
-    st.info("Retrieval and RAG evaluation dashboards arrive in a later phase.")
+    config = _config()
+    st.markdown("**Retrieval comparison (vector / keyword / hybrid)**")
+    st.caption(
+        "Lexical proxy metrics over probes in `data/eval/retrieval_probes.json`. "
+        "These characterise exact-term behaviour and do NOT prove one mode is "
+        "better overall — that needs labelled relevance judgements."
+    )
+
+    store = _get_store(config)
+    if store.count() == 0:
+        st.info("Index a knowledge base first (Chat page explains how).")
+        return
+
+    import os
+
+    from src.copilot.evaluation import evaluate_modes, load_probes
+
+    probes_path = "data/eval/retrieval_probes.json"
+    if not os.path.isfile(probes_path):
+        st.warning(f"No probes file at `{probes_path}`.")
+        return
+
+    if st.button("Run retrieval comparison"):
+        probes = load_probes(probes_path)
+        retrievers = {
+            m: build_retriever(config, mode=m, store=store)
+            for m in constants.RETRIEVAL_MODES
+        }
+        metrics = evaluate_modes(retrievers, probes)
+        st.dataframe(
+            [
+                {
+                    "Mode": metrics[m].mode,
+                    "term_recall@k": round(metrics[m].term_recall_at_k, 3),
+                    "coverage": round(metrics[m].coverage, 3),
+                    "avg_results": round(metrics[m].avg_results, 2),
+                }
+                for m in constants.RETRIEVAL_MODES
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+        st.caption(f"Over {len(probes)} probes. See docs/hybrid_search.md.")
 
 
 PAGES = {
@@ -304,6 +399,18 @@ def main() -> None:
 
     _render_header(config)
     page = st.sidebar.radio("Section", list(PAGES), key="copilot_page")
+    default_mode_index = (
+        constants.RETRIEVAL_MODES.index(config.retrieval_mode)
+        if config.retrieval_mode in constants.RETRIEVAL_MODES
+        else constants.RETRIEVAL_MODES.index(constants.DEFAULT_RETRIEVAL_MODE)
+    )
+    st.sidebar.selectbox(
+        "Retrieval mode",
+        constants.RETRIEVAL_MODES,
+        index=default_mode_index,
+        key="retrieval_mode",
+        help="hybrid (default) fuses semantic + BM25; the others are for testing.",
+    )
     _render_status(config)
     PAGES[page]()
 
