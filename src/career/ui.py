@@ -558,14 +558,21 @@ PAGES = {
 }
 
 
-def main() -> None:
-    st.set_page_config(page_title=constants.APP_NAME, layout="wide")
+# --- Public entry points for the Interview OS shell --------------------------
+# The unified app.py owns st.set_page_config and the top-level navigation; these
+# render the Career Intelligence module's pages within that shell.
+
+
+def ensure_ready() -> None:
+    """Load config into session and configure logging (idempotent per run)."""
     config = load_config()
     st.session_state["copilot_config"] = config
     configure_logging(debug=config.debug)
 
-    _render_header(config)
-    page = st.sidebar.radio("Section", list(PAGES), key="copilot_page")
+
+def render_sidebar() -> None:
+    """Career-specific sidebar: retrieval-mode selector + status."""
+    config = _config()
     default_mode_index = (
         constants.RETRIEVAL_MODES.index(config.retrieval_mode)
         if config.retrieval_mode in constants.RETRIEVAL_MODES
@@ -579,8 +586,27 @@ def main() -> None:
         help="hybrid (default) fuses semantic + BM25; the others are for testing.",
     )
     _render_status(config)
-    PAGES[page]()
 
 
-if __name__ == "__main__":
-    main()
+def render_career() -> None:
+    """The Career Intelligence landing: header + Chat / Career Tools."""
+    _render_header(_config())
+    section = st.radio(
+        "Career section", ["Chat", "Career Tools"], horizontal=True, key="career_section"
+    )
+    if section == "Chat":
+        _page_chat()
+    else:
+        _page_tools()
+
+
+def render_knowledge_base() -> None:
+    _page_knowledge_base()
+
+
+def render_rag_inspector() -> None:
+    _page_rag_inspector()
+
+
+def render_evaluation() -> None:
+    _page_evaluation()

@@ -1,4 +1,42 @@
-# Interview Practice Studio
+# Interview OS Coach
+
+**Understand the opportunity. Prepare intelligently. Practise realistically.**
+
+Interview OS Coach is one Streamlit application (`streamlit run app.py`, one URL)
+that combines two product modules:
+
+- **Career Intelligence** — evidence-grounded career guidance and interview
+  preparation using RAG over a labour-market/careers knowledge base: LangChain +
+  OpenRouter, embeddings, Chroma vector search, BM25 + hybrid retrieval, advanced
+  query translation, four domain tool calls, citations, and prompt-injection
+  security. Code: `src/career/ui.py` (UI) over the engine in `src/copilot/*`.
+- **Interview Practice** — realistic interview simulation, rubric evaluation,
+  Interview Deep Dive, final report, and voice/live practice with delivery
+  coaching. Code: `src/interview/studio_app.py` over `src/*.py`.
+
+Platform workflow: **UNDERSTAND → PREPARE → PRACTISE → REVIEW → IMPROVE**
+(Career Intelligence covers Understand & Prepare; Interview Practice covers
+Practise, Review & Improve). The two modules keep clear boundaries and are each
+independently testable; see [docs/interview_os_architecture.md](docs/interview_os_architecture.md).
+
+### Current Sprint: Career Intelligence
+
+The **Career Intelligence** module is the active Turing College sprint ("Building
+Applications with AI"). It implements the sprint's **Advanced RAG** (knowledge
+base, chunking, embeddings, vector retrieval, query translation, structured
+retrieval, hybrid search), **Tool Calling** (four domain tools via LangChain),
+**LangChain** orchestration over **OpenRouter**, domain specialisation, and
+**prompt-injection security**. A full requirement→location map (with tests) is in
+[docs/sprint_requirements_after_integration.md](docs/sprint_requirements_after_integration.md),
+and the RAG/LangChain design in [docs/rag.md](docs/rag.md),
+[docs/query_translation.md](docs/query_translation.md),
+[docs/hybrid_search.md](docs/hybrid_search.md),
+[docs/tool_calling.md](docs/tool_calling.md) and
+[docs/security.md](docs/security.md).
+
+---
+
+## Interview Practice (module)
 
 **Prepare for any role. Practise realistically. Improve every answer.**
 
