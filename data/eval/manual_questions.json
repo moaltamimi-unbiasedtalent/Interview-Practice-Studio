@@ -1,0 +1,78 @@
+{
+  "description": "Manual test questions for the baseline vector RAG path. Questions are written to be answerable from typical career/labour-market sources placed under data/raw/ (see data/raw/README.md). Expected evidence is intentionally left empty and MUST be filled in against the documents you actually ingest — do not fabricate it.",
+  "how_to_use": "Populate data/raw/ with real sources, run scripts/ingest.py and scripts/build_index.py, then ask each question on the Chat page (or via src.copilot.retrieval) and record which retrieved chunks support the answer.",
+  "questions": [
+    {
+      "id": "q01",
+      "question": "What skills are becoming more important for AI-related roles?",
+      "target_document_type": "skills",
+      "expected_evidence": null
+    },
+    {
+      "id": "q02",
+      "question": "What skills and responsibilities are expected of operations managers?",
+      "target_document_type": "occupation",
+      "expected_evidence": null
+    },
+    {
+      "id": "q03",
+      "question": "What capabilities distinguish senior leadership roles from mid-level ones?",
+      "target_document_type": "occupation",
+      "expected_evidence": null
+    },
+    {
+      "id": "q04",
+      "question": "What evidence is there about rising demand for technological skills?",
+      "target_document_type": "labour_market",
+      "expected_evidence": null
+    },
+    {
+      "id": "q05",
+      "question": "Which occupations are projected to grow the fastest, and why?",
+      "target_document_type": "labour_market",
+      "expected_evidence": null
+    },
+    {
+      "id": "q06",
+      "question": "What core competencies are expected of data analysts?",
+      "target_document_type": "occupation",
+      "expected_evidence": null
+    },
+    {
+      "id": "q07",
+      "question": "How should a candidate structure answers to behavioural interview questions?",
+      "target_document_type": "interview_guidance",
+      "expected_evidence": null
+    },
+    {
+      "id": "q08",
+      "question": "What advice exists for changing careers into a new industry?",
+      "target_document_type": "career_guidance",
+      "expected_evidence": null
+    },
+    {
+      "id": "q09",
+      "question": "Which soft skills are most frequently cited as in demand by employers?",
+      "target_document_type": "skills",
+      "expected_evidence": null
+    },
+    {
+      "id": "q10",
+      "question": "What trends are shaping hiring in the technology sector?",
+      "target_document_type": "industry_report",
+      "expected_evidence": null
+    },
+    {
+      "id": "q11",
+      "question": "What questions should I expect in an interview for a project management role?",
+      "target_document_type": "interview_guidance",
+      "expected_evidence": null
+    },
+    {
+      "id": "q12",
+      "question": "How is automation expected to affect administrative and clerical jobs?",
+      "target_document_type": "labour_market",
+      "expected_evidence": null
+    }
+  ]
+}
