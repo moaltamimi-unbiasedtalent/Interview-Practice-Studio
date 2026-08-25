@@ -11,12 +11,11 @@ There is never a default key. A missing key produces a controlled
 so the UI can show a friendly message rather than crash.
 """
 
-import os
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, SecretStr
 
 from src import constants
+from src.core import secrets as _secrets
 
 API_KEY_NAME = "OPENROUTER_API_KEY"
 SPEECH_PROJECT_NAME = "GOOGLE_SPEECH_PROJECT_ID"
@@ -110,50 +109,18 @@ class AppConfig(BaseModel):
 
 
 def _read_streamlit_secret() -> str | None:
-    """Read the API key from Streamlit secrets, if available.
-
-    Streamlit raises an error when no secrets file exists at all. That is an
-    expected situation in local development and in tests, so it is treated as
-    "no secret configured" rather than an application failure.
-    """
-    try:
-        import streamlit as st
-
-        value = st.secrets.get(API_KEY_NAME)
-    except Exception:
-        # Expected when no secrets.toml exists or Streamlit is not running.
-        return None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    """Read the API key from Streamlit secrets (delegates to the shared reader)."""
+    return _secrets.read_streamlit(API_KEY_NAME)
 
 
 def _read_environment_secret() -> str | None:
-    """Read the API key from the environment (local development fallback)."""
-    value = os.environ.get(API_KEY_NAME)
-    if value and value.strip():
-        return value.strip()
-    return None
+    """Read the API key from the environment (delegates to the shared reader)."""
+    return _secrets.read_env(API_KEY_NAME)
 
 
 def _read_setting(name: str) -> str | None:
-    """Read a non-secret setting from Streamlit secrets, then the environment.
-
-    Used for values that are configuration (not credentials), such as the
-    Google Cloud project id and location for speech-to-text.
-    """
-    try:
-        import streamlit as st
-
-        value = st.secrets.get(name)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    except Exception:
-        pass
-    env_value = os.environ.get(name)
-    if env_value and env_value.strip():
-        return env_value.strip()
-    return None
+    """Read a non-secret setting: Streamlit secrets, then the environment."""
+    return _secrets.read_setting(name)
 
 
 def load_config() -> AppConfig:

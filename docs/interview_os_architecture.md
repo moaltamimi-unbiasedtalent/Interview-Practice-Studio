@@ -72,6 +72,43 @@ either product's pages (career pages call `career.ui`, interview pages call
 `interview.ui`). `copilot_app.py` is retired once its pages live under
 `career/ui/` and are reachable from the unified nav.
 
+## Shared core (implemented in OS-3)
+
+`src/core/` holds **infrastructure only — no domain intelligence**. The two AI
+workflows are never combined here; only credentials, config shape, logging,
+usage accounting and generic security primitives are shared.
+
+```
+src/core/
+├── secrets.py        # single Streamlit→env reader (no default keys, SecretStr)
+├── config.py         # AppConfig: {openrouter (shared), career, interview}
+├── errors.py         # InterviewOSError / ConfigError / SafeError
+├── logging.py        # safe_extra() redaction; SENSITIVE_KEYS; get_logger
+├── usage.py          # Operation enum + UsageRecord + UsageLedger (no double count)
+└── security/
+    └── normalize.py  # generic zero-width/control primitives (shared by career)
+```
+
+- **Config:** `load_app_config()` returns one `AppConfig` with shared OpenRouter
+  credentials plus the Career (`CopilotConfig`) and Interview (`AppConfig`)
+  sections. Both modules resolve the OpenRouter key through `core.secrets`, so
+  there is exactly one key, one precedence rule (Streamlit → env), and one
+  masking policy. The two per-module config objects are retained (each module
+  and its tests depend on them); OS-3 removed the *duplicated secret-reading*,
+  not the domain configs.
+- **OpenRouter (rule 3 preserved):** shared credentials fan out to Career's
+  LangChain `ChatOpenAI` factory and Interview's direct HTTPX client — no forced
+  common transport, LangChain stays visible.
+- **Usage:** one `UsageRecord` tagged by `Operation` (career translation/final/
+  tools; interview strategy/question/evaluation/report; speech; live), aggregated
+  by `UsageLedger` with de-duplication so nothing is double-counted.
+- **Logging:** one policy; `safe_extra()` redacts candidate backgrounds, job
+  descriptions, chunks, model content, transcripts and credentials — safe
+  metadata only.
+- **Security:** only generic normalisation primitives are shared; the Career
+  injection scanner/guards and the Interview input guard stay in their own
+  modules because their behaviour differs.
+
 ## PreparationContext contract (design)
 
 The **only** data structure that crosses career → interview. Plain domain data:
