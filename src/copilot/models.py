@@ -134,13 +134,29 @@ class TranslatedQuery(_Base):
 
 
 class ToolExecution(_Base):
-    """A record of a tool call and its result, for UI visibility."""
+    """A safe, log-friendly record of a tool call.
+
+    Deliberately holds only *summaries* — never full candidate backgrounds or job
+    descriptions — so it is safe to display and log.
+    """
 
     tool_name: str = Field(description="Registered tool name that was called.")
-    arguments: dict = Field(default_factory=dict, description="Validated arguments.")
-    result: dict | None = Field(default=None, description="Structured tool result.")
-    ok: bool = Field(default=True, description="Whether the tool succeeded.")
+    status: str = Field(
+        default="ok",
+        description="ok | error | invalid_args | unsupported | no_tool.",
+    )
+    duration_seconds: float = Field(default=0.0, ge=0)
+    safe_argument_summary: str = Field(
+        default="", description="Non-sensitive summary of the arguments (e.g. sizes)."
+    )
+    safe_result_summary: str = Field(
+        default="", description="Non-sensitive summary of the result (e.g. counts)."
+    )
     error: str | None = Field(default=None, description="Safe error message if failed.")
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "ok"
 
 
 class Citation(_Base):

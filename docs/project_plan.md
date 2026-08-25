@@ -157,24 +157,47 @@ lets a tool fabricate evidence — grounded facts come from retrieval.
 
 | Requirement | Where | Status |
 |---|---|---|
-| RAG (KB, ingestion, chunking, embeddings, similarity) | `src/ingestion/*`, `src/retrieval/vector.py` | Planned |
-| LangChain | `src/rag/chain.py` | Planned |
-| OpenRouter | `src/llm/openrouter.py` (reuse `src/openrouter_client.py`) | Reuse |
-| Query translation | `src/retrieval/query_translation.py` | Planned |
-| Structured retrieval | `src/retrieval/metadata_filters.py` | Planned |
-| 4 tools | `src/tools/*` | Planned |
-| Domain specialisation | career/interview KB + prompts | Planned |
-| Security / injection | `src/security/*` (reuse `src/security.py`) | Reuse+extend |
-| Error handling / validation | Pydantic models, controlled errors (reuse patterns) | Reuse |
-| Streamlit UI (sources, tool visibility, progress) | `app.py`, `src/ui/helpers.py` | Planned |
-| **Opt (M):** prompt-injection protection | `src/security/injection_guard.py` | Planned |
-| **Opt (M):** token/cost tracking | `src/usage/tracker.py` (reuse `pricing_service`) | Reuse |
-| **Opt (M):** conversation history/export | UI + session | Planned |
-| **Opt (H):** hybrid search | `src/retrieval/hybrid.py` | Planned |
-| **Opt (H):** RAG evaluation | `src/evaluation/*` | Planned |
+| RAG (KB, ingestion, chunking, embeddings, similarity) | `src/copilot/ingestion/*`, `src/copilot/embeddings.py`, `src/copilot/vectorstore.py`, `src/copilot/retrieval/vector.py` | Done (Ph 2–3) |
+| LangChain | `src/copilot/rag/chain.py`, `src/copilot/llm/openrouter.py`, `src/copilot/tools/*` | Done |
+| OpenRouter | `src/copilot/llm/openrouter.py` | Done |
+| Query translation | `src/copilot/rag/translation.py` | Done (Ph 4) |
+| Structured retrieval | `src/copilot/rag/translation.py` (`sanitize_filters`) | Done (Ph 4) |
+| **Core: Tool Calling — 4 tools** | `src/copilot/tools/*` | **Done (Ph 6)** |
+| Domain specialisation | career KB + prompts + domain tools | Done |
+| Security / injection | retrieved-context isolation, safe filters, safe tool records | Partial (Ph 4/6) |
+| Error handling / validation | Pydantic models + controlled errors throughout | Done |
+| Streamlit UI (sources, tool visibility, progress) | `copilot_app.py` | Done |
+| **Opt (M):** prompt-injection protection | planned (dedicated guard) | Planned |
+| **Opt (M):** token/cost tracking | `UsageRecord` surfaced in RAG Inspector | Partial |
+| **Opt (M):** conversation history/export | planned | Planned |
+| **Opt (H):** hybrid search | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | Done (Ph 5) |
+| **Opt (H):** RAG evaluation | `src/copilot/evaluation/*` (retrieval baseline; full RAG eval later) | Partial |
 
 Targets **all core** requirements, **3 medium** (exceeds 2) and **2 hard**
 (exceeds 1).
+
+### Core requirement: Tool Calling
+
+- **Implementation:** LangChain tool calling over the OpenRouter chat model. Tools
+  are advertised via `StructuredTool` (`build_langchain_tools`) and bound to the
+  model; the model’s `tool_calls` are parsed (`parse_tool_calls`) and dispatched
+  through `ToolInvoker`, which validates arguments against each tool’s Pydantic
+  schema, times the call, and records a safe `ToolExecution`. It is **not** an
+  autonomous agent: only the four registered tools can run — no arbitrary Python,
+  shell, filesystem or network.
+- **Tools:** Job Description Analyzer (`job_analyzer.py`, LLM), Candidate Gap
+  Analyzer (`gap_analyzer.py`, deterministic), Preparation Plan Calculator
+  (`prep_planner.py`, deterministic arithmetic), Interview Question Generator
+  (`question_generator.py`, LLM). Schemas in `tools/schemas.py`, registry/invoker
+  in `tools/registry.py`.
+- **Tests:** `tests/test_copilot_tools.py` — job/gap/prep/question calls,
+  deterministic match + arithmetic, no-tool case, sequential tools, malformed
+  args, tool exception, unsupported tool, LangChain tool-call parsing, and
+  no-arbitrary-execution.
+- **Demonstration path:** app **Career Tools** page — paste a job description →
+  Analyze → Gap Analyzer → Preparation Plan → Question Generator, with a
+  collapsed **Tools used** panel of safe execution records.
+- **Docs:** [`docs/tool_calling.md`](tool_calling.md).
 
 ## 12. Reuse from the existing codebase
 
