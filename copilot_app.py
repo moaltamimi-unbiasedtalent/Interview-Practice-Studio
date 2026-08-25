@@ -296,6 +296,15 @@ def _page_rag_inspector() -> None:
         cols[1].write(f"RAG used: {'✅' if trace.rag_used else '❌'}")
         cols[2].write(f"Tools planned: {trace.tools_planned or '—'}")
         st.write(f"Tool decision (invoked): {trace.tools_invoked or '—'}")
+        st.markdown("**Security**")
+        scols = st.columns(3)
+        scols[0].write(f"Input verdict: `{trace.input_verdict}`")
+        scols[1].write(f"Excluded chunks: {trace.excluded_chunks}")
+        scols[2].write(f"Blocked: {'🛑' if trace.blocked else '—'}")
+        if trace.input_indicators:
+            st.caption(f"Indicators: {', '.join(trace.input_indicators)}")
+        if trace.output_findings:
+            st.warning("Output guard: " + "; ".join(trace.output_findings))
         if trace.degraded:
             st.warning(f"Degraded stages: {', '.join(trace.degraded)}")
         if trace.notes:
