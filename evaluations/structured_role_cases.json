@@ -1,0 +1,15 @@
+{
+  "description": "Structured-role retrieval cases against the sample role DB (evaluations/knowledge_samples). expected_code is the occupation to resolve; expected_extra is the related code / skill / task / mapping code depending on kind.",
+  "cases": [
+    { "id": "sr_title_01", "kind": "exact_title", "query": "Data Analyst", "expected_code": "15-2051.00", "expected_source": "onet" },
+    { "id": "sr_title_02", "kind": "exact_title", "query": "Operations Manager", "expected_code": "11-3071.00", "expected_source": "onet" },
+    { "id": "sr_alias_01", "kind": "alternate_title", "query": "Business Analyst", "expected_code": "15-2051.00", "expected_source": "onet" },
+    { "id": "sr_alias_02", "kind": "alternate_title", "query": "ML Engineer", "expected_code": "15-2098.00", "expected_source": "onet" },
+    { "id": "sr_code_01", "kind": "occupation_code", "query": "11-3071.00", "expected_code": "11-3071.00" },
+    { "id": "sr_related_01", "kind": "related_occupation", "query": "15-2051.00", "expected_code": "15-2051.00", "expected_extra": "15-2098.00" },
+    { "id": "sr_skill_01", "kind": "skill_lookup", "query": "SQL", "expected_code": "15-2051.00", "expected_extra": "SQL" },
+    { "id": "sr_skill_02", "kind": "skill_lookup", "query": "Machine Learning", "expected_code": "15-2098.00", "expected_extra": "Machine Learning" },
+    { "id": "sr_task_01", "kind": "task_lookup", "query": "dashboards", "expected_code": "15-2051.00", "expected_extra": "dashboards" },
+    { "id": "sr_map_01", "kind": "mapping", "query": "2511", "expected_code": "2511", "expected_extra": "2511" }
+  ]
+}

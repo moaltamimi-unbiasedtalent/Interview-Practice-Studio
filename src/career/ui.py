@@ -723,6 +723,39 @@ def _render_rag_evaluation_report() -> None:
     st.divider()
 
 
+def _render_expanded_report() -> None:
+    """Baseline (11R) vs Expanded architecture (11R-A). Shows results if present."""
+    import os
+
+    import pandas as pd
+
+    st.markdown("**Expanded Career Intelligence** (11R-A: structured role / compensation / routing)")
+    path = "evaluations/expanded_architecture_results.csv"
+    if not os.path.isfile(path):
+        st.caption(
+            "11R established the baseline benchmark (above). 11R-A adds the "
+            "evaluation hooks (router / structured-role / compensation / provenance) "
+            "and labelled datasets under `evaluations/`. Run "
+            "`python scripts/eval_expanded.py` to produce the extended report "
+            "(scheduled for the next phase; it never overwrites the 11R baseline)."
+        )
+        st.divider()
+        return
+
+    df = pd.read_csv(path)
+    for group, label in [
+        ("router", "Routing accuracy"),
+        ("structured_role", "Structured role retrieval"),
+        ("compensation", "Compensation retrieval"),
+        ("retrieval_diff_vs_baseline", "Core retrieval Δ vs 11R baseline (worse = negative)"),
+    ]:
+        sub = df[df["group"] == group]
+        if not sub.empty:
+            st.caption(label)
+            st.dataframe(sub.drop(columns=["group"]), use_container_width=True, hide_index=True)
+    st.divider()
+
+
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
@@ -740,7 +773,10 @@ def _page_evaluation() -> None:
             "security.md. Inspect any query live in the RAG Inspector."
         )
 
+    st.markdown("#### Baseline RAG (11R)")
     _render_rag_evaluation_report()
+    st.markdown("#### Expanded architecture (11R-A)")
+    _render_expanded_report()
 
     st.markdown("**Live retrieval comparison (vector / keyword / hybrid)**")
     st.caption(

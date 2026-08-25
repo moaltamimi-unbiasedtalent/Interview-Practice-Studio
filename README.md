@@ -28,6 +28,13 @@ carrying provenance and source authority. See
 committed; reproduce with the `scripts/*` loaders (`source_status`,
 `download_sources`, `normalise_roles`, `load_compensation`, `rebuild_vector_index`).
 
+**RAG evaluation is versioned.** Phase 11R established the baseline benchmark
+(`evaluations/retrieval_results.csv`, `rag_evaluation.md`), which is preserved
+unchanged. Phase 11R-A adds evaluation *hooks* and labelled datasets for the new
+lanes (router / structured-role / compensation / provenance) under
+`evaluations/`; the extended benchmark is produced by `scripts/eval_expanded.py`
+in a later phase and never overwrites the 11R baseline.
+
 ### Current Sprint: Career Intelligence
 
 The **Career Intelligence** module is the active Turing College sprint ("Building

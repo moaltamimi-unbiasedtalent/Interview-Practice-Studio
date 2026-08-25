@@ -70,7 +70,7 @@ monolith. **Tests** = covering tests.
 | Token/cost tracking | medium | PASS | Career `src/core/usage.py` (tokens by operation; cost "unavailable"), Interview `src/pricing_service.py` (reported→calculated→none) |
 | Conversation history/export | medium | PASS | `src/copilot/history.py` (JSON/CSV), `src/integration/export.py` (combined) |
 | Hybrid search | hard | PASS | `src/copilot/retrieval/*` |
-| RAG evaluation | hard | PASS | `src/copilot/evaluation/rag_eval.py`, `scripts/eval_rag.py`, `evaluations/*` (dataset + retrieval/translation/tool/citation reports) |
+| RAG evaluation | hard | PASS | 11R baseline: `src/copilot/evaluation/rag_eval.py`, `scripts/eval_rag.py`, `evaluations/*`. 11R-A hooks (expanded lanes): `src/copilot/evaluation/expanded_eval.py`, `scripts/eval_expanded.py`, `evaluations/{router,structured_role,compensation}_cases.json` — extended run scheduled for a later phase; 11R baseline preserved |
 
 ## Guarantee
 

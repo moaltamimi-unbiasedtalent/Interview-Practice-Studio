@@ -1,0 +1,15 @@
+{
+  "description": "Labelled retrieval-lane cases for router evaluation. expected_lane is the lane the deterministic router should select.",
+  "cases": [
+    { "id": "r_role_01", "query": "What does a Logistics Manager do?", "expected_lane": "structured_role" },
+    { "id": "r_role_02", "query": "What are the responsibilities of an operations manager?", "expected_lane": "structured_role" },
+    { "id": "r_skill_01", "query": "What skills do cybersecurity analysts need?", "expected_lane": "structured_role" },
+    { "id": "r_comp_01", "query": "What does a Data Analyst earn in Germany?", "expected_lane": "compensation" },
+    { "id": "r_comp_02", "query": "Median salary for a nurse in the UK", "expected_lane": "compensation" },
+    { "id": "r_fore_01", "query": "Is demand for AI roles expected to grow?", "expected_lane": "forecast" },
+    { "id": "r_fore_02", "query": "What are the trends in the technology sector?", "expected_lane": "forecast" },
+    { "id": "r_vec_01", "query": "Explain the STAR method", "expected_lane": "vector" },
+    { "id": "r_mixed_01", "query": "What skills does a Product Manager need and what would they earn in Germany?", "expected_lane": "mixed" },
+    { "id": "r_mixed_02", "query": "Compare pay and required skills for a data analyst", "expected_lane": "mixed" }
+  ]
+}
