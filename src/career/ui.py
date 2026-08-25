@@ -201,6 +201,12 @@ def _page_chat() -> None:
         "usage": result.response.usage,
     }
 
+    # Safe conversation history + usage ledger (session state; no database).
+    from src.copilot import history as career_history
+
+    career_history.append_turn(st.session_state, career_history.build_turn(prompt, result))
+    career_history.record_final_generation(st.session_state, result.response.usage)
+
 
 # --- Knowledge Base ----------------------------------------------------------
 
@@ -641,6 +647,57 @@ def render_sidebar() -> None:
             st.rerun()
 
 
+def _render_usage_diagnostics() -> None:
+    """Optional, collapsed usage/history/export panel (hidden by default)."""
+    from src.copilot import history as career_history
+    from src.integration import export as combined_export
+    from src.integration import handoff
+
+    ss = st.session_state
+    hist = career_history.get_history(ss)
+    ledger = career_history.get_ledger(ss)
+    if not hist.turns and not ledger.records:
+        return
+
+    with st.expander("Usage & diagnostics", expanded=False):
+        st.caption("Session-only. Career and Interview usage are tracked separately.")
+        by_source = ledger.tokens_by_source()
+        st.write({"tokens_by_operation": by_source, "total_tokens": ledger.total_tokens})
+        has_cost = any(r.cost_usd is not None for r in ledger.records)
+        st.write(
+            f"Estimated cost: ${ledger.total_cost_usd:.4f}" if has_cost else "Cost unavailable"
+        )
+
+        if hist.turns and hist.turns[-1].rag:
+            st.markdown("**Last turn retrieval**")
+            st.write(hist.turns[-1].rag.model_dump())
+
+        st.markdown("**Export**")
+        cols = st.columns(3)
+        cols[0].download_button(
+            "Conversation JSON", data=hist.to_json(),
+            file_name="career_conversation.json", mime="application/json",
+            disabled=not hist.turns,
+        )
+        cols[1].download_button(
+            "Conversation CSV", data=hist.to_csv(),
+            file_name="career_conversation.csv", mime="text/csv",
+            disabled=not hist.turns,
+        )
+        combined = combined_export.combined_session_json(
+            preparation=handoff.get_context(ss),
+            career_history=hist,
+            interview_report=handoff.get_interview_summary(ss),
+        )
+        cols[2].download_button(
+            "Combined session JSON", data=combined,
+            file_name="interview_os_session.json", mime="application/json",
+        )
+        if st.button("Clear conversation history"):
+            career_history.clear_history(ss)
+            st.rerun()
+
+
 def render_career() -> None:
     """The Career Intelligence landing: header + Chat / Career Tools."""
     _render_header(_config())
@@ -649,6 +706,7 @@ def render_career() -> None:
     )
     if section == "Chat":
         _page_chat()
+        _render_usage_diagnostics()
     else:
         _page_tools()
 

@@ -66,8 +66,8 @@ monolith. **Tests** = covering tests.
 | Optional task | Tier | Status | Now |
 | --- | --- | --- | --- |
 | Prompt-injection protection | medium | PASS | `src/copilot/security/*` |
-| Token/cost tracking | medium | partial | `UsageRecord`, sidebar/pricing |
-| Conversation export | medium | planned | — |
+| Token/cost tracking | medium | PASS | Career `src/core/usage.py` (tokens by operation; cost "unavailable"), Interview `src/pricing_service.py` (reported→calculated→none) |
+| Conversation history/export | medium | PASS | `src/copilot/history.py` (JSON/CSV), `src/integration/export.py` (combined) |
 | Hybrid search | hard | PASS | `src/copilot/retrieval/*` |
 | RAG evaluation | hard | partial | `src/copilot/evaluation/*` |
 

@@ -168,8 +168,8 @@ lets a tool fabricate evidence — grounded facts come from retrieval.
 | Error handling / validation | Pydantic models + controlled errors throughout | Done |
 | Streamlit UI (sources, tool visibility, progress) | `src/career/ui.py` via unified `app.py` (OS-2) | Done |
 | **Opt (M):** prompt-injection protection | `src/copilot/security/*`; 30-case eval | **PASS (Ph 8)** |
-| **Opt (M):** token/cost tracking | `UsageRecord` surfaced in RAG Inspector | Partial |
-| **Opt (M):** conversation history/export | planned | Planned |
+| **Opt (M):** token/cost tracking | Career `UsageLedger` (`src/core/usage.py`, tokens by operation; cost honestly "unavailable"); Interview `PricingService` (reported→calculated→none) | **PASS (Ph 9R)** |
+| **Opt (M):** conversation history/export | Career history + JSON/CSV + combined session export (`src/copilot/history.py`, `src/integration/export.py`) | **PASS (Ph 9R)** |
 | **Opt (H):** hybrid search | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | Done (Ph 5) |
 | **Opt (H):** RAG evaluation | `src/copilot/evaluation/*` (retrieval baseline; full RAG eval later) | Partial |
 

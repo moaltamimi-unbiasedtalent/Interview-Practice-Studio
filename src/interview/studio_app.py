@@ -1275,6 +1275,19 @@ def _render_visual_summary(session: SessionManager) -> None:
 
 def render_report(session: SessionManager) -> None:
     report = session.data.report
+    # Publish a plain summary to the integration channel (for combined export).
+    try:
+        handoff.store_interview_summary(
+            st.session_state,
+            {
+                "target_role": session.data.config.target_role if session.data.config else None,
+                "overall_readiness_score": report.overall_readiness_score,
+                "performance_summary": report.performance_summary,
+                "development_priorities": list(report.development_priorities),
+            },
+        )
+    except Exception:  # pragma: no cover - export channel must never break the UI
+        pass
     st.subheader("Interview readiness report")
     st.metric("Readiness score", f"{report.overall_readiness_score}/100")
     st.caption("Practice guidance only — not an employment decision.")

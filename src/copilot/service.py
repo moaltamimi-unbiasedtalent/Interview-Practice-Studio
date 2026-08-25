@@ -16,6 +16,7 @@ recorded in the trace — it never crashes the Streamlit session.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 
 from src.copilot import constants
@@ -59,6 +60,11 @@ class PipelineTrace:
     keyword_results: list[RetrievalResult] = field(default_factory=list)
     fused_results: list[RetrievalResult] = field(default_factory=list)
     evidence_sources: list[str] = field(default_factory=list)
+    # RAG metrics (safe; counts + latency only).
+    retrieval_strategy: str = ""
+    translated_query_count: int = 0
+    context_count: int = 0
+    retrieval_latency_ms: float = 0.0
     # Security.
     input_verdict: str = "allow"
     input_indicators: list[str] = field(default_factory=list)
@@ -173,7 +179,10 @@ class CareerIntelligenceService:
         # 5) Hybrid retrieval (controlled).
         results: list[RetrievalResult] = []
         if rag_required:
+            trace.translated_query_count = len(translated.all_queries)
+            started = time.perf_counter()
             results = self._retrieve(translated, trace)
+            trace.retrieval_latency_ms = round((time.perf_counter() - started) * 1000, 2)
             # RAG guard: retrieved chunks are untrusted; drop injected ones.
             screen = screen_results(results)
             if screen.excluded or screen.warned:
@@ -183,6 +192,7 @@ class CareerIntelligenceService:
             if not results and trace.rag_used:
                 trace.rag_used = False
 
+        trace.context_count = len(results)
         bundle = build_context(results, max_chars=self.max_context_chars)
         trace.evidence_sources = [c.label for c in bundle.citations]
 
@@ -296,6 +306,7 @@ class CareerIntelligenceService:
         # Channel detail for the inspector (best-effort).
         try:
             if isinstance(self.retriever, HybridRetriever):
+                trace.retrieval_strategy = "hybrid"
                 detail = self.retriever.search(
                     translated.rewritten_query, top_k=self.top_k, filters=filters
                 )
@@ -305,8 +316,10 @@ class CareerIntelligenceService:
                     if channel not in trace.degraded:
                         trace.degraded.append(channel)
             elif isinstance(self.retriever, VectorRetriever):
+                trace.retrieval_strategy = "vector"
                 trace.vector_results = results
             elif isinstance(self.retriever, KeywordRetriever):
+                trace.retrieval_strategy = "keyword"
                 trace.keyword_results = results
         except Exception:  # noqa: BLE001 - inspector detail is non-critical
             pass

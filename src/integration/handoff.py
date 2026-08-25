@@ -16,6 +16,8 @@ __all__ = [
     "get_context",
     "has_context",
     "clear_context",
+    "store_interview_summary",
+    "get_interview_summary",
     "request_practice",
     "request_return_to_preparation",
     "interview_prefill",
@@ -25,6 +27,7 @@ __all__ = [
 ]
 
 PREP_CONTEXT_KEY = "integration.prep_context"
+INTERVIEW_SUMMARY_KEY = "integration.interview_summary"
 _PENDING_NAV_KEY = "_pending_nav"
 _NAV_INTERVIEW = "Interview Practice"
 _NAV_CAREER = "Career Intelligence"
@@ -49,6 +52,16 @@ def has_context(session_state) -> bool:
 
 def clear_context(session_state) -> None:
     session_state.pop(PREP_CONTEXT_KEY, None)
+
+
+def store_interview_summary(session_state, summary: dict) -> None:
+    """Interview writes a plain summary/report dict to the integration channel."""
+    session_state[INTERVIEW_SUMMARY_KEY] = summary
+
+
+def get_interview_summary(session_state) -> dict | None:
+    value = session_state.get(INTERVIEW_SUMMARY_KEY)
+    return value if isinstance(value, dict) else None
 
 
 # --- Navigation --------------------------------------------------------------
