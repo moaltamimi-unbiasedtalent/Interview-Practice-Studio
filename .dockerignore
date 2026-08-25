@@ -1,0 +1,21 @@
+# Never ship secrets, local state, or heavy build artefacts into the image.
+.git
+.gitignore
+.venv
+.venv.broken
+**/__pycache__
+*.pyc
+*.egg-info
+.pytest_cache
+tests
+data
+*.db
+.env
+.env.*
+.streamlit/secrets.toml
+.claude
+node_modules
+components/live_interviewer/frontend/node_modules
+components/live_interviewer/frontend/dist
+docs
+evaluations

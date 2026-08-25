@@ -170,3 +170,15 @@ boundaries of the tool.
   report view; the interview content is still shown.
 - **No raw media stored** — only aggregated metrics; camera/audio/biometrics are
   never persisted.
+
+---
+
+## Phase 22 — readiness status
+
+- **Voice and Live are placeholders** pending credentials + live verification
+  (capstone). Text Practice is complete.
+- `gemini-3.1-flash-live-preview` is an unverified model id (override via
+  `GEMINI_LIVE_MODEL`).
+- Browser E2E (Playwright) and the manual live suite are not part of CI.
+- Real performance and cost numbers require live sessions (see the readiness
+  report); the app never invents cost figures.

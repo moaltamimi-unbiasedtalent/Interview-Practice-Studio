@@ -50,22 +50,42 @@ def _response(pairs) -> SimpleNamespace:
 
 
 class FakeSpeechClient:
-    def __init__(self, response=None, error=None):
+    def __init__(self, response=None, error=None, streaming_response=None):
         self._response = response
         self._error = error
+        self._streaming_response = streaming_response
         self.requests: list[dict] = []
+        self.sync_calls = 0
+        self.streaming_calls = 0
 
     def recognize(self, request):
+        self.sync_calls += 1
         self.requests.append(request)
         if self._error is not None:
             raise self._error
         return self._response
+
+    def streaming_recognize(self, requests):
+        self.streaming_calls += 1
+        # Consume the generator so request construction is exercised.
+        list(requests)
+        if self._error is not None:
+            raise self._error
+        # A streaming call yields a sequence of responses.
+        return self._streaming_response or []
 
 
 def _service(response=None, error=None) -> GoogleSpeechTranscriptionService:
     return GoogleSpeechTranscriptionService(
         project_id="test-project",
         client=FakeSpeechClient(response=response, error=error),
+    )
+
+
+def _service_streaming(streaming_response) -> GoogleSpeechTranscriptionService:
+    return GoogleSpeechTranscriptionService(
+        project_id="test-project",
+        client=FakeSpeechClient(streaming_response=streaming_response),
     )
 
 
@@ -161,6 +181,40 @@ class TestGoogleProvider:
         with pytest.raises(SpeechError):
             service.transcribe(_wav_bytes(0.5), mime_type="application/pdf")
         assert service._client.requests == []  # no API call made
+
+
+# --- Short vs long recordings (sync vs streaming) ----------------------------
+
+
+class TestRecordingLength:
+    def test_short_recording_uses_sync_recognize(self) -> None:
+        service = _service(_response([("A short answer.", 0.9, "en-US")]))
+        result = service.transcribe(_wav_bytes(3.0), mime_type="audio/wav")
+        assert result.transcript == "A short answer."
+        assert service._client.sync_calls == 1
+        assert service._client.streaming_calls == 0
+
+    def test_long_recording_uses_streaming(self) -> None:
+        # Over the ~55 s threshold → streaming API (aggregates final results).
+        streaming = [
+            _response([("This is the first part", 0.9, "en-US")]),
+            _response([("and this is the second part.", 0.85, "en-US")]),
+        ]
+        service = _service_streaming(streaming)
+        result = service.transcribe(_wav_bytes(70.0), mime_type="audio/wav")
+        assert "first part" in result.transcript
+        assert "second part" in result.transcript
+        assert service._client.streaming_calls == 1
+        assert service._client.sync_calls == 0
+
+    def test_long_recording_within_ten_minute_maximum(self) -> None:
+        # 9 minutes is allowed via streaming; over 10 minutes is still rejected.
+        service = _service_streaming([_response([("ok", 0.9, "en-US")])])
+        result = service.transcribe(_wav_bytes(540.0), mime_type="audio/wav")
+        assert result.transcript == "ok"
+        with pytest.raises(SpeechError) as exc:
+            service.transcribe(_wav_bytes(700.0), mime_type="audio/wav")
+        assert exc.value.category == "too_long"
 
 
 # --- Availability / factory --------------------------------------------------

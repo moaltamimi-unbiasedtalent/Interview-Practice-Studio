@@ -262,25 +262,27 @@ class GoogleSpeechTranscriptionService(SpeechTranscriptionService):
         self, data: bytes, *, mime_type: str, language: str | None = None
     ) -> TranscriptionResult:
         duration = validate_audio(data, mime_type)
-        request = {
-            "recognizer": self._recognizer_path(),
-            "config": {
-                "auto_decoding_config": {},
-                "model": self._model,
-                "language_codes": self._language_codes(language),
-            },
-            "content": data,
-        }
+        language_codes = self._language_codes(language)
+        # Long recorded answers exceed the synchronous recognize limit, so they
+        # go through the streaming API (still inline; no Cloud Storage needed).
+        use_streaming = (
+            duration is not None
+            and duration > constants.SPEECH_STREAMING_THRESHOLD_SECONDS
+        )
         try:
             client = self._get_client()
-            response = client.recognize(request=request)
+            if use_streaming:
+                results = self._recognize_streaming(client, data, language_codes)
+            else:
+                results = self._recognize_sync(client, data, language_codes)
         except SpeechError:
             raise
         except Exception as exc:  # noqa: BLE001 - controlled, message is safe
             # Log category only — never audio bytes or transcript content.
             _LOGGER.warning(
-                "speech transcription failed: provider=%s error=%s",
+                "speech transcription failed: provider=%s streaming=%s error=%s",
                 self.provider_name,
+                use_streaming,
                 type(exc).__name__,
             )
             raise SpeechError(
@@ -288,15 +290,68 @@ class GoogleSpeechTranscriptionService(SpeechTranscriptionService):
                 category="provider_error",
             ) from exc
 
-        return self._map_response(response, duration, language)
+        return self._build_result(results, duration, language)
 
-    def _map_response(
-        self, response: Any, duration: float | None, language: str | None
+    def _recognize_sync(self, client: Any, data: bytes, language_codes: list[str]):
+        """Synchronous recognize for short (~1 min) inline audio."""
+        request = {
+            "recognizer": self._recognizer_path(),
+            "config": {
+                "auto_decoding_config": {},
+                "model": self._model,
+                "language_codes": language_codes,
+            },
+            "content": data,
+        }
+        response = client.recognize(request=request)
+        return list(getattr(response, "results", []) or [])
+
+    def _recognize_streaming(
+        self, client: Any, data: bytes, language_codes: list[str]
+    ):
+        """Streaming recognize for longer recorded answers (minutes of audio).
+
+        Feeds the recording as small chunks; collects final results across the
+        streamed responses. Uses the SDK types lazily so importing this module
+        never requires them.
+        """
+        from google.cloud.speech_v2.types import cloud_speech
+
+        recognition_config = cloud_speech.RecognitionConfig(
+            auto_decoding_config=cloud_speech.AutoDetectDecodingConfig(),
+            model=self._model,
+            language_codes=language_codes,
+        )
+        streaming_config = cloud_speech.StreamingRecognitionConfig(
+            config=recognition_config
+        )
+        chunk = constants.SPEECH_STREAMING_CHUNK_BYTES
+
+        def _requests():
+            yield cloud_speech.StreamingRecognizeRequest(
+                recognizer=self._recognizer_path(),
+                streaming_config=streaming_config,
+            )
+            for start in range(0, len(data), chunk):
+                yield cloud_speech.StreamingRecognizeRequest(
+                    audio=data[start : start + chunk]
+                )
+
+        results = []
+        for response in client.streaming_recognize(requests=_requests()):
+            for result in getattr(response, "results", []) or []:
+                # Streaming yields interim + final results; keep only final ones.
+                if getattr(result, "is_final", True):
+                    results.append(result)
+        return results
+
+    def _build_result(
+        self, results: Any, duration: float | None, language: str | None
     ) -> TranscriptionResult:
         parts: list[str] = []
         languages: list[str] = []
         confidences: list[float] = []
-        for result in getattr(response, "results", []) or []:
+        for result in results or []:
             alternatives = getattr(result, "alternatives", None) or []
             if not alternatives:
                 continue

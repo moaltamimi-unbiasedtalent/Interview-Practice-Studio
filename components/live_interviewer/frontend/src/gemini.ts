@@ -94,12 +94,13 @@ export class GeminiLiveClient {
   }
 
   // Ask the interviewer to speak a specific canonical question (authored by
-  // OpenRouter). Gemini only voices it — it does not invent questions.
+  // OpenRouter). Gemini only voices it — it does not invent questions. Current
+  // Live API: deliver the instruction via sendRealtimeInput({text}) rather than
+  // the older sendClientContent turn flow.
   speakQuestion(question: string): void {
     if (!this.session) return;
-    this.session.sendClientContent({
-      turns: [{ role: "user", parts: [{ text: `Ask the candidate: ${question}` }] }],
-      turnComplete: true,
+    this.session.sendRealtimeInput({
+      text: `Ask the candidate exactly this question, verbatim: ${question}`,
     });
   }
 

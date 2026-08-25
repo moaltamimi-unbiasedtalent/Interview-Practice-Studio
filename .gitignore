@@ -37,3 +37,6 @@ tmp/
 # Local database (dev)
 data/
 *.db
+
+# Local editor/launch config
+.claude/

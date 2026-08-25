@@ -262,6 +262,13 @@ DEFAULT_REASONING_EFFORT = "minimal"
 SPEECH_MAX_AUDIO_SECONDS = 600  # 10-minute hard maximum
 SPEECH_MAX_AUDIO_BYTES = 25 * 1024 * 1024  # 25 MB
 SPEECH_TARGET_SAMPLE_RATE = 16_000  # 16 kHz is ideal for speech recognition
+# Synchronous recognize handles only short (~1 min) inline audio. Longer
+# recorded answers are sent via the streaming API, which supports minutes of
+# audio inline (no Cloud Storage bucket needed). Below this threshold we use the
+# simpler synchronous call.
+SPEECH_STREAMING_THRESHOLD_SECONDS = 55
+# Chunk size for feeding recorded audio to the streaming API (~64 KB).
+SPEECH_STREAMING_CHUNK_BYTES = 64 * 1024
 SPEECH_ALLOWED_MIME_TYPES = (
     "audio/wav",
     "audio/x-wav",
@@ -296,7 +303,9 @@ SPEECH_PRIVACY_NOTICE = (
 # speaks the canonical question and streams the candidate's audio/transcript.
 LIVE_PROVIDER = "gemini_live"
 # Default Gemini Live model; configurable so it can track the current release.
-LIVE_INTERVIEW_MODEL = "gemini-2.0-flash-live-001"
+# Override with GEMINI_LIVE_MODEL if the id changes (it is not validated here —
+# an invalid id only surfaces on a live session).
+LIVE_INTERVIEW_MODEL = "gemini-3.1-flash-live-preview"
 LIVE_AUDIO_SAMPLE_RATE = 16_000  # 16 kHz input, as Gemini Live expects
 LIVE_AUDIO_OUTPUT_SAMPLE_RATE = 24_000  # Gemini streams 24 kHz output audio
 # Small low-latency chunks (20-40 ms) rather than buffering seconds of audio.

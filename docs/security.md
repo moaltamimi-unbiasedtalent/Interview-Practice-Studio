@@ -350,3 +350,21 @@ they are framed as untrusted data in the prompt.
 - **Candidate control & retention.** Users can export all their data and delete
   individual interviews or everything (Settings). Data is retained only until the
   user deletes it. See `DATA_RETENTION_NOTE`.
+
+---
+
+## Phase 22 — consolidated review & classifier evaluation
+
+- Consolidated security tests (`tests/test_security_hardening.py`): prompt
+  injection blocked at the trust boundary before any model call; candidate
+  answers treated as data (never blocked); no untrusted data interpolated into
+  component HTML (the only raw-HTML render is the avatar, `html.escape`d + fixed
+  constants; no `unsafe_allow_html` anywhere); no secret/token in browser config;
+  strict cross-user isolation.
+- **Classifier decision:** an offline experiment
+  (`scripts/security_classifier_experiment.py` →
+  `evaluations/security_classifier_experiment.*`) showed the deterministic guard
+  already catches the obvious attacks (0 false negatives on the set). Decision:
+  **retain the deterministic guard; do not add a moderation-API classifier**
+  until a live evaluation shows it reduces false negatives without materially
+  increasing false positives, latency or cost.

@@ -785,3 +785,18 @@ metrics (framed as guidance, not hiring probabilities). History lets the user
 open past interviews (questions/answers/feedback/Deep Dive/delivery), download a
 report and delete an interview. Settings offers data export, delete-all, the
 retention note and logout.
+
+---
+
+## Production readiness (Phase 22)
+
+- **Startup validation & health** (`src/health.py`): `startup_validation` (hard
+  errors vs. soft info) and `health_check`; Docker uses Streamlit's
+  `/_stcore/health`.
+- **Full mocked E2E** (`tests/test_e2e_text.py`) proves the whole engine; the
+  same evaluation pipeline serves Text, Voice and Live.
+- **Deployment**: Dockerfile (secrets provided at runtime, never baked in), CI
+  workflow (Python + frontend), Alembic for production migrations. See
+  `docs/operations_deployment.md`.
+- **Live/Voice remain credential-gated placeholders** (capstone) — the app runs
+  fully on Text and falls back for the others.
