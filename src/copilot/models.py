@@ -53,13 +53,40 @@ class DocumentChunk(_Base):
 
 
 class RetrievalResult(_Base):
-    """One retrieved chunk with its relevance score and provenance."""
+    """One retrieved chunk with its relevance score and provenance.
+
+    Convenience accessors (``text``, ``title``, ``page``, ``source``,
+    ``metadata``) read through to the underlying chunk so callers do not need to
+    reach into ``chunk.metadata`` for common provenance fields.
+    """
 
     chunk: DocumentChunk
     score: float = Field(description="Relevance score (higher is better).")
     retriever: str = Field(
         default="vector", description="Which retriever surfaced it (vector/keyword/hybrid)."
     )
+
+    @property
+    def text(self) -> str:
+        return self.chunk.text
+
+    @property
+    def metadata(self) -> dict:
+        return self.chunk.metadata
+
+    @property
+    def title(self) -> str | None:
+        meta = self.chunk.metadata
+        return meta.get("title") or meta.get("filename")
+
+    @property
+    def page(self) -> int | None:
+        return self.chunk.metadata.get("page")
+
+    @property
+    def source(self) -> str | None:
+        meta = self.chunk.metadata
+        return meta.get("source") or meta.get("filename")
 
 
 class TranslatedQuery(_Base):
@@ -93,6 +120,15 @@ class Citation(_Base):
     chunk_id: str = Field(description="Cited chunk id.")
     title: str | None = Field(default=None, description="Source title for display.")
     source: str | None = Field(default=None, description="Source path/URL for display.")
+    page: int | None = Field(default=None, description="Page number, if known.")
+
+    @property
+    def label(self) -> str:
+        """Human-readable citation line, e.g. ``[1] WEF report — page 14``."""
+        title = self.title or self.source or "Untitled source"
+        if self.page is not None:
+            return f"{self.marker} {title} — page {self.page}"
+        return f"{self.marker} {title}"
 
 
 class UsageRecord(_Base):

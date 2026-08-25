@@ -24,6 +24,7 @@ MODEL_NAME = "COPILOT_MODEL"
 EMBEDDING_MODEL_NAME = "COPILOT_EMBEDDING_MODEL"
 EMBEDDING_BASE_URL_NAME = "COPILOT_EMBEDDING_BASE_URL"
 EMBEDDING_KEY_NAME = "COPILOT_EMBEDDING_API_KEY"
+EMBEDDING_PROVIDER_NAME = "COPILOT_EMBEDDING_PROVIDER"
 CHROMA_DIR_NAME = "COPILOT_CHROMA_DIR"
 DEBUG_NAME = "COPILOT_DEBUG"
 
@@ -40,6 +41,8 @@ class CopilotConfig(BaseModel):
     embedding_model: str = constants.DEFAULT_EMBEDDING_MODEL
     embedding_base_url: str = constants.DEFAULT_EMBEDDING_BASE_URL
     embedding_api_key: SecretStr | None = None
+    # "auto" | "openai" | "local" — see constants.DEFAULT_EMBEDDING_PROVIDER.
+    embedding_provider: str = constants.DEFAULT_EMBEDDING_PROVIDER
 
     # Vector store persistence.
     chroma_persist_dir: str = constants.CHROMA_PERSIST_DIR
@@ -110,6 +113,9 @@ def load_config() -> CopilotConfig:
         embedding_base_url=_read(EMBEDDING_BASE_URL_NAME)
         or constants.DEFAULT_EMBEDDING_BASE_URL,
         embedding_api_key=SecretStr(raw_embed_key) if raw_embed_key else None,
+        embedding_provider=(
+            _read(EMBEDDING_PROVIDER_NAME) or constants.DEFAULT_EMBEDDING_PROVIDER
+        ).lower(),
         chroma_persist_dir=_read(CHROMA_DIR_NAME) or constants.CHROMA_PERSIST_DIR,
         debug=_read_bool(DEBUG_NAME, default=False),
     )
