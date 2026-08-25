@@ -19,6 +19,15 @@ Platform workflow: **UNDERSTAND → PREPARE → PRACTISE → REVIEW → IMPROVE*
 Practise, Review & Improve). The two modules keep clear boundaries and are each
 independently testable; see [docs/interview_os_architecture.md](docs/interview_os_architecture.md).
 
+**Career Intelligence is a multi-source knowledge system**, not just a vector
+store: a router sends each question to the right lane — a **Structured Role DB**
+(ESCO/O*NET/ISCO/KldB in SQLite), **Vector Knowledge** (narrative docs in Chroma),
+or a **Compensation DB** (OEWS/ASHE/Eurostat/Entgeltatlas) — every record
+carrying provenance and source authority. See
+[docs/knowledge_architecture.md](docs/knowledge_architecture.md). No datasets are
+committed; reproduce with the `scripts/*` loaders (`source_status`,
+`download_sources`, `normalise_roles`, `load_compensation`, `rebuild_vector_index`).
+
 ### Current Sprint: Career Intelligence
 
 The **Career Intelligence** module is the active Turing College sprint ("Building

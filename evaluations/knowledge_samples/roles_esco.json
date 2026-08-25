@@ -1,0 +1,20 @@
+[
+  {
+    "code": "2511",
+    "preferredLabel": "ICT business analyst",
+    "alternativeLabels": [
+      "Systems analyst"
+    ],
+    "description": "Analyses business needs.",
+    "essentialSkills": [
+      "requirements analysis"
+    ],
+    "optionalSkills": [
+      "UML"
+    ],
+    "iscoGroup": "2511",
+    "relatedOccupations": [
+      "2512"
+    ]
+  }
+]

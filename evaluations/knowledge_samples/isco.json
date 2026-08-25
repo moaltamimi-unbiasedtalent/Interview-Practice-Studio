@@ -1,0 +1,27 @@
+{
+  "groups": [
+    {
+      "code": "2",
+      "level": "major_group",
+      "title": "Professionals",
+      "definition": "High-skill occupations."
+    },
+    {
+      "code": "25",
+      "level": "sub_major_group",
+      "title": "ICT Professionals",
+      "parent": "2",
+      "parent_title": "Professionals"
+    },
+    {
+      "code": "251",
+      "level": "minor_group",
+      "title": "Software and applications developers",
+      "parent": "25",
+      "parent_title": "ICT Professionals",
+      "example_occupations": [
+        "Data analyst"
+      ]
+    }
+  ]
+}

@@ -17,7 +17,8 @@ monolith. **Tests** = covering tests.
 | Embeddings | `src/copilot/embeddings.py` | `src/career/embeddings.py` | `test_copilot_rag.py` |
 | Vector retrieval (Chroma) | `src/copilot/vectorstore.py`, `retrieval/vector.py` | `src/career/vectorstore.py`, `retrieval/vector.py` | `test_copilot_rag.py` |
 | Query translation | `src/copilot/rag/translation.py` | `src/career/rag/translation.py` | `test_copilot_translation.py` |
-| Structured (metadata) retrieval | `translation.sanitize_filters` + store filters | same under `career` | `test_copilot_translation.py`, `test_copilot_rag.py` |
+| Structured (metadata) retrieval | `translation.sanitize_filters` + store filters; **multi-source structured lanes** (`src/copilot/knowledge/*`: role + compensation DBs, router) | same under `career` | `test_copilot_translation.py`, `test_copilot_rag.py`, `test_copilot_knowledge.py` |
+| Domain knowledge base + routing | `src/copilot/knowledge/` (roles/skills/compensation, provenance, authority, deterministic router) | `src/career/knowledge/` | `test_copilot_knowledge.py` |
 | Hybrid search (BM25 + vector) | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | `src/career/retrieval/*` | `test_copilot_hybrid.py` |
 | RAG evaluation | `src/copilot/evaluation/*`, `scripts/eval_retrieval.py` | `src/career/evaluation/*` | (eval harness) |
 

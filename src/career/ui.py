@@ -258,8 +258,74 @@ def _page_chat() -> None:
 # --- Knowledge Base ----------------------------------------------------------
 
 
+def _render_source_sections() -> None:
+    """Show the multi-source knowledge architecture (Role / Compensation / Narrative)."""
+    import os
+
+    from src.copilot.knowledge import manifest as km
+
+    try:
+        entries = km.load_manifest(constants.SOURCE_MANIFEST_PATH)
+    except Exception:  # pragma: no cover - manifest optional
+        st.caption("No source manifest found.")
+        return
+
+    # Structured record counts (0 until the load scripts are run — no data shipped).
+    role_count = comp_count = 0
+    if os.path.isfile(constants.ROLE_DB_PATH):
+        from src.copilot.knowledge.roles import RoleRepository
+
+        repo = RoleRepository(constants.ROLE_DB_PATH)
+        role_count = repo.counts().get("occupations", 0)
+        repo.close()
+    if os.path.isfile(constants.COMPENSATION_DB_PATH):
+        from src.copilot.knowledge.compensation import CompensationRepository
+
+        crepo = CompensationRepository(constants.COMPENSATION_DB_PATH)
+        comp_count = crepo.count()
+        crepo.close()
+
+    def _table(rows):
+        st.dataframe(
+            [
+                {
+                    "Source": e.title,
+                    "Authority": e.authority_level,
+                    "Version/Year": e.version or e.reference_year or "—",
+                    "Status": "manual" if e.manual_acquisition_required else "auto",
+                    "Licence": "review" if e.licence_review_required else (e.licence or "—"),
+                }
+                for e in rows
+            ],
+            use_container_width=True, hide_index=True,
+        )
+
+    st.markdown("### Role & Skill Data")
+    st.caption(f"Structured occupations indexed: {role_count} (run `scripts/normalise_roles.py`).")
+    _table(km.by_type(entries, "occupation_taxonomy") + km.by_type(entries, "skills_taxonomy"))
+
+    st.markdown("### Compensation Data")
+    st.caption(f"Structured compensation records: {comp_count} (run `scripts/load_compensation.py`).")
+    _table(km.by_type(entries, "compensation_dataset"))
+
+    st.markdown("### Labour Market Data")
+    _table(km.by_type(entries, "labour_market_forecast"))
+
+    st.markdown("### Narrative Knowledge (vector)")
+    _table(km.by_type(entries, "methodology") + km.by_type(entries, "competency_framework")
+           + km.by_type(entries, "industry_report"))
+    st.caption(
+        "Authority level is retrieval metadata (1 official · 2 public framework · "
+        "3 industry), not a truth score. No datasets are committed; see "
+        "docs/knowledge_architecture.md for reproduction."
+    )
+    st.divider()
+
+
 def _page_knowledge_base() -> None:
     st.subheader("Knowledge Base")
+    _render_source_sections()
+    st.markdown("### Narrative ingestion status")
     from src.copilot.ingestion import indexer
 
     manifest = indexer.load_manifest()
@@ -344,6 +410,8 @@ def _page_rag_inspector() -> None:
     trace = inspection.get("trace")
     if trace is not None:
         st.markdown("**Pipeline**")
+        if getattr(trace, "retrieval_lane", ""):
+            st.write(f"Retrieval lane (router): `{trace.retrieval_lane}`")
         cols = st.columns(3)
         cols[0].write(f"RAG required: {'✅' if trace.rag_required else '❌'}")
         cols[1].write(f"RAG used: {'✅' if trace.rag_used else '❌'}")

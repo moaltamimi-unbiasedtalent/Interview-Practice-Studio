@@ -60,6 +60,8 @@ class PipelineTrace:
     keyword_results: list[RetrievalResult] = field(default_factory=list)
     fused_results: list[RetrievalResult] = field(default_factory=list)
     evidence_sources: list[str] = field(default_factory=list)
+    # Retrieval lane chosen by the knowledge router (classification only).
+    retrieval_lane: str = ""
     # RAG metrics (safe; counts + latency only).
     retrieval_strategy: str = ""
     translated_query_count: int = 0
@@ -171,6 +173,13 @@ class CareerIntelligenceService:
         candidate_background = self._sanitize_context(
             candidate_background, "candidate_background", "Candidate background", trace
         )
+
+        # Knowledge-router lane classification (recorded for the inspector; the
+        # baseline chat flow still uses vector RAG — structured lanes are a
+        # capability surfaced separately in OS-4A).
+        from src.copilot.knowledge.router import route_question
+
+        trace.retrieval_lane = route_question(query).lane
 
         # 2) Intent understanding + 3) query translation (fallback built in).
         _step("Translating query")

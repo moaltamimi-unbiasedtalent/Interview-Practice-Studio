@@ -226,6 +226,44 @@ VERDICT_ALLOW = "allow"
 VERDICT_WARN = "allow_with_warning"
 VERDICT_BLOCK = "block"
 
+# --- Knowledge architecture (multi-source) -----------------------------------
+
+# Source types the knowledge base understands.
+SOURCE_TYPES = (
+    "occupation_taxonomy",
+    "skills_taxonomy",
+    "compensation_dataset",
+    "labour_market_forecast",
+    "competency_framework",
+    "methodology",
+    "industry_report",
+)
+
+# Source-authority ranking — retrieval/ranking metadata, NOT a truth score.
+AUTHORITY_OFFICIAL = 1  # official / statistical (EC, ILO, O*NET, BLS, BA, ONS, Eurostat, Cedefop, NIST)
+AUTHORITY_PUBLIC_FRAMEWORK = 2  # public/professional frameworks (Civil Service, DigComp, EQF)
+AUTHORITY_INDUSTRY = 3  # reputable public industry research
+AUTHORITY_LEVELS = (AUTHORITY_OFFICIAL, AUTHORITY_PUBLIC_FRAMEWORK, AUTHORITY_INDUSTRY)
+
+# Retrieval lanes the router can select.
+LANE_STRUCTURED_ROLE = "structured_role"
+LANE_VECTOR = "vector"
+LANE_COMPENSATION = "compensation"
+LANE_FORECAST = "forecast"
+LANE_MIXED = "mixed"
+RETRIEVAL_LANES = (
+    LANE_STRUCTURED_ROLE,
+    LANE_VECTOR,
+    LANE_COMPENSATION,
+    LANE_FORECAST,
+    LANE_MIXED,
+)
+
+# Default local stores for the structured knowledge (git-ignored, like data/).
+ROLE_DB_PATH = "data/knowledge/roles.db"
+COMPENSATION_DB_PATH = "data/knowledge/compensation.db"
+SOURCE_MANIFEST_PATH = "data/source_manifest.json"
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"
