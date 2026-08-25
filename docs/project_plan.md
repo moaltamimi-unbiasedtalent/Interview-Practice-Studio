@@ -170,8 +170,8 @@ lets a tool fabricate evidence — grounded facts come from retrieval.
 | **Opt (M):** prompt-injection protection | `src/copilot/security/*`; 30-case eval | **PASS (Ph 8)** |
 | **Opt (M):** token/cost tracking | Career `UsageLedger` (`src/core/usage.py`, tokens by operation; cost honestly "unavailable"); Interview `PricingService` (reported→calculated→none) | **PASS (Ph 9R)** |
 | **Opt (M):** conversation history/export | Career history + JSON/CSV + combined session export (`src/copilot/history.py`, `src/integration/export.py`) | **PASS (Ph 9R)** |
-| **Opt (H):** hybrid search | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | Done (Ph 5) |
-| **Opt (H):** RAG evaluation | `src/copilot/evaluation/*` (retrieval baseline; full RAG eval later) | Partial |
+| **Opt (H):** hybrid search | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | **PASS (Ph 5)** |
+| **Opt (H):** RAG evaluation | `src/copilot/evaluation/rag_eval.py`, `scripts/eval_rag.py`, `evaluations/*` (33-case dataset; vector/keyword/hybrid + translation + tool-selection + citations) | **PASS (Ph 11R)** |
 
 Targets **all core** requirements, **3 medium** (exceeds 2) and **2 hard**
 (exceeds 1).

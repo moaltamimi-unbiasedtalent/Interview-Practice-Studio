@@ -618,6 +618,43 @@ def _render_practise_this_role(ss, role_req) -> None:
         st.rerun()
 
 
+def _render_rag_evaluation_report() -> None:
+    """Show the committed RAG evaluation artifacts (honest, as-run numbers)."""
+    import os
+
+    import pandas as pd
+
+    st.markdown("**RAG evaluation report** (Career Intelligence)")
+    retr = "evaluations/retrieval_results.csv"
+    tools = "evaluations/tool_selection_results.csv"
+    report_md = "evaluations/rag_evaluation.md"
+    if not os.path.isfile(retr):
+        st.info("Run `python scripts/eval_rag.py` to generate the evaluation report.")
+        return
+
+    df = pd.read_csv(retr)
+    retrieval = df[df["group"] == "retrieval"]
+    st.caption("Retrieval strategies — Hit@K / MRR / Recall@K (higher is better).")
+    st.dataframe(retrieval.drop(columns=["group"]), use_container_width=True, hide_index=True)
+    chart = retrieval.set_index("mode")[["hit_rate@k", "mrr", "recall@k"]]
+    st.bar_chart(chart)
+
+    translation = df[df["group"] == "translation"]
+    if not translation.empty:
+        st.caption("Query-translation experiment — original vs translated (honest).")
+        st.dataframe(translation.drop(columns=["group"]), use_container_width=True, hide_index=True)
+
+    if os.path.isfile(tools):
+        st.caption("Tool-selection accuracy (known-intent cases).")
+        st.dataframe(pd.read_csv(tools), use_container_width=True, hide_index=True)
+
+    if os.path.isfile(report_md):
+        with st.expander("Full evaluation write-up (rag_evaluation.md)"):
+            with open(report_md, encoding="utf-8") as handle:
+                st.markdown(handle.read())
+    st.divider()
+
+
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
@@ -635,7 +672,9 @@ def _page_evaluation() -> None:
             "security.md. Inspect any query live in the RAG Inspector."
         )
 
-    st.markdown("**Retrieval comparison (vector / keyword / hybrid)**")
+    _render_rag_evaluation_report()
+
+    st.markdown("**Live retrieval comparison (vector / keyword / hybrid)**")
     st.caption(
         "Lexical proxy metrics over probes in `data/eval/retrieval_probes.json`. "
         "These characterise exact-term behaviour and do NOT prove one mode is "

@@ -1,0 +1,45 @@
+{
+  "description": "RAG evaluation dataset for Career Intelligence. Ground truth is derived from the committed synthetic corpus under evaluations/corpus/ (general, non-fabricated career facts). expected_sources are corpus filenames a relevant chunk should come from; expected_terms are exact strings a relevant chunk should contain.",
+  "top_k": 5,
+  "cases": [
+    { "id": "sem_01", "question": "What programming skills matter for data roles?", "category": "semantic_career", "expected_sources": ["python.md"], "expected_terms": ["Python"] },
+    { "id": "sem_02", "question": "Which capabilities help someone move into a new field?", "category": "semantic_career", "expected_sources": ["career_change.md"], "expected_terms": ["transferable skills"] },
+    { "id": "sem_03", "question": "What soft skills are valued across professions?", "category": "semantic_career", "expected_sources": ["soft_skills.md"], "expected_terms": ["communication"] },
+    { "id": "sem_04", "question": "How should candidates answer behavioural questions?", "category": "semantic_career", "expected_sources": ["star_method.md"], "expected_terms": ["STAR"] },
+    { "id": "sem_05", "question": "What matters when planning a career move into another industry?", "category": "semantic_career", "expected_sources": ["career_change.md"], "expected_terms": ["network"] },
+
+    { "id": "skl_01", "question": "Python", "category": "exact_skill", "expected_sources": ["python.md"], "expected_terms": ["Python"] },
+    { "id": "skl_02", "question": "SQL databases", "category": "exact_skill", "expected_sources": ["python.md", "data_analyst.md"], "expected_terms": ["SQL"] },
+    { "id": "skl_03", "question": "AWS cloud computing", "category": "exact_skill", "expected_sources": ["cloud.md"], "expected_terms": ["AWS"] },
+    { "id": "skl_04", "question": "Docker and Kubernetes", "category": "exact_skill", "expected_sources": ["cloud.md", "devops_engineer.md"], "expected_terms": ["Kubernetes"] },
+    { "id": "skl_05", "question": "risk management and compliance", "category": "exact_skill", "expected_sources": ["security.md"], "expected_terms": ["risk management"] },
+
+    { "id": "occ_01", "question": "What does a data analyst do?", "category": "occupation", "expected_sources": ["data_analyst.md"], "expected_terms": ["dashboards"] },
+    { "id": "occ_02", "question": "responsibilities of an operations manager", "category": "occupation", "expected_sources": ["operations_manager.md"], "expected_terms": ["stakeholder management"] },
+    { "id": "occ_03", "question": "what does a DevOps engineer do?", "category": "occupation", "expected_sources": ["devops_engineer.md"], "expected_terms": ["deployment pipelines"] },
+    { "id": "occ_04", "question": "registered nurse responsibilities", "category": "occupation", "expected_sources": ["nurse.md"], "expected_terms": ["triage"] },
+    { "id": "occ_05", "question": "competencies of a data analyst", "category": "occupation", "expected_sources": ["data_analyst.md"], "expected_terms": ["visualisation"] },
+
+    { "id": "lab_01", "question": "Is demand for AI skills rising?", "category": "labour_market", "expected_sources": ["ai_demand.md"], "expected_terms": ["machine learning"] },
+    { "id": "lab_02", "question": "How is automation affecting clerical jobs?", "category": "labour_market", "expected_sources": ["automation.md"], "expected_terms": ["automation"] },
+    { "id": "lab_03", "question": "trends shaping technology sector hiring", "category": "labour_market", "expected_sources": ["tech_sector.md"], "expected_terms": ["cloud computing"] },
+    { "id": "lab_04", "question": "evidence about demand for machine learning capabilities", "category": "labour_market", "expected_sources": ["ai_demand.md"], "expected_terms": ["artificial intelligence"] },
+
+    { "id": "crx_01", "question": "What skills does a DevOps engineer need including cloud tools?", "category": "cross_document", "expected_sources": ["devops_engineer.md", "cloud.md"], "expected_terms": ["Kubernetes"] },
+    { "id": "crx_02", "question": "AI demand and the programming skills behind it", "category": "cross_document", "expected_sources": ["ai_demand.md", "python.md"], "expected_terms": ["Python"] },
+    { "id": "crx_03", "question": "data analyst skills and SQL", "category": "cross_document", "expected_sources": ["data_analyst.md", "python.md"], "expected_terms": ["SQL"] },
+    { "id": "crx_04", "question": "technology sector trends and the skills in demand", "category": "cross_document", "expected_sources": ["tech_sector.md", "cloud.md"], "expected_terms": ["cloud computing"] },
+
+    { "id": "acr_01", "question": "ISO 27001 controls", "category": "acronym_phrase", "expected_sources": ["security.md"], "expected_terms": ["ISO 27001"] },
+    { "id": "acr_02", "question": "CIPD HR qualification", "category": "acronym_phrase", "expected_sources": ["hr_credentials.md"], "expected_terms": ["CIPD"] },
+    { "id": "acr_03", "question": "SHRM certification", "category": "acronym_phrase", "expected_sources": ["hr_credentials.md"], "expected_terms": ["SHRM"] },
+    { "id": "acr_04", "question": "STAR method", "category": "acronym_phrase", "expected_sources": ["star_method.md"], "expected_terms": ["Situation"] },
+    { "id": "acr_05", "question": "SAP is not covered but AWS is", "category": "acronym_phrase", "expected_sources": ["cloud.md"], "expected_terms": ["AWS"] },
+
+    { "id": "trn_01", "question": "What should I learn for AI?", "category": "translation_benefit", "expected_sources": ["ai_demand.md", "python.md"], "expected_terms": ["machine learning"] },
+    { "id": "trn_02", "question": "How do I get ready for interviews?", "category": "translation_benefit", "expected_sources": ["star_method.md"], "expected_terms": ["behavioural"] },
+    { "id": "trn_03", "question": "I want to work in the cloud, what do I need?", "category": "translation_benefit", "expected_sources": ["cloud.md"], "expected_terms": ["AWS"] },
+    { "id": "trn_04", "question": "moving into HR, what's useful?", "category": "translation_benefit", "expected_sources": ["hr_credentials.md"], "expected_terms": ["CIPD"] },
+    { "id": "trn_05", "question": "future of office admin work", "category": "translation_benefit", "expected_sources": ["automation.md"], "expected_terms": ["clerical"] }
+  ]
+}

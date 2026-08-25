@@ -1,0 +1,9 @@
+id,expected_tools,selected_tools,correct
+tool_01,job_description_analyzer,job_description_analyzer,True
+tool_02,job_description_analyzer|candidate_gap_analyzer,job_description_analyzer|candidate_gap_analyzer,True
+tool_03,job_description_analyzer|candidate_gap_analyzer|preparation_plan_calculator,job_description_analyzer|candidate_gap_analyzer|preparation_plan_calculator,True
+tool_04,interview_question_generator,interview_question_generator,True
+tool_05,,,True
+tool_06,,,True
+
+accuracy,1.0,correct,6/6

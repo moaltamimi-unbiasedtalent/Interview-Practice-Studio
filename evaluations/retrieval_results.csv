@@ -1,0 +1,6 @@
+group,mode,cases,hit_rate@k,mrr,recall@k,term_recall@k,avg_latency_ms
+retrieval,vector,33,0.97,0.842,0.955,0.97,0.389
+retrieval,keyword,33,0.97,0.904,0.97,0.97,0.022
+retrieval,hybrid,33,0.939,0.871,0.924,0.939,0.432
+translation,original,33,0.939,0.871,0.924,0.939,0.424
+translation,translated,33,0.939,0.871,0.924,0.939,0.428

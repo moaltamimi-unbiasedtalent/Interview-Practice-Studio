@@ -69,7 +69,7 @@ monolith. **Tests** = covering tests.
 | Token/cost tracking | medium | PASS | Career `src/core/usage.py` (tokens by operation; cost "unavailable"), Interview `src/pricing_service.py` (reported→calculated→none) |
 | Conversation history/export | medium | PASS | `src/copilot/history.py` (JSON/CSV), `src/integration/export.py` (combined) |
 | Hybrid search | hard | PASS | `src/copilot/retrieval/*` |
-| RAG evaluation | hard | partial | `src/copilot/evaluation/*` |
+| RAG evaluation | hard | PASS | `src/copilot/evaluation/rag_eval.py`, `scripts/eval_rag.py`, `evaluations/*` (dataset + retrieval/translation/tool/citation reports) |
 
 ## Guarantee
 
