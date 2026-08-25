@@ -46,10 +46,13 @@ class TestModels:
     def test_tool_execution_records_result(self) -> None:
         te = ToolExecution(
             tool_name="job_description_analyzer",
-            arguments={"text": "…"},
-            result={"skills": ["triage"]},
+            status="ok",
+            duration_seconds=0.01,
+            safe_argument_summary="job_description (1200 chars)",
+            safe_result_summary="role=Nurse; 5 required skills",
         )
         assert te.ok is True and te.error is None
+        assert te.safe_result_summary.startswith("role=")
 
     def test_usage_record_defaults(self) -> None:
         usage = UsageRecord(model="openai/gpt-5-mini")

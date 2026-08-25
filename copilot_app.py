@@ -336,6 +336,138 @@ def _page_rag_inspector() -> None:
         )
 
 
+def _render_tools_used() -> None:
+    executions = st.session_state.get("tool_executions", [])
+    if not executions:
+        return
+    with st.expander(f"🛠 Tools used ({len(executions)})", expanded=False):
+        for ex in executions:
+            mark = "✓" if ex.status == "ok" else "✗"
+            st.markdown(f"{mark} **{ex.tool_name}** — `{ex.status}` ({ex.duration_seconds:.3f}s)")
+            if ex.safe_argument_summary:
+                st.caption(f"args: {ex.safe_argument_summary}")
+            if ex.safe_result_summary:
+                st.caption(f"result: {ex.safe_result_summary}")
+            if ex.error:
+                st.caption(f"error: {ex.error}")
+
+
+def _run_tool(invoker, name: str, args: dict):
+    """Invoke a tool, record its safe execution, and surface errors in the UI."""
+    result = invoker.invoke(name, args)
+    st.session_state.setdefault("tool_executions", []).append(result.execution)
+    if not result.ok:
+        st.error(f"{name}: {result.execution.status} — {result.execution.error}")
+        return None
+    return result.result
+
+
+def _page_tools() -> None:
+    st.subheader("Career Tools")
+    st.caption(
+        "Domain tools for interview prep. Deterministic tools compute their own "
+        "statistics in Python; the LLM tools need an API key. This is coaching, "
+        "not a hiring decision."
+    )
+    config = _config()
+
+    from src.copilot.tools import ToolInvoker, build_tool_registry
+
+    invoker = ToolInvoker(build_tool_registry(config=config))
+    ss = st.session_state
+
+    # 1) Job Description Analyzer -------------------------------------------
+    st.markdown("### 1. Job Description Analyzer")
+    jd = st.text_area("Paste a job description", height=160, key="tool_jd")
+    if st.button("Analyze job description", disabled=not config.is_configured):
+        if jd.strip():
+            with st.spinner("Analyzing…"):
+                ss["role_requirements"] = _run_tool(
+                    invoker, constants.TOOL_JOB_ANALYZER, {"job_description": jd}
+                )
+    role_req = ss.get("role_requirements")
+    if role_req is not None:
+        st.write(f"**Role:** {role_req.role_title or 'n/a'} · **Seniority:** {role_req.seniority or 'n/a'}")
+        cols = st.columns(2)
+        cols[0].write("Required skills"); cols[0].write(role_req.required_skills or "—")
+        cols[1].write("Technologies"); cols[1].write(role_req.technologies or "—")
+        if role_req.interpretation_notes:
+            st.caption("Interpretation (not explicit in the JD): " + "; ".join(role_req.interpretation_notes))
+
+    # 2) Candidate Gap Analyzer --------------------------------------------
+    st.markdown("### 2. Candidate Gap Analyzer")
+    background = st.text_area("Candidate background / CV summary", height=140, key="tool_bg")
+    if st.button("Analyze gaps", disabled=role_req is None):
+        if background.strip():
+            ss["gap_result"] = _run_tool(
+                invoker,
+                constants.TOOL_GAP_ANALYZER,
+                {"candidate_background": background, "role_requirements": role_req.model_dump()},
+            )
+    gap = ss.get("gap_result")
+    if gap is not None:
+        s = gap.stats
+        cols = st.columns(3)
+        cols[0].metric("Match", f"{s.match_percentage}%")
+        cols[1].metric("Weighted", f"{s.weighted_match_percentage}%")
+        cols[2].metric("Requirements", s.total_requirements)
+        st.write(f"Matched: {gap.matched or '—'}")
+        st.write(f"Partial: {gap.partially_matched or '—'}")
+        st.write(f"Missing: {gap.missing or '—'}")
+        st.caption("All percentages are computed in Python from explicit criteria.")
+
+    # 3) Preparation Plan Calculator ---------------------------------------
+    st.markdown("### 3. Preparation Plan Calculator")
+    cols = st.columns(2)
+    days = cols[0].number_input("Days until interview", min_value=1, max_value=365, value=14)
+    hpw = cols[1].number_input("Hours per week", min_value=1.0, max_value=80.0, value=6.0)
+    if st.button("Build preparation plan", disabled=gap is None or not gap.priority_gaps):
+        ss["prep_plan"] = _run_tool(
+            invoker,
+            constants.TOOL_PREP_PLANNER,
+            {
+                "priority_gaps": [g.model_dump() for g in gap.priority_gaps],
+                "days_until_interview": int(days),
+                "hours_per_week": float(hpw),
+            },
+        )
+    plan = ss.get("prep_plan")
+    if plan is not None:
+        st.write(f"**Total available hours:** {plan.total_available_hours}")
+        st.dataframe(
+            [
+                {"Gap": a.requirement, "Severity": a.severity, "Hours": a.allocated_hours, "Share %": a.share_percentage}
+                for a in plan.allocations
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+        for wk in plan.weekly_structure:
+            st.caption(f"Week {wk.week}: {wk.hours}h — focus: {', '.join(wk.focus) or '—'}")
+
+    # 4) Interview Question Generator --------------------------------------
+    st.markdown("### 4. Interview Question Generator")
+    default_role = role_req.role_title if role_req and role_req.role_title else ""
+    role_name = st.text_input("Role", value=default_role, key="tool_role")
+    focus = st.multiselect("Focus categories", list(constants.QUESTION_CATEGORIES))
+    if st.button("Generate questions", disabled=not config.is_configured or not role_name.strip()):
+        reqs = (role_req.required_skills + role_req.technologies) if role_req else []
+        with st.spinner("Generating…"):
+            ss["question_set"] = _run_tool(
+                invoker,
+                constants.TOOL_QUESTION_GENERATOR,
+                {"role": role_name, "requirements": reqs, "focus": focus},
+            )
+    qset = ss.get("question_set")
+    if qset is not None:
+        for category in qset.categories:
+            st.markdown(f"**{category.name}**")
+            for q in category.questions:
+                st.markdown(f"- {q}")
+
+    _render_tools_used()
+
+
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
@@ -386,6 +518,7 @@ def _page_evaluation() -> None:
 PAGES = {
     "Chat": _page_chat,
     "Knowledge Base": _page_knowledge_base,
+    "Career Tools": _page_tools,
     "RAG Inspector": _page_rag_inspector,
     "Evaluation": _page_evaluation,
 }

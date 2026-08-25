@@ -179,6 +179,37 @@ HYBRID_KEYWORD_WEIGHT = 1.0
 # result strong in only one channel can still surface).
 HYBRID_CANDIDATE_K = 10
 
+# --- Domain tool calling -----------------------------------------------------
+
+# Registered tool names (the ONLY functions the model may invoke). Anything else
+# is rejected as unsupported — no arbitrary Python/shell/filesystem/network.
+TOOL_JOB_ANALYZER = "job_description_analyzer"
+TOOL_GAP_ANALYZER = "candidate_gap_analyzer"
+TOOL_PREP_PLANNER = "preparation_plan_calculator"
+TOOL_QUESTION_GENERATOR = "interview_question_generator"
+REGISTERED_TOOLS = (
+    TOOL_JOB_ANALYZER,
+    TOOL_GAP_ANALYZER,
+    TOOL_PREP_PLANNER,
+    TOOL_QUESTION_GENERATOR,
+)
+
+# Severity weights used for deterministic time allocation and gap prioritisation.
+SEVERITY_WEIGHTS = {"high": 3.0, "medium": 2.0, "low": 1.0}
+SEVERITY_ORDER = ("high", "medium", "low")
+
+# Default interview-question categories the generator may use.
+QUESTION_CATEGORIES = (
+    "behavioural",
+    "situational",
+    "competency",
+    "technical",
+    "leadership",
+    "stakeholder",
+    "executive",
+    "culture_values",
+)
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"
