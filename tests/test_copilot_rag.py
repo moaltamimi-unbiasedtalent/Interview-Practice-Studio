@@ -203,7 +203,7 @@ class TestRagChain:
         # Only the cited marker [1] is returned, not [2].
         assert [c.marker for c in response.citations] == ["[1]"]
         assert response.citations[0].chunk_id in {r.chunk.chunk_id for r in response.retrieved}
-        assert response.translated_query.original == "What cloud skills are in demand?"
+        assert response.translated_query.original_query == "What cloud skills are in demand?"
 
     def test_chain_reuses_supplied_results(self) -> None:
         store = _store_with(_chunk("a", "Evidence text about data roles.", title="Data"))

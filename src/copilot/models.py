@@ -90,16 +90,47 @@ class RetrievalResult(_Base):
 
 
 class TranslatedQuery(_Base):
-    """The output of query translation (rewrites/expansions of the user query)."""
+    """The output of query translation (rewrites/expansions of the user query).
 
-    original: str = Field(min_length=1, description="The user's original query.")
-    rewrites: list[str] = Field(
-        default_factory=list, description="Rewritten/expanded query variants."
+    Produced by the query-understanding stage before retrieval. The
+    ``explanation`` is a short, user-safe rationale — never chain-of-thought.
+    """
+
+    original_query: str = Field(min_length=1, description="The user's original query.")
+    rewritten_query: str = Field(
+        min_length=1, description="A single clearer retrieval query (intent preserved)."
+    )
+    alternate_queries: list[str] = Field(
+        default_factory=list,
+        description="2–4 additional retrieval variants for broad questions.",
+    )
+    intent: str = Field(
+        default="other", description="Classified query intent (see QueryIntent)."
+    )
+    retrieval_required: bool = Field(
+        default=True, description="Whether the knowledge base should be searched."
+    )
+    metadata_filters: dict = Field(
+        default_factory=dict,
+        description="Safe, whitelisted equality filters over indexed metadata.",
+    )
+    explanation: str = Field(
+        default="",
+        description="Short, user-safe reason for the rewrite (no chain-of-thought).",
     )
     strategy: str = Field(
         default="passthrough",
-        description="Translation strategy used (multi_query, hyde, decompose, …).",
+        description="Translation strategy used (llm, heuristic, passthrough, fallback).",
     )
+
+    @property
+    def all_queries(self) -> list[str]:
+        """Rewritten query first, then de-duplicated alternates."""
+        queries = [self.rewritten_query]
+        for alt in self.alternate_queries:
+            if alt and alt not in queries:
+                queries.append(alt)
+        return queries
 
 
 class ToolExecution(_Base):

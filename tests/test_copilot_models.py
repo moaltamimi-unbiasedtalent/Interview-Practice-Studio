@@ -34,8 +34,14 @@ class TestModels:
         assert result.retriever == "hybrid"
 
     def test_translated_query_defaults(self) -> None:
-        tq = TranslatedQuery(original="What skills for a nurse?")
-        assert tq.rewrites == [] and tq.strategy == "passthrough"
+        tq = TranslatedQuery(
+            original_query="What skills for a nurse?",
+            rewritten_query="Skills required for a nurse",
+        )
+        assert tq.alternate_queries == []
+        assert tq.retrieval_required is True
+        assert tq.strategy == "passthrough"
+        assert tq.all_queries == ["Skills required for a nurse"]
 
     def test_tool_execution_records_result(self) -> None:
         te = ToolExecution(
