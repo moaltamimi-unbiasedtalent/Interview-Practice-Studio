@@ -499,7 +499,41 @@ def _page_tools() -> None:
             for q in category.questions:
                 st.markdown(f"- {q}")
 
+    _render_practise_this_role(ss, role_req)
     _render_tools_used()
+
+
+def _render_practise_this_role(ss, role_req) -> None:
+    """Offer a handoff to Interview Practice once a role has been analysed."""
+    if role_req is None:
+        return
+    from src.integration import handoff
+    from src.integration.preparation_context import build_preparation_context
+
+    st.divider()
+    st.markdown("### Practise this role")
+    gap = ss.get("gap_result")
+    evidence = (ss.get("last_inspection") or {}).get("results") or []
+    context = build_preparation_context(
+        role_requirements=role_req,
+        gap_result=gap,
+        evidence=evidence,
+        job_description=ss.get("tool_jd") or None,
+    )
+    prev = handoff.preview(context)
+    cols = st.columns(2)
+    cols[0].write(f"**Role:** {prev['role']}")
+    cols[0].write(f"**Seniority:** {prev['seniority']}")
+    cols[0].write(f"**Top competencies:** {', '.join(prev['top_competencies']) or '—'}")
+    cols[1].write(f"**Priority gaps:** {', '.join(prev['priority_gaps']) or '—'}")
+    cols[1].write(f"**Likely interview themes:** {', '.join(prev['likely_themes']) or '—'}")
+    st.caption(
+        "Sends this preparation to Interview Practice to pre-fill a setup you can "
+        "review and edit. It never starts an interview automatically."
+    )
+    if st.button("Practise this role", type="primary", key="practise_this_role"):
+        handoff.request_practice(st.session_state, context)
+        st.rerun()
 
 
 def _page_evaluation() -> None:
@@ -586,6 +620,16 @@ def render_sidebar() -> None:
         help="hybrid (default) fuses semantic + BM25; the others are for testing.",
     )
     _render_status(config)
+
+    # Preparation handoff: show + allow clearing an active PreparationContext.
+    from src.integration import handoff
+
+    if handoff.has_context(st.session_state):
+        st.sidebar.divider()
+        st.sidebar.caption("Preparation context is active (sent to Interview Practice).")
+        if st.sidebar.button("Clear preparation context"):
+            handoff.clear_context(st.session_state)
+            st.rerun()
 
 
 def render_career() -> None:

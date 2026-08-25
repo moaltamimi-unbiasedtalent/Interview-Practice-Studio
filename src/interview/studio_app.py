@@ -44,6 +44,7 @@ from src.live_interview import (
 )
 from components.live_interviewer import is_available as live_component_available
 from components.live_interviewer import live_interviewer
+from src.integration import handoff  # career → interview preparation handoff
 
 _METADATA_CACHE_KEY = "_model_supported_params"
 
@@ -262,20 +263,52 @@ def _render_mode_cards() -> None:
                 st.rerun()
 
 
+def _label_index(pairs, domain_id, default: int = 0) -> int:
+    """Index of a domain id within a label list, or ``default`` if absent."""
+    if not domain_id:
+        return default
+    try:
+        return ui_helpers.labels(pairs).index(ui_helpers.label_for_id(pairs, domain_id))
+    except (ValueError, KeyError):
+        return default
+
+
 def render_setup(session: SessionManager, config: AppConfig, dev: dict) -> None:
     st.subheader("Practice Interview")
     _render_mode_cards()
     st.divider()
+
+    # Career → Interview handoff: pre-fill (defaults only; fully editable).
+    prefill = handoff.interview_prefill(st.session_state)
+    if prefill:
+        st.success(
+            "Preparation informed by Career Intelligence — "
+            f"{prefill.get('source_count', 0)} source(s). Review and edit below, "
+            "then generate your strategy."
+        )
+
     st.markdown("#### Set up your interview")
     with st.form("interview_setup"):
-        target_role = st.text_input("Target role *", help="Required.")
-        industry = st.text_input("Industry or sector")
-        career_label = st.selectbox(
-            "Career level", ui_helpers.labels(ui_helpers.CAREER_LEVELS)
+        target_role = st.text_input(
+            "Target role *", value=prefill.get("target_role", ""), help="Required."
         )
-        company_context = st.text_area("Company context", height=80)
-        job_description = st.text_area("Job description (recommended)", height=140)
-        candidate_background = st.text_area("Your background", height=100)
+        industry = st.text_input("Industry or sector", value=prefill.get("industry", ""))
+        career_label = st.selectbox(
+            "Career level",
+            ui_helpers.labels(ui_helpers.CAREER_LEVELS),
+            index=_label_index(ui_helpers.CAREER_LEVELS, prefill.get("career_level")),
+        )
+        company_context = st.text_area(
+            "Company context", height=80, value=prefill.get("company_context", "")
+        )
+        job_description = st.text_area(
+            "Job description (recommended)",
+            height=140,
+            value=prefill.get("job_description", ""),
+        )
+        candidate_background = st.text_area(
+            "Your background", height=100, value=prefill.get("candidate_background", "")
+        )
         interview_type_labels = st.multiselect(
             "Interview types",
             ui_helpers.labels(ui_helpers.INTERVIEW_TYPES),
@@ -287,7 +320,11 @@ def render_setup(session: SessionManager, config: AppConfig, dev: dict) -> None:
         difficulty_label = st.selectbox(
             "Difficulty",
             ui_helpers.labels(ui_helpers.DIFFICULTIES),
-            index=ui_helpers.difficulty_default_index(),
+            index=_label_index(
+                ui_helpers.DIFFICULTIES,
+                prefill.get("difficulty"),
+                default=ui_helpers.difficulty_default_index(),
+            ),
         )
         number_of_questions = st.slider(
             "Number of questions",
@@ -1261,6 +1298,13 @@ def render_report(session: SessionManager) -> None:
         file_name="interview_report.md",
         mime="text/markdown",
     )
+
+    # Reverse navigation back to Career Intelligence (context is preserved).
+    if handoff.has_context(st.session_state):
+        st.divider()
+        if st.button("Return to preparation"):
+            handoff.request_return_to_preparation(st.session_state)
+            st.rerun()
 
 
 # =============================================================================
