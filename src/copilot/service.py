@@ -1,0 +1,385 @@
+"""CareerIntelligenceService — the single orchestration layer.
+
+Combines advanced RAG and domain tool calling into one explainable, non-autonomous
+LangChain workflow so the Streamlit layer calls a domain service instead of wiring
+retrieval, translation and tools itself:
+
+    input validation -> intent understanding -> query translation
+    -> retrieval requirement -> hybrid retrieval -> tool requirement
+    -> tool execution -> bounded (trust-separated) context -> OpenRouter
+    -> grounded response (citations + tools used)
+
+Every stage has a controlled fallback: a failure degrades the result and is
+recorded in the trace — it never crashes the Streamlit session.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+
+from src.copilot import constants
+from src.copilot.config import CopilotConfig
+from src.copilot.models import ChatResponse, RetrievalResult, ToolExecution, TranslatedQuery
+from src.copilot.rag.context import build_context
+from src.copilot.rag.responder import Responder
+from src.copilot.rag.routing import route_for_intent
+from src.copilot.rag.synthesis import build_synthesis_messages
+from src.copilot.rag.translation import QueryTranslator
+from src.copilot.retrieval.fusion import reciprocal_rank_fusion
+from src.copilot.retrieval.hybrid import HybridRetriever
+from src.copilot.retrieval.keyword import KeywordRetriever
+from src.copilot.retrieval.vector import VectorRetriever
+from src.copilot.tools import ToolInvoker, build_tool_registry
+
+__all__ = ["CareerIntelligenceService", "OrchestrationResult", "PipelineTrace"]
+
+_MARKER_RE = re.compile(r"\[(\d+)\]")
+
+
+@dataclass
+class PipelineTrace:
+    """Safe, inspector-facing trace of the pipeline (no hidden reasoning)."""
+
+    intent: str = "other"
+    rag_required: bool = False
+    rag_used: bool = False
+    tools_planned: list[str] = field(default_factory=list)
+    tools_invoked: list[str] = field(default_factory=list)
+    degraded: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+    vector_results: list[RetrievalResult] = field(default_factory=list)
+    keyword_results: list[RetrievalResult] = field(default_factory=list)
+    fused_results: list[RetrievalResult] = field(default_factory=list)
+    evidence_sources: list[str] = field(default_factory=list)
+
+
+@dataclass
+class OrchestrationResult:
+    """The service's result: a grounded response plus the pipeline trace."""
+
+    response: ChatResponse
+    trace: PipelineTrace
+
+    @property
+    def answer(self) -> str:
+        return self.response.answer
+
+    @property
+    def citations(self):
+        return self.response.citations
+
+    @property
+    def retrieved(self):
+        return self.response.retrieved
+
+    @property
+    def tool_calls(self):
+        return self.response.tool_calls
+
+
+class CareerIntelligenceService:
+    """Domain service that orchestrates RAG + tools into one grounded answer."""
+
+    def __init__(
+        self,
+        *,
+        config: CopilotConfig | None = None,
+        retriever=None,
+        translator: QueryTranslator | None = None,
+        tool_invoker: ToolInvoker | None = None,
+        synthesis_responder: Responder | None = None,
+        top_k: int = constants.DEFAULT_TOP_K,
+        max_context_chars: int = constants.MAX_CONTEXT_CHARS,
+    ) -> None:
+        self.config = config
+        self.retriever = retriever
+        self.translator = translator or QueryTranslator(config=config)
+        self.tool_invoker = tool_invoker or ToolInvoker(build_tool_registry(config=config))
+        self._synthesis_responder = synthesis_responder
+        self.top_k = top_k
+        self.max_context_chars = max_context_chars
+
+    # -- public API --------------------------------------------------------
+
+    def answer(
+        self,
+        query: str,
+        *,
+        job_description: str | None = None,
+        candidate_background: str | None = None,
+        days_until_interview: int | None = None,
+        hours_per_week: float | None = None,
+        question_focus: list[str] | None = None,
+        model: str | None = None,
+    ) -> OrchestrationResult:
+        trace = PipelineTrace()
+
+        # 1) Input validation.
+        query = (query or "").strip()
+        if not query:
+            return self._plain_result("Please enter a question.", trace)
+        if len(query) > constants.MAX_QUERY_CHARS:
+            query = query[: constants.MAX_QUERY_CHARS]
+            trace.notes.append("Query truncated to the maximum length.")
+
+        # 2) Intent understanding + 3) query translation (fallback built in).
+        translated = self.translator.translate(query)
+        trace.intent = translated.intent
+        if translated.strategy in ("heuristic", "fallback"):
+            trace.degraded.append("translation")
+            trace.notes.append("Query translation degraded; used heuristic understanding.")
+
+        # 4) Route: does this need RAG, tools, both or neither?
+        route = route_for_intent(translated.intent)
+        rag_required = route.rag_required and translated.retrieval_required
+        trace.rag_required = rag_required
+        trace.tools_planned = list(route.tools)
+
+        # 5) Hybrid retrieval (controlled).
+        results: list[RetrievalResult] = []
+        if rag_required:
+            results = self._retrieve(translated, trace)
+
+        bundle = build_context(results, max_chars=self.max_context_chars)
+        trace.evidence_sources = [c.label for c in bundle.citations]
+
+        # 6) Tool requirement + 7) tool execution (controlled).
+        tool_execs, tool_summaries = self._run_tools(
+            route,
+            trace,
+            job_description=job_description,
+            candidate_background=candidate_background,
+            days_until_interview=days_until_interview,
+            hours_per_week=hours_per_week,
+            question_focus=question_focus,
+            results=results,
+        )
+
+        # 8) Bounded, trust-separated context + 9) OpenRouter synthesis.
+        messages = build_synthesis_messages(
+            query=query,
+            evidence_context=bundle.context_text,
+            tool_summaries=tool_summaries,
+            job_description=job_description,
+            candidate_background=candidate_background,
+        )
+        answer_text, usage = self._synthesize(
+            messages, trace, rag_required=rag_required,
+            results=results, tool_summaries=tool_summaries, model=model,
+        )
+
+        # 10) Citations map to referenced, real retrieved chunks.
+        referenced = {f"[{n}]" for n in _MARKER_RE.findall(answer_text)}
+        citations = [c for c in bundle.citations if c.marker in referenced]
+
+        response = ChatResponse(
+            answer=answer_text,
+            citations=citations,
+            retrieved=results,
+            tool_calls=[te.execution for te in tool_execs],
+            translated_query=translated,
+            usage=usage,
+        )
+        return OrchestrationResult(response=response, trace=trace)
+
+    # -- stages ------------------------------------------------------------
+
+    def _retrieve(
+        self, translated: TranslatedQuery, trace: PipelineTrace
+    ) -> list[RetrievalResult]:
+        if self.retriever is None:
+            from src.copilot.retrieval import build_retriever
+            from src.copilot.vectorstore import build_vector_store
+
+            if self.config is None:
+                trace.notes.append("No retriever/config available; skipped retrieval.")
+                return []
+            try:
+                store = build_vector_store(self.config)
+                self.retriever = build_retriever(self.config, store=store)
+            except Exception:  # noqa: BLE001
+                trace.degraded.append("retrieval")
+                trace.notes.append("Could not build the retriever; skipped retrieval.")
+                return []
+
+        filters = translated.metadata_filters or None
+
+        # Per-query retrieval, fused across the translated queries.
+        per_query: list[list[RetrievalResult]] = []
+        for query in translated.all_queries:
+            try:
+                per_query.append(
+                    self.retriever.retrieve(query, top_k=self.top_k, filters=filters)
+                )
+            except Exception:  # noqa: BLE001 - one query failing must not abort
+                trace.degraded.append("retrieval")
+                per_query.append([])
+        results = reciprocal_rank_fusion(per_query, top_k=self.top_k)
+
+        # Channel detail for the inspector (best-effort).
+        try:
+            if isinstance(self.retriever, HybridRetriever):
+                detail = self.retriever.search(
+                    translated.rewritten_query, top_k=self.top_k, filters=filters
+                )
+                trace.vector_results = detail.vector
+                trace.keyword_results = detail.keyword
+                for channel in detail.degraded:
+                    if channel not in trace.degraded:
+                        trace.degraded.append(channel)
+            elif isinstance(self.retriever, VectorRetriever):
+                trace.vector_results = results
+            elif isinstance(self.retriever, KeywordRetriever):
+                trace.keyword_results = results
+        except Exception:  # noqa: BLE001 - inspector detail is non-critical
+            pass
+
+        trace.fused_results = results
+        trace.rag_used = bool(results)
+        if not results:
+            trace.notes.append("No evidence retrieved for this query.")
+        return results
+
+    def _run_tools(
+        self,
+        route,
+        trace: PipelineTrace,
+        *,
+        job_description,
+        candidate_background,
+        days_until_interview,
+        hours_per_week,
+        question_focus,
+        results,
+    ) -> tuple[list, list[str]]:
+        executions: list = []
+        summaries: list[str] = []
+        role_req = None
+        gap_res = None
+
+        def record(name: str, args: dict):
+            result = self.tool_invoker.invoke(name, args)
+            executions.append(result)
+            trace.tools_invoked.append(name)
+            if result.execution.status != "ok":
+                trace.notes.append(f"{name}: {result.execution.status}.")
+                if result.execution.status == "error":
+                    trace.degraded.append(name)
+            return result
+
+        for tool in route.tools:
+            if tool == constants.TOOL_JOB_ANALYZER:
+                if not job_description:
+                    trace.notes.append("Job analyzer skipped: no job description provided.")
+                    continue
+                res = record(tool, {"job_description": job_description})
+                if res.ok:
+                    role_req = res.result
+                    summaries.append(
+                        f"Role requirements: {len(role_req.required_skills)} required "
+                        f"skills, {len(role_req.technologies)} technologies; role="
+                        f"{role_req.role_title or 'n/a'}."
+                    )
+            elif tool == constants.TOOL_GAP_ANALYZER:
+                if not (candidate_background and role_req):
+                    trace.notes.append(
+                        "Gap analyzer skipped: needs candidate background and role requirements."
+                    )
+                    continue
+                res = record(
+                    tool,
+                    {
+                        "candidate_background": candidate_background,
+                        "role_requirements": role_req.model_dump(),
+                    },
+                )
+                if res.ok:
+                    gap_res = res.result
+                    s = gap_res.stats
+                    summaries.append(
+                        f"Gap analysis: match {s.match_percentage}% (weighted "
+                        f"{s.weighted_match_percentage}%); {s.matched} matched, "
+                        f"{s.partial} partial, {s.missing} missing."
+                    )
+            elif tool == constants.TOOL_PREP_PLANNER:
+                if not (gap_res and gap_res.priority_gaps and days_until_interview and hours_per_week):
+                    trace.notes.append(
+                        "Preparation planner skipped: needs gaps, days and hours."
+                    )
+                    continue
+                res = record(
+                    tool,
+                    {
+                        "priority_gaps": [g.model_dump() for g in gap_res.priority_gaps],
+                        "days_until_interview": int(days_until_interview),
+                        "hours_per_week": float(hours_per_week),
+                    },
+                )
+                if res.ok:
+                    plan = res.result
+                    summaries.append(
+                        f"Preparation plan: {plan.total_available_hours}h over "
+                        f"{len(plan.weekly_structure)} week(s)."
+                    )
+            elif tool == constants.TOOL_QUESTION_GENERATOR:
+                role = (role_req.role_title if role_req else None) or ""
+                if not role:
+                    trace.notes.append("Question generator skipped: no role identified.")
+                    continue
+                requirements = (
+                    (role_req.required_skills + role_req.technologies) if role_req else []
+                )
+                evidence = [r.text[:200] for r in results[:3]]
+                res = record(
+                    tool,
+                    {
+                        "role": role,
+                        "requirements": requirements,
+                        "evidence": evidence,
+                        "focus": question_focus or [],
+                    },
+                )
+                if res.ok:
+                    qset = res.result
+                    total = sum(len(c.questions) for c in qset.categories)
+                    summaries.append(
+                        f"Interview questions: {total} across {len(qset.categories)} categories."
+                    )
+
+        return executions, summaries
+
+    def _get_synthesis_responder(self, model: str | None) -> Responder:
+        if self._synthesis_responder is not None:
+            return self._synthesis_responder
+        from src.copilot.rag.responder import build_openrouter_responder
+
+        return build_openrouter_responder(self.config, model=model)
+
+    def _synthesize(
+        self, messages, trace, *, rag_required, results, tool_summaries, model
+    ):
+        try:
+            responder = self._get_synthesis_responder(model)
+            reply = responder(messages)
+            return reply.content, reply.usage
+        except Exception:  # noqa: BLE001 - model/config failure must not crash
+            trace.degraded.append("model")
+            trace.notes.append("The model was unavailable; returned a limited summary.")
+            return self._fallback_answer(rag_required, results, tool_summaries), None
+
+    @staticmethod
+    def _fallback_answer(rag_required, results, tool_summaries) -> str:
+        parts = ["The assistant model is currently unavailable, so this is a limited summary."]
+        if tool_summaries:
+            parts.append("Tool results (calculated): " + " ".join(tool_summaries))
+        if results:
+            parts.append(f"Retrieved {len(results)} evidence passage(s) — see sources.")
+        elif rag_required:
+            parts.append(constants.INSUFFICIENT_EVIDENCE_MESSAGE)
+        return " ".join(parts)
+
+    def _plain_result(self, message: str, trace: PipelineTrace) -> OrchestrationResult:
+        return OrchestrationResult(
+            response=ChatResponse(answer=message), trace=trace
+        )
