@@ -107,6 +107,11 @@ class BaseVectorStore(ABC):
     def reset(self) -> None:
         ...
 
+    @abstractmethod
+    def all_chunks(self) -> list[DocumentChunk]:
+        """Return every stored chunk (so BM25 can index the same corpus)."""
+        ...
+
 
 class InMemoryVectorStore(BaseVectorStore):
     """A dependency-free cosine store (fallback + tests)."""
@@ -156,6 +161,18 @@ class InMemoryVectorStore(BaseVectorStore):
 
     def reset(self) -> None:
         self._items.clear()
+
+    def all_chunks(self) -> list[DocumentChunk]:
+        return [
+            DocumentChunk(
+                chunk_id=chunk_id,
+                doc_id=item["doc_id"],
+                text=item["text"],
+                position=int(item["metadata"].get("chunk_index", 0) or 0),
+                metadata=dict(item["metadata"]),
+            )
+            for chunk_id, item in self._items.items()
+        ]
 
 
 class ChromaStore(BaseVectorStore):
@@ -270,6 +287,27 @@ class ChromaStore(BaseVectorStore):
             name=self.collection_name,
             metadata={"hnsw:space": "cosine"},
         )
+
+    def all_chunks(self) -> list[DocumentChunk]:
+        got = self._collection.get(include=["documents", "metadatas"])
+        ids = got.get("ids", [])
+        documents = got.get("documents", []) or []
+        metadatas = got.get("metadatas", []) or []
+        chunks: list[DocumentChunk] = []
+        for chunk_id, text, metadata in zip(ids, documents, metadatas):
+            if not text:
+                continue  # DocumentChunk requires non-empty text
+            metadata = dict(metadata or {})
+            chunks.append(
+                DocumentChunk(
+                    chunk_id=chunk_id,
+                    doc_id=metadata.get("doc_id", chunk_id),
+                    text=text or "",
+                    position=int(metadata.get("chunk_index", 0) or 0),
+                    metadata=metadata,
+                )
+            )
+        return chunks
 
 
 def _chroma_available() -> bool:

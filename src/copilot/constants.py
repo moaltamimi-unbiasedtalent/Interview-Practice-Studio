@@ -163,6 +163,22 @@ MAX_ALTERNATE_QUERIES = 3
 # Reciprocal-rank-fusion constant (higher = flatter weighting of ranks).
 RRF_K = 60
 
+# --- Hybrid search -----------------------------------------------------------
+
+# Retriever modes. Hybrid (vector + BM25) is the default; the others are kept for
+# testing and evaluation.
+RETRIEVAL_MODES = ("vector", "keyword", "hybrid")
+DEFAULT_RETRIEVAL_MODE = "hybrid"
+
+# RRF weights for hybrid fusion. Equal weights by default: neither channel is
+# assumed better without evidence (see docs/hybrid_search.md and the evaluation
+# baseline). Override via config if evaluation on your corpus justifies it.
+HYBRID_VECTOR_WEIGHT = 1.0
+HYBRID_KEYWORD_WEIGHT = 1.0
+# Candidate pool each channel contributes before fusion (>= final top_k so a
+# result strong in only one channel can still surface).
+HYBRID_CANDIDATE_K = 10
+
 # --- Cost currency -----------------------------------------------------------
 
 DEFAULT_CURRENCY = "USD"

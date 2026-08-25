@@ -27,6 +27,9 @@ EMBEDDING_KEY_NAME = "COPILOT_EMBEDDING_API_KEY"
 EMBEDDING_PROVIDER_NAME = "COPILOT_EMBEDDING_PROVIDER"
 CHROMA_DIR_NAME = "COPILOT_CHROMA_DIR"
 DEBUG_NAME = "COPILOT_DEBUG"
+RETRIEVAL_MODE_NAME = "COPILOT_RETRIEVAL_MODE"
+HYBRID_VECTOR_WEIGHT_NAME = "COPILOT_HYBRID_VECTOR_WEIGHT"
+HYBRID_KEYWORD_WEIGHT_NAME = "COPILOT_HYBRID_KEYWORD_WEIGHT"
 
 
 class CopilotConfig(BaseModel):
@@ -46,6 +49,12 @@ class CopilotConfig(BaseModel):
 
     # Vector store persistence.
     chroma_persist_dir: str = constants.CHROMA_PERSIST_DIR
+
+    # Retrieval: "vector" | "keyword" | "hybrid" (default). Weights control the
+    # RRF fusion of the two channels in hybrid mode.
+    retrieval_mode: str = constants.DEFAULT_RETRIEVAL_MODE
+    hybrid_vector_weight: float = constants.HYBRID_VECTOR_WEIGHT
+    hybrid_keyword_weight: float = constants.HYBRID_KEYWORD_WEIGHT
 
     # Connection + development settings.
     connect_timeout_seconds: float = constants.CONNECT_TIMEOUT_SECONDS
@@ -98,6 +107,23 @@ def _read_bool(name: str, default: bool = False) -> bool:
     return raw.lower() in ("1", "true", "yes", "on")
 
 
+def _read_float(name: str, default: float) -> float:
+    raw = _read(name)
+    if raw is None:
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _read_mode(name: str, default: str) -> str:
+    raw = _read(name)
+    if raw and raw.lower() in constants.RETRIEVAL_MODES:
+        return raw.lower()
+    return default
+
+
 def load_config() -> CopilotConfig:
     """Build the configuration from secrets/environment; never raises on a
     missing key."""
@@ -117,5 +143,12 @@ def load_config() -> CopilotConfig:
             _read(EMBEDDING_PROVIDER_NAME) or constants.DEFAULT_EMBEDDING_PROVIDER
         ).lower(),
         chroma_persist_dir=_read(CHROMA_DIR_NAME) or constants.CHROMA_PERSIST_DIR,
+        retrieval_mode=_read_mode(RETRIEVAL_MODE_NAME, constants.DEFAULT_RETRIEVAL_MODE),
+        hybrid_vector_weight=_read_float(
+            HYBRID_VECTOR_WEIGHT_NAME, constants.HYBRID_VECTOR_WEIGHT
+        ),
+        hybrid_keyword_weight=_read_float(
+            HYBRID_KEYWORD_WEIGHT_NAME, constants.HYBRID_KEYWORD_WEIGHT
+        ),
         debug=_read_bool(DEBUG_NAME, default=False),
     )
