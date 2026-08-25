@@ -4,6 +4,7 @@
 
 # Virtual environments
 .venv/
+.venv.broken/
 venv/
 
 # Python caches
@@ -35,8 +36,16 @@ tmp/
 *.egg-info/
 
 # Local database (dev)
-data/
 *.db
+# Knowledge base: keep the structure + docs, ignore generated stores and the
+# (potentially large / licensed) source documents.
+data/chroma/*
+data/processed/*
+data/raw/*
+!data/raw/.gitkeep
+!data/raw/README.md
+!data/processed/.gitkeep
+!data/chroma/.gitkeep
 
 # Local editor/launch config
 .claude/
