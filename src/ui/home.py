@@ -5,6 +5,7 @@ from __future__ import annotations
 import streamlit as st
 
 from src.ui import navigation as nav
+from src.ui import shared
 
 __all__ = ["render_home"]
 
@@ -16,37 +17,40 @@ def _go(route: str) -> None:
 
 
 def render_home() -> None:
-    st.title(nav.APP_TITLE)
-    st.markdown(f"**{nav.APP_TAGLINE}**")
-    st.caption(
-        "One platform, two modules: evidence-grounded career intelligence and "
-        "realistic interview practice. Guidance and practice only — never a "
-        "hiring decision."
+    shared.page_header(
+        nav.APP_TITLE,
+        subtitle=nav.APP_TAGLINE,
+        caption=(
+            "One platform, two modules: evidence-grounded career intelligence and "
+            "realistic interview practice. Guidance and practice only — never a "
+            "hiring decision."
+        ),
     )
 
     left, right = st.columns(2)
     with left:
-        with st.container(border=True):
-            st.subheader("Career Intelligence")
+        with shared.card():
+            shared.section_header("Prepare · Career Intelligence")
             st.write(
                 "Understand a target role, identify skill gaps and build an "
                 "evidence-grounded preparation strategy."
             )
-            if st.button("Prepare for a role", key="home_career", use_container_width=True):
+            if shared.action_button("Prepare for a role", key="home_career", primary=True):
                 _go(nav.CAREER)
     with right:
-        with st.container(border=True):
-            st.subheader("Interview Practice")
+        with shared.card():
+            shared.section_header("Practise · Interview Practice")
             st.write(
                 "Practise realistic interviews, improve your answers and develop "
                 "stronger delivery."
             )
-            if st.button("Start practising", key="home_interview", use_container_width=True):
+            if shared.action_button("Start practising", key="home_interview", primary=True):
                 _go(nav.INTERVIEW)
 
     st.divider()
-    st.markdown("#### Platform workflow")
-    st.markdown("**UNDERSTAND → PREPARE → PRACTISE → REVIEW → IMPROVE**")
+    shared.section_header("How it works")
+    st.markdown(f'<span class="ios-workflow">{nav.WORKFLOW}</span>', unsafe_allow_html=True)
+    shared.badges(nav.WORKFLOW_STEPS, tone="info")
     st.caption(
         "Career Intelligence covers Understand & Prepare; Interview Practice "
         "covers Practise, Review & Improve."

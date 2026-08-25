@@ -12,12 +12,15 @@ def test_career_ui_imports() -> None:
 
 
 def test_shell_boots_and_exposes_career_routes() -> None:
+    from src.ui import navigation as nav
+
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     assert not at.exception
     options = [opt for radio in at.radio for opt in radio.options]
+    # Grouped display labels (Prepare/Resources/Advanced) for the career routes.
     for section in ("Career Intelligence", "Knowledge Base", "RAG Inspector", "Evaluation"):
-        assert section in options
+        assert nav.display_label(section) in options
 
 
 def test_career_route_renders_without_key() -> None:

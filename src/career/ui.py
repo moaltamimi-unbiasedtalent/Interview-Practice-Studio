@@ -605,21 +605,30 @@ def ensure_ready() -> None:
 
 
 def render_sidebar() -> None:
-    """Career-specific sidebar: retrieval-mode selector + status."""
+    """Career-specific sidebar: a friendly status; technical controls are secondary."""
     config = _config()
+    st.sidebar.caption(f"Model ready: {'✅' if config.is_configured else '❌ add API key'}")
+
+    # Technical controls kept out of the way (developer/advanced).
     default_mode_index = (
         constants.RETRIEVAL_MODES.index(config.retrieval_mode)
         if config.retrieval_mode in constants.RETRIEVAL_MODES
         else constants.RETRIEVAL_MODES.index(constants.DEFAULT_RETRIEVAL_MODE)
     )
-    st.sidebar.selectbox(
-        "Retrieval mode",
-        constants.RETRIEVAL_MODES,
-        index=default_mode_index,
-        key="retrieval_mode",
-        help="hybrid (default) fuses semantic + BM25; the others are for testing.",
-    )
-    _render_status(config)
+    with st.sidebar.expander("Developer settings", expanded=False):
+        st.selectbox(
+            "Retrieval mode",
+            constants.RETRIEVAL_MODES,
+            index=default_mode_index,
+            key="retrieval_mode",
+            help="hybrid (default) fuses semantic + BM25; the others are for testing.",
+        )
+        st.write(f"Model: `{config.default_model}`")
+        try:
+            st.write(f"Indexed chunks: {_get_store(config).count()}")
+        except Exception:  # pragma: no cover - defensive UI guard
+            st.write("Indexed chunks: unavailable")
+        st.caption(f"Vector store: `{config.chroma_persist_dir}`")
 
     # Preparation handoff: show + allow clearing an active PreparationContext.
     from src.integration import handoff

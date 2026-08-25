@@ -281,11 +281,22 @@ def render_setup(session: SessionManager, config: AppConfig, dev: dict) -> None:
     # Career → Interview handoff: pre-fill (defaults only; fully editable).
     prefill = handoff.interview_prefill(st.session_state)
     if prefill:
-        st.success(
-            "Preparation informed by Career Intelligence — "
-            f"{prefill.get('source_count', 0)} source(s). Review and edit below, "
-            "then generate your strategy."
-        )
+        context = handoff.get_context(st.session_state)
+        with st.container(border=True):
+            st.markdown("✅ **Prepared with Career Intelligence**")
+            if context is not None:
+                st.caption(f"Role: {context.target_role}")
+                themes = context.likely_interview_topics[:3]
+                if themes:
+                    st.caption("Top themes: " + ", ".join(themes))
+                focus = context.priority_competencies[:3]
+                if focus:
+                    st.caption("Preparation focus: " + ", ".join(focus))
+            st.caption(
+                f"{prefill.get('source_count', 0)} source(s) informed this "
+                "preparation. Review and edit the setup below, then generate your "
+                "strategy — provenance only, not a score."
+            )
 
     st.markdown("#### Set up your interview")
     with st.form("interview_setup"):

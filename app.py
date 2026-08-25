@@ -35,7 +35,16 @@ def main() -> None:
     if "_pending_nav" in st.session_state:
         st.session_state["os_nav"] = st.session_state.pop("_pending_nav")
 
-    page = st.sidebar.radio(nav.APP_TITLE, nav.NAV_ITEMS, key="os_nav")
+    st.sidebar.markdown(f"### {nav.APP_TITLE}")
+    # Grouped display (Prepare / Practise / Resources / Advanced) via format_func;
+    # the underlying page values are unchanged so routing stays stable.
+    page = st.sidebar.radio(
+        "Navigate",
+        nav.NAV_ITEMS,
+        key="os_nav",
+        format_func=nav.display_label,
+    )
+    st.sidebar.caption(nav.WORKFLOW)
     st.sidebar.divider()
 
     if page == nav.HOME:
