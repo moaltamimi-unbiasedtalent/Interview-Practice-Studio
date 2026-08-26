@@ -737,7 +737,7 @@ def _render_expanded_report() -> None:
             "evaluation hooks (router / structured-role / compensation / provenance) "
             "and labelled datasets under `evaluations/`. Run "
             "`python scripts/eval_expanded.py` to produce the extended report "
-            "(scheduled for the next phase; it never overwrites the 11R baseline)."
+            "(it never overwrites the 11R baseline)."
         )
         st.divider()
         return

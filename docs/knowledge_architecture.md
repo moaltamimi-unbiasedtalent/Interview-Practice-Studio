@@ -122,18 +122,19 @@ run end-to-end without downloads for demonstration and tests.
 - **11R — baseline benchmark** (preserved, unchanged): vector/keyword/hybrid over
   the narrative corpus, tool selection and citation correctness
   (`evaluations/retrieval_results.csv`, `rag_evaluation.md`).
-- **11R-A — expanded-architecture hooks** (this phase): deterministic evaluators
-  in `src/copilot/evaluation/expanded_eval.py` plus labelled datasets
+- **11R-A — expanded-architecture measurement** (completed): deterministic
+  evaluators in `src/copilot/evaluation/expanded_eval.py` over labelled datasets
   (`evaluations/router_cases.json`, `structured_role_cases.json`,
-  `compensation_cases.json`) for router accuracy, structured-role retrieval,
-  compensation correctness and provenance completeness, with a baseline-comparison
-  helper. `scripts/eval_expanded.py` runs them and writes
-  `evaluations/expanded_architecture_*` **without** touching the 11R artifacts.
-  The extended benchmark run is scheduled for the next phase.
+  `compensation_cases.json`). `scripts/eval_expanded.py` produced
+  `evaluations/expanded_architecture_{results.csv,evaluation.md}` **without**
+  touching the 11R artifacts (also copied to `evaluations/baseline/`).
 
-Expected shape: core vector/keyword/hybrid metrics are unchanged vs 11R (the
+Measured on the committed samples: **routing accuracy 1.0** (per lane), structured
+role **hit 1.0 / provenance 1.0**, compensation **accuracy 1.0 / provenance 1.0**.
+Core vector/keyword/hybrid metrics are **unchanged** vs 11R (Δ = 0 — the
 architecture adds lanes rather than altering narrative retrieval); the gain is
-coverage of structured role and compensation questions, with provenance.
+coverage of structured role and compensation questions, with provenance. Numbers
+reflect synthetic samples; real datasets refine them.
 
 ## Sprint relevance
 
