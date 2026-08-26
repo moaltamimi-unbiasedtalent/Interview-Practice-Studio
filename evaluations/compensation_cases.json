@@ -1,0 +1,9 @@
+{
+  "description": "Compensation retrieval cases against the sample compensation DB. A result is correct only when country, year, currency, statistic and source all match — wrong geography or year is not correct.",
+  "cases": [
+    { "id": "cp_us_01", "title": "Data Analyst", "country": "US", "year": 2023, "expected_currency": "USD", "expected_statistic": "median", "expected_source": "bls_oews" },
+    { "id": "cp_uk_01", "title": "Data Analyst", "country": "UK", "year": 2023, "expected_currency": "GBP", "expected_statistic": "median", "expected_source": "ons_ashe" },
+    { "id": "cp_de_01", "title": "Data Analyst", "country": "DE", "year": 2024, "expected_currency": "EUR", "expected_statistic": "median", "expected_source": "ba_entgeltatlas" },
+    { "id": "cp_us_ops", "title": "Operations Manager", "country": "US", "year": 2023, "expected_currency": "USD", "expected_statistic": "median", "expected_source": "bls_oews" }
+  ]
+}

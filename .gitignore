@@ -42,10 +42,12 @@ tmp/
 data/chroma/*
 data/processed/*
 data/raw/*
+data/knowledge/*
 !data/raw/.gitkeep
 !data/raw/README.md
 !data/processed/.gitkeep
 !data/chroma/.gitkeep
+!data/knowledge/.gitkeep
 
 # Local editor/launch config
 .claude/

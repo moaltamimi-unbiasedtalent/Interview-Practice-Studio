@@ -32,6 +32,7 @@ __all__ = [
     "report_to_markdown",
     "report_to_json",
     "format_usd",
+    "model_supports_temperature",
 ]
 
 # --- Label ↔ domain-id catalogues -------------------------------------------
@@ -133,6 +134,18 @@ def label_for_id(pairs: list[tuple[str, str]], id_: str) -> str:
 def technique_options() -> list[tuple[str, str]]:
     """Return ``(technique_id, name)`` pairs from the prompt registry."""
     return registry.selector_options()
+
+
+def model_supports_temperature(model: str, supported: list[str] | None = None) -> bool:
+    """Whether a model accepts a custom ``temperature``.
+
+    Prefers live OpenRouter ``supported_parameters`` when available; otherwise
+    falls back to the static ``MODELS_WITHOUT_TEMPERATURE`` list so the UI gates
+    the slider correctly without a network call (reasoning models reject it).
+    """
+    if supported is not None:
+        return "temperature" in supported
+    return model not in constants.MODELS_WITHOUT_TEMPERATURE
 
 
 def difficulty_default_index() -> int:

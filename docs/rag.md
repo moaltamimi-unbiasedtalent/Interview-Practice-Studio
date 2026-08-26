@@ -69,10 +69,11 @@ new ones. Re-running the indexer after adding a few documents only embeds those.
 known scalar fields (`title`, `page`, `section`, `document_type`, `source`,
 `source_id`, `chunk_index`, plus `doc_id`).
 
-Install the persistent backend with the `rag` extra:
+The persistent Chroma backend ships in the base runtime dependencies (Advanced
+RAG is a sprint requirement), so a plain install includes it:
 
 ```bash
-pip install -e ".[rag]"
+pip install -e .
 ```
 
 ## 3. Retriever — `src/copilot/retrieval/vector.py`

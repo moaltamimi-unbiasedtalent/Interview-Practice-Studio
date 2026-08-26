@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from src.copilot import constants
 from src.copilot.config import CopilotConfig
 from src.copilot.tools.errors import ToolDependencyError
 
@@ -26,8 +27,14 @@ def build_structured_producer(
     *,
     model: str | None = None,
     temperature: float = 0.0,
+    max_tokens: int = constants.STRUCTURED_MAX_OUTPUT_TOKENS,
 ) -> StructuredProducer:
-    """Build a structured-output producer for ``schema`` over OpenRouter."""
+    """Build a structured-output producer for ``schema`` over OpenRouter.
+
+    ``max_tokens`` defaults to a generous structured budget so multi-field results
+    (e.g. RoleRequirements, InterviewQuestionSet) are not truncated — a small cap
+    yields a ``LengthFinishReasonError`` from the structured-output parser.
+    """
     if config is None:
         raise ToolDependencyError(
             "This tool needs a configured model. Provide a producer or a config "
@@ -36,7 +43,9 @@ def build_structured_producer(
     from src.copilot.llm.openrouter import CopilotConfigError, build_chat_model
 
     try:
-        chat_model = build_chat_model(config, model=model, temperature=temperature)
+        chat_model = build_chat_model(
+            config, model=model, temperature=temperature, max_tokens=max_tokens
+        )
     except CopilotConfigError as exc:
         raise ToolDependencyError(str(exc)) from exc
 

@@ -1,0 +1,89 @@
+[
+  {
+    "onetsoc_code": "15-2051.00",
+    "title": "Data Analyst",
+    "alternate_titles": [
+      "Business Analyst"
+    ],
+    "tasks": [
+      "Clean and prepare data",
+      "Build dashboards",
+      "Communicate findings"
+    ],
+    "skills": [
+      "SQL",
+      "Statistics",
+      "Communication"
+    ],
+    "technology_skills": [
+      "Python",
+      "Tableau"
+    ],
+    "knowledge": [
+      "Mathematics"
+    ],
+    "work_activities": [
+      "Analyzing data"
+    ],
+    "related_occupations": [
+      "15-2098.00"
+    ]
+  },
+  {
+    "onetsoc_code": "15-2098.00",
+    "title": "Data Scientist",
+    "alternate_titles": [
+      "ML Engineer"
+    ],
+    "tasks": [
+      "Build models",
+      "Clean and prepare data",
+      "Deploy models"
+    ],
+    "skills": [
+      "Statistics",
+      "Machine Learning",
+      "Communication"
+    ],
+    "technology_skills": [
+      "Python",
+      "AWS"
+    ],
+    "knowledge": [
+      "Mathematics"
+    ],
+    "work_activities": [
+      "Analyzing data"
+    ],
+    "related_occupations": [
+      "15-2051.00"
+    ]
+  },
+  {
+    "onetsoc_code": "11-3071.00",
+    "title": "Operations Manager",
+    "alternate_titles": [
+      "Ops Manager"
+    ],
+    "tasks": [
+      "Oversee processes",
+      "Manage budgets",
+      "Coordinate teams"
+    ],
+    "skills": [
+      "Stakeholder management",
+      "Planning",
+      "Communication"
+    ],
+    "technology_skills": [
+      "ERP"
+    ],
+    "knowledge": [
+      "Business"
+    ],
+    "work_activities": [
+      "Coordinating work"
+    ],
+    "related_occupations": []
+  }
+]

@@ -72,7 +72,15 @@ def _report() -> FinalInterviewReport:
 
 def _seed(state: SessionData) -> AppTest:
     at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.session_state["os_nav"] = "Interview Practice"  # route into the module
     at.session_state[NAMESPACE] = state
+    return at
+
+
+def _interview_app() -> AppTest:
+    """AppTest for the unified shell, pre-routed to Interview Practice."""
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.session_state["os_nav"] = "Interview Practice"
     return at
 
 
@@ -81,13 +89,13 @@ def _seed(state: SessionData) -> AppTest:
 
 class TestAppRenders:
     def test_startup_has_no_exception_and_shows_title(self) -> None:
-        at = AppTest.from_file(APP_PATH, default_timeout=30)
+        at = _interview_app()
         at.run()
         assert not at.exception
         assert any(constants.APP_NAME in t.value for t in at.title)
 
     def test_setup_form_is_present_on_startup(self) -> None:
-        at = AppTest.from_file(APP_PATH, default_timeout=30)
+        at = _interview_app()
         at.run()
         assert not at.exception
         # The setup form's submit button exists.
@@ -163,7 +171,7 @@ class TestAppRenders:
         # readers on the shared src.config module (AppTest runs in-process).
         monkeypatch.setattr("src.config._read_streamlit_secret", lambda: None)
         monkeypatch.setattr("src.config._read_environment_secret", lambda: None)
-        at = AppTest.from_file(APP_PATH, default_timeout=30)
+        at = _interview_app()
         at.run()
         assert not at.exception
         assert any("API key" in w.value for w in at.warning)
@@ -191,6 +199,14 @@ class TestUiHelpers:
     def test_models_are_approved(self) -> None:
         for model in ui_helpers.MODELS:
             assert model in constants.APPROVED_MODELS
+
+    def test_model_supports_temperature(self) -> None:
+        # Static default: the GPT-5 reasoning family rejects temperature.
+        assert ui_helpers.model_supports_temperature("openai/gpt-5-mini") is False
+        assert ui_helpers.model_supports_temperature("openai/gpt-4o-mini") is True
+        # Live metadata overrides the static default in both directions.
+        assert ui_helpers.model_supports_temperature("openai/gpt-5-mini", ["temperature"]) is True
+        assert ui_helpers.model_supports_temperature("openai/gpt-4o-mini", ["max_tokens"]) is False
 
     def test_format_usd(self) -> None:
         assert ui_helpers.format_usd(None) == "—"

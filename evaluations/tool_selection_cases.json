@@ -1,0 +1,11 @@
+{
+  "description": "Known-intent cases for tool-selection evaluation. Selection is deterministic: heuristic intent classification → route → filter by available inputs (mirrors the service).",
+  "cases": [
+    { "id": "tool_01", "query": "Analyse this job description.", "available_inputs": ["job_description"], "expected_tools": ["job_description_analyzer"] },
+    { "id": "tool_02", "query": "Compare my background with this role.", "available_inputs": ["job_description", "candidate_background"], "expected_tools": ["job_description_analyzer", "candidate_gap_analyzer"] },
+    { "id": "tool_03", "query": "Build a 30-day study plan for these gaps.", "available_inputs": ["job_description", "candidate_background", "days", "hours"], "expected_tools": ["job_description_analyzer", "candidate_gap_analyzer", "preparation_plan_calculator"] },
+    { "id": "tool_04", "query": "Generate likely interview questions for this role.", "available_inputs": ["role"], "expected_tools": ["interview_question_generator"] },
+    { "id": "tool_05", "query": "What technical skills matter for data roles?", "available_inputs": [], "expected_tools": [] },
+    { "id": "tool_06", "query": "hello there", "available_inputs": [], "expected_tools": [] }
+  ]
+}

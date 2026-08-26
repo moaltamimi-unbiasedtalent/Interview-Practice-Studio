@@ -115,10 +115,11 @@ from labelled evaluation. Expect BM25/hybrid to help the exact-term probes
 
 ## Setup
 
-BM25 lives in the `rag` extra:
+BM25 (`rank-bm25`) and the Chroma vector store are runtime dependencies (hybrid
+search is a hard sprint requirement), so a plain install includes them:
 
 ```bash
-pip install -e ".[rag]"
+pip install -e .
 ```
 
 ## Tests

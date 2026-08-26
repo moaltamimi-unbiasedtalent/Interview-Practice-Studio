@@ -16,6 +16,7 @@ recorded in the trace — it never crashes the Streamlit session.
 from __future__ import annotations
 
 import re
+import time
 from dataclasses import dataclass, field
 
 from src.copilot import constants
@@ -59,6 +60,13 @@ class PipelineTrace:
     keyword_results: list[RetrievalResult] = field(default_factory=list)
     fused_results: list[RetrievalResult] = field(default_factory=list)
     evidence_sources: list[str] = field(default_factory=list)
+    # Retrieval lane chosen by the knowledge router (classification only).
+    retrieval_lane: str = ""
+    # RAG metrics (safe; counts + latency only).
+    retrieval_strategy: str = ""
+    translated_query_count: int = 0
+    context_count: int = 0
+    retrieval_latency_ms: float = 0.0
     # Security.
     input_verdict: str = "allow"
     input_indicators: list[str] = field(default_factory=list)
@@ -125,9 +133,18 @@ class CareerIntelligenceService:
         hours_per_week: float | None = None,
         question_focus: list[str] | None = None,
         model: str | None = None,
+        progress=None,
     ) -> OrchestrationResult:
         trace = PipelineTrace()
 
+        def _step(label: str) -> None:
+            if progress is not None:
+                try:
+                    progress(label)
+                except Exception:  # pragma: no cover - progress must never break the run
+                    pass
+
+        _step("Understanding request")
         # 1) Input validation + injection scan (untrusted user input).
         validation = validate_input(query or "", "query")
         trace.notes.extend(validation.notes)
@@ -157,7 +174,15 @@ class CareerIntelligenceService:
             candidate_background, "candidate_background", "Candidate background", trace
         )
 
+        # Knowledge-router lane classification (recorded for the inspector; the
+        # baseline chat flow still uses vector RAG — structured lanes are a
+        # capability surfaced separately in OS-4A).
+        from src.copilot.knowledge.router import route_question
+
+        trace.retrieval_lane = route_question(query).lane
+
         # 2) Intent understanding + 3) query translation (fallback built in).
+        _step("Translating query")
         translated = self.translator.translate(query)
         trace.intent = translated.intent
         if translated.strategy in ("heuristic", "fallback"):
@@ -173,7 +198,12 @@ class CareerIntelligenceService:
         # 5) Hybrid retrieval (controlled).
         results: list[RetrievalResult] = []
         if rag_required:
+            _step("Searching knowledge base")
+            trace.translated_query_count = len(translated.all_queries)
+            started = time.perf_counter()
             results = self._retrieve(translated, trace)
+            trace.retrieval_latency_ms = round((time.perf_counter() - started) * 1000, 2)
+            _step("Combining results")
             # RAG guard: retrieved chunks are untrusted; drop injected ones.
             screen = screen_results(results)
             if screen.excluded or screen.warned:
@@ -183,10 +213,13 @@ class CareerIntelligenceService:
             if not results and trace.rag_used:
                 trace.rag_used = False
 
+        trace.context_count = len(results)
         bundle = build_context(results, max_chars=self.max_context_chars)
         trace.evidence_sources = [c.label for c in bundle.citations]
 
         # 6) Tool requirement + 7) tool execution (controlled).
+        if route.tools:
+            _step("Running tools")
         tool_execs, tool_summaries = self._run_tools(
             route,
             trace,
@@ -199,6 +232,7 @@ class CareerIntelligenceService:
         )
 
         # 8) Bounded, trust-separated context + 9) OpenRouter synthesis.
+        _step("Preparing response")
         messages = build_synthesis_messages(
             query=query,
             evidence_context=bundle.context_text,
@@ -296,6 +330,7 @@ class CareerIntelligenceService:
         # Channel detail for the inspector (best-effort).
         try:
             if isinstance(self.retriever, HybridRetriever):
+                trace.retrieval_strategy = "hybrid"
                 detail = self.retriever.search(
                     translated.rewritten_query, top_k=self.top_k, filters=filters
                 )
@@ -305,8 +340,10 @@ class CareerIntelligenceService:
                     if channel not in trace.degraded:
                         trace.degraded.append(channel)
             elif isinstance(self.retriever, VectorRetriever):
+                trace.retrieval_strategy = "vector"
                 trace.vector_results = results
             elif isinstance(self.retriever, KeywordRetriever):
+                trace.retrieval_strategy = "keyword"
                 trace.keyword_results = results
         except Exception:  # noqa: BLE001 - inspector detail is non-critical
             pass

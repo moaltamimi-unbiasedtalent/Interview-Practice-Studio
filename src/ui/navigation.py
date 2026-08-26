@@ -1,0 +1,67 @@
+"""Top-level navigation for Interview OS Coach.
+
+A single ordered list of routes for the one Streamlit app. Career routes are
+surfaced at the top level (Knowledge Base / RAG Inspector / Evaluation) alongside
+the two product entry points, so everything lives under one URL.
+"""
+
+from __future__ import annotations
+
+APP_TITLE = "Interview OS Coach"
+APP_TAGLINE = "Understand the opportunity. Prepare intelligently. Practise realistically."
+
+HOME = "Home"
+CAREER = "Career Intelligence"
+INTERVIEW = "Interview Practice"
+KNOWLEDGE_BASE = "Knowledge Base"
+RAG_INSPECTOR = "RAG Inspector"
+EVALUATION = "Evaluation"
+
+NAV_ITEMS: list[str] = [
+    HOME,
+    CAREER,
+    INTERVIEW,
+    KNOWLEDGE_BASE,
+    RAG_INSPECTOR,
+    EVALUATION,
+]
+
+# Routes handled by the Career Intelligence module.
+CAREER_ROUTES = {CAREER, KNOWLEDGE_BASE, RAG_INSPECTOR, EVALUATION}
+
+# Grouped display labels (single-select radio keeps its underlying page values,
+# so routing/tests are unchanged; the prefix conveys the product grouping:
+# Prepare / Practise / Resources / Advanced).
+NAV_DISPLAY: dict[str, str] = {
+    HOME: "🏠  Home",
+    CAREER: "Prepare · Career Intelligence",
+    INTERVIEW: "Practise · Interview Practice",
+    KNOWLEDGE_BASE: "Resources · Knowledge Base",
+    RAG_INSPECTOR: "Advanced · RAG Inspector",
+    EVALUATION: "Advanced · Evaluation",
+}
+
+# The platform workflow, reinforced in the sidebar and on Home.
+WORKFLOW_STEPS = ["UNDERSTAND", "PREPARE", "PRACTISE", "REVIEW", "IMPROVE"]
+WORKFLOW = " → ".join(WORKFLOW_STEPS)
+
+
+def display_label(page: str) -> str:
+    return NAV_DISPLAY.get(page, page)
+
+__all__ = [
+    "APP_TITLE",
+    "APP_TAGLINE",
+    "NAV_ITEMS",
+    "NAV_DISPLAY",
+    "CAREER_ROUTES",
+    "WORKFLOW",
+    "WORKFLOW_STEPS",
+    "display_label",
+    "HOME",
+    "CAREER",
+    "INTERVIEW",
+    "KNOWLEDGE_BASE",
+    "RAG_INSPECTOR",
+    "EVALUATION",
+]

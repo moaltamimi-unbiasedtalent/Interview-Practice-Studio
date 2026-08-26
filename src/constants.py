@@ -30,6 +30,16 @@ DEFAULT_TEMPERATURE = 0.3
 MIN_TEMPERATURE = 0.0
 MAX_TEMPERATURE = 1.0
 
+# Models that do NOT accept a custom ``temperature`` (reasoning models run only at
+# the provider default). Used to gate the temperature slider without a network
+# call; live OpenRouter ``supported_parameters`` metadata overrides this when
+# available (see ui_helpers.model_supports_temperature).
+MODELS_WITHOUT_TEMPERATURE: set[str] = {
+    "openai/gpt-5",
+    "openai/gpt-5-mini",
+    "openai/gpt-5-nano",
+}
+
 DEFAULT_MAX_OUTPUT_TOKENS = 1024
 # Floor for the output budget. Every use case produces a structured JSON object
 # (a strategy or final report can be ~600-900 tokens plus a repair round), so a

@@ -224,6 +224,7 @@ class TestClisAreSafe:
 class TestPromptLabUI:
     def test_prompt_lab_renders_without_network(self) -> None:
         at = AppTest.from_file(APP_PATH, default_timeout=30)
+        at.session_state["os_nav"] = "Interview Practice"  # route into the module
         at.run()
         at.radio(key="nav_page").set_value("Advanced").run()
         assert not at.exception
@@ -231,6 +232,7 @@ class TestPromptLabUI:
 
     def test_run_buttons_are_disabled_until_confirmed(self) -> None:
         at = AppTest.from_file(APP_PATH, default_timeout=30)
+        at.session_state["os_nav"] = "Interview Practice"  # route into the module
         at.run()
         at.radio(key="nav_page").set_value("Advanced").run()
         run_buttons = [

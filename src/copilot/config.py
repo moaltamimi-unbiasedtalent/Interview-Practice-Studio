@@ -9,12 +9,11 @@ config is ever printed or logged.
 
 from __future__ import annotations
 
-import os
-
 from dotenv import load_dotenv
 from pydantic import BaseModel, SecretStr
 
 from src.copilot import constants
+from src.core import secrets as _secrets
 
 __all__ = ["CopilotConfig", "load_config"]
 
@@ -78,21 +77,13 @@ class CopilotConfig(BaseModel):
 
 
 def _read_streamlit(name: str) -> str | None:
-    """Read a value from Streamlit secrets, tolerating no-secrets environments."""
-    try:
-        import streamlit as st
-
-        value = st.secrets.get(name)
-    except Exception:
-        return None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
-    return None
+    """Read from Streamlit secrets (delegates to the shared reader)."""
+    return _secrets.read_streamlit(name)
 
 
 def _read_env(name: str) -> str | None:
-    value = os.environ.get(name)
-    return value.strip() if value and value.strip() else None
+    """Read from the environment (delegates to the shared reader)."""
+    return _secrets.read_env(name)
 
 
 def _read(name: str) -> str | None:

@@ -302,11 +302,16 @@ class OpenRouterClient:
             "usage": {"include": True},
         }
 
-        # Temperature is capability-gated: omit it for models that do not
-        # support it (sending it would be rejected as an unsupported parameter).
-        if temperature is not None and (
-            supported_parameters is None or "temperature" in supported_parameters
-        ):
+        # Temperature is capability-gated: omit it for models that do not support
+        # it (sending it would be rejected as an unsupported parameter). Live
+        # metadata is authoritative when present; without it we fall back to the
+        # static MODELS_WITHOUT_TEMPERATURE list so reasoning models never receive
+        # a temperature even when metadata was not fetched.
+        if supported_parameters is not None:
+            temperature_ok = "temperature" in supported_parameters
+        else:
+            temperature_ok = model not in constants.MODELS_WITHOUT_TEMPERATURE
+        if temperature is not None and temperature_ok:
             payload["temperature"] = temperature
 
         if response_format is not None:

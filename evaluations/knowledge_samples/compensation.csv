@@ -1,0 +1,5 @@
+source_id,occupation_code,occupation_title,geography,country,region,industry,year,currency,pay_period,statistic_type,value,lower_bound,upper_bound,sample_quality,source_url
+bls_oews,15-2051.00,Data Analyst,US,US,,,2023,USD,annual,median,85000,60000,120000,final,https://www.bls.gov/oes/
+ons_ashe,,Data Analyst,UK,UK,,,2023,GBP,annual,median,42000,30000,60000,final,https://www.ons.gov.uk/
+ba_entgeltatlas,,Data Analyst,Germany,DE,,,2024,EUR,monthly,median,5200,4200,6500,provisional,https://web.arbeitsagentur.de/entgeltatlas/
+bls_oews,11-3071.00,Operations Manager,US,US,,,2023,USD,annual,median,98000,70000,150000,final,https://www.bls.gov/oes/
