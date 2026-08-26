@@ -297,6 +297,34 @@ class TestLangChainGlue:
         assert len(results) == 1 and results[0].ok
         assert results[0].result.total_available_hours == pytest.approx(4.0)
 
+    def test_structured_producer_uses_large_token_budget(self, monkeypatch) -> None:
+        # Regression: structured tool outputs must not be capped at the small chat
+        # default, which truncated JSON → LengthFinishReasonError in live use.
+        from pydantic import SecretStr
+
+        from src.copilot import constants as c
+        from src.copilot.config import CopilotConfig
+        from src.copilot.tools import structured
+
+        captured: dict = {}
+
+        class _FakeStructured:
+            def invoke(self, messages):
+                return {}
+
+        class _FakeChat:
+            def with_structured_output(self, schema):
+                return _FakeStructured()
+
+        def _fake_build(config, *, model=None, temperature=None, max_tokens=None, **kw):
+            captured["max_tokens"] = max_tokens
+            return _FakeChat()
+
+        monkeypatch.setattr("src.copilot.llm.openrouter.build_chat_model", _fake_build)
+        structured.build_structured_producer(CopilotConfig(api_key=SecretStr("k")), RoleRequirements)
+        assert captured["max_tokens"] == c.STRUCTURED_MAX_OUTPUT_TOKENS
+        assert captured["max_tokens"] > c.DEFAULT_MAX_OUTPUT_TOKENS
+
     def test_no_tool_needed_case(self) -> None:
         invoker = ToolInvoker(_registry())
         fake_ai = SimpleNamespace(content="Just a chat answer.", tool_calls=[])
