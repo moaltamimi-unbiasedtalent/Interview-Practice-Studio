@@ -53,6 +53,258 @@ and the RAG/LangChain design in [docs/rag.md](docs/rag.md),
 [docs/tool_calling.md](docs/tool_calling.md) and
 [docs/security.md](docs/security.md).
 
+## Why it exists
+
+Interview preparation is usually fragmented: you research a role in one place,
+guess your gaps, and practise blind. Interview OS Coach joins the two halves —
+**understand the role with evidence, then practise for it** — in one flow:
+
+```
+Understand role → identify gaps → prepare → practise → review → improve
+```
+
+## Current Turing sprint scope
+
+The current **Building Applications with AI** sprint is represented primarily by
+the **Career Intelligence** module. It demonstrates: LangChain, advanced RAG,
+embeddings, vector retrieval, query translation, structured retrieval, hybrid
+retrieval, tool calling, domain security, Streamlit and OpenRouter. The older
+**Interview Practice** module existed **before** this sprint and is not part of
+the sprint deliverable — it provides the real-world use case the sprint work
+plugs into.
+
+## Architecture
+
+Modular monolith, one Streamlit process:
+
+- **Shared Core** (`src/core/`) — infrastructure only: secrets, one composed
+  `AppConfig`, safe logging, usage records, generic security primitives.
+- **Career Intelligence** (`src/copilot/*`, UI `src/career/ui.py`) — the sprint
+  module: knowledge, retrieval, RAG, tools, security, evaluation.
+- **Interview Practice** (`src/*.py`, UI `src/interview/studio_app.py`) — the
+  pre-existing interview simulator.
+- **Integration** (`src/integration/`) — the only cross-module surface: the
+  `PreparationContext` contract + the "Practise this role" handoff. Career and
+  Interview never import each other.
+
+### Architecture diagrams
+
+**Platform**
+
+```mermaid
+flowchart TD
+    U[User] --> APP[app.py — one Streamlit shell]
+    APP --> CI[Career Intelligence]
+    APP --> IP[Interview Practice]
+    CI -->|PreparationContext| INT[Integration handoff]
+    INT --> IP
+    CI --- CORE[Shared Core: config/logging/usage/security]
+    IP --- CORE
+```
+
+**Career Intelligence retrieval**
+
+```mermaid
+flowchart TD
+    Q[Question] --> V[Input validation + injection scan]
+    V --> R[Router: role / skill / compensation / forecast / mixed]
+    R --> QT[Query translation: rewrite + multi-query + safe filters]
+    QT --> SR[Structured Role DB]
+    QT --> VK[Vector Knowledge: hybrid = vector + BM25]
+    QT --> CD[Compensation DB]
+    SR --> CTX[Bounded context + provenance]
+    VK --> CTX
+    CD --> CTX
+    CTX --> TOOLS[LangChain tool calling]
+    TOOLS --> LLM[OpenRouter]
+    LLM --> A[Grounded answer + citations]
+```
+
+**Career → Interview handoff**
+
+```mermaid
+flowchart LR
+    JD[Job description] --> JA[Job Description Analyzer]
+    JA --> GA[Gap Analyzer]
+    GA --> PP[Preparation Plan]
+    JA --> PC[PreparationContext]
+    GA --> PC
+    PC --> HO["Practise this role"]
+    HO --> SETUP[Interview setup pre-fill editable]
+```
+
+**Trust / security boundaries**
+
+```mermaid
+flowchart TD
+    SYS[System rules — trusted] --> OUT[Answer]
+    TOOL[Registered tool output — controlled] --> OUT
+    subgraph Untrusted["Untrusted data (never instructions)"]
+      USER[User input] --> SCAN[Injection scan]
+      JOBD[Job description] --> SCAN
+      CAND[Candidate context] --> SCAN
+      DOCS[Retrieved chunks] --> SCREEN[RAG guard]
+    end
+    SCAN --> OUT
+    SCREEN --> OUT
+    OUT --> OG[Output guard: redact secrets / valid citations]
+```
+
+## Knowledge architecture
+
+Career Intelligence is a **multi-source** system, not one vector store:
+
+```
+Structured Role DB      Vector Knowledge      Compensation DB
+(ESCO/O*NET/ISCO/KldB)  (reports/frameworks)  (OEWS/ASHE/Eurostat/Entgeltatlas)
+            └───────────────┬───────────────┘
+                      Hybrid Router
+                            ↓
+                 Grounded answer (with provenance)
+```
+
+**Why not everything in Chroma:** occupations/skills are relational and
+enumerable (a taxonomy lookup, not nearest-prose); compensation is tabular and
+context-bound (currency/period/geography/year); only narrative belongs in
+vectors. Details: [docs/knowledge_architecture.md](docs/knowledge_architecture.md).
+
+## Knowledge sources
+
+Configured in [data/source_manifest.json](data/source_manifest.json). **No
+datasets are committed** (see [docs/source_licensing.md](docs/source_licensing.md)).
+
+| Source | Publisher | Role | Store | Geo | Year/Ver | Licence note |
+| --- | --- | --- | --- | --- | --- | --- |
+| O*NET | US DOL | occupations/skills | structured | US | 2024 | CC BY 4.0 |
+| ESCO | European Commission | occupations/skills | structured | EU | v1.2.0 | review before reuse |
+| ISCO-08 | ILO | occupation hierarchy | structured | global | 2008 | review before reuse |
+| KldB 2010 | Bundesagentur für Arbeit | occupations | structured | DE | 2010 | review before reuse |
+| OEWS | US BLS | compensation | structured | US | 2023 | public domain (US gov) |
+| ASHE | UK ONS | compensation | structured | UK | 2023 | OGL v3.0 |
+| Eurostat earnings | Eurostat | compensation | structured | EU | 2022 | CC BY 4.0 |
+| Entgeltatlas | Bundesagentur für Arbeit | compensation | structured | DE | 2024 | review; manual |
+| Cedefop Skills Forecast | Cedefop | labour-market forecast | vector | EU | 2023 | review; manual |
+| EQF | European Commission | competency framework | vector | EU | 2017 | review; manual |
+| Future of Jobs | World Economic Forum | industry report | vector | global | 2023 | review; manual |
+
+## RAG flow
+
+```
+User → intent/routing → query translation → structured/vector/compensation
+retrieval → tool calling → grounded answer → citations
+```
+
+## Tool calling
+
+Four domain tools via LangChain (registered set only — no arbitrary code):
+
+- **Job Description Analyzer** (LLM) — structured role requirements.
+- **Candidate Gap Analyzer** (deterministic) — matched/partial/missing + match %
+  computed in Python.
+- **Preparation Plan Calculator** (deterministic) — time-boxed plan, Python
+  arithmetic.
+- **Interview Question Generator** (LLM) — categorised questions.
+
+Details: [docs/tool_calling.md](docs/tool_calling.md).
+
+## RAG evaluation
+
+Actual results (committed synthetic corpus; local embedder). See
+[evaluations/rag_evaluation.md](evaluations/rag_evaluation.md) and
+[evaluations/expanded_architecture_evaluation.md](evaluations/expanded_architecture_evaluation.md).
+
+**11R baseline** (33 cases, top_k=5):
+
+| mode | Hit@5 | MRR | Recall@5 |
+| --- | --- | --- | --- |
+| vector | 0.97 | 0.842 | 0.955 |
+| keyword | 0.97 | 0.904 | 0.97 |
+| hybrid | 0.939 | 0.871 | 0.924 |
+
+Honest finding: on this corpus with a lexical embedder, **keyword edges out
+hybrid** — reported, not rewritten. Tool selection 1.0; citation validity 1.0.
+
+**11R-A expanded architecture:** routing accuracy **1.0**, structured-role hit
+**1.0** / provenance **1.0**, compensation accuracy **1.0** / provenance **1.0**.
+Core vector/keyword/hybrid metrics are **unchanged vs baseline (Δ = 0)** — the
+expansion adds lanes and coverage, it does not change narrative retrieval. No
+improvement is claimed where the numbers do not show one.
+
+## Security
+
+- Prompt-injection scanning on all untrusted input (query, job description,
+  candidate background); blocked attacks are refused.
+- **Retrieved text is data, never instructions** — injected chunks are excluded.
+- Tools are a fixed registry — no `eval`/shell/filesystem/network.
+- Secrets via `SecretStr`, read from Streamlit secrets → env, never logged.
+- Logging policy redacts candidate/JD/chunk/transcript/content; safe metadata
+  only. Output guard redacts secret-like strings. See
+  [docs/security.md](docs/security.md).
+
+## Installation
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -e .           # runtime (includes RAG: Chroma + BM25)
+pip install -e ".[dev]"    # + test tooling
+```
+
+Optionally add an OpenRouter key to `.streamlit/secrets.toml` or the environment
+(`OPENROUTER_API_KEY`). The app boots without a key (with clear notices).
+
+## Running
+
+```bash
+streamlit run app.py
+```
+
+One process, one URL. Everything (both modules) lives here.
+
+## Optional services
+
+- **Record** (voice answers) needs `pip install -e ".[speech]"` + a Google Speech
+  project; without it, Record degrades to text.
+- **Live** (Gemini) needs `pip install -e ".[live]"` + a Gemini key + the built
+  frontend; without it, Live degrades to voice/text.
+
+## Testing
+
+```bash
+pytest                                   # full Python suite
+python -m compileall -q app.py src       # compile check
+python scripts/eval_rag.py               # 11R RAG benchmark
+python scripts/eval_expanded.py          # 11R-A expanded evaluation
+(cd components/live_interviewer/frontend && npm test)   # frontend (vitest)
+```
+
+Latest: **959 passed, 1 skipped** (Python); **10 passed** (frontend).
+
+## Known limitations
+
+- Real datasets are not committed; the shipped corpus/samples are synthetic, so
+  absolute evaluation numbers reflect that.
+- The offline/local embedder is lexical; semantic vector quality needs an OpenAI
+  embedding key.
+- Deterministic injection defence is best-effort, not a guarantee.
+- Structured role/compensation lanes are populated by the loader scripts; the
+  baseline chat still runs vector RAG (lanes are surfaced + evaluated).
+- Live LLM/Speech/Gemini paths require credentials and are not exercised in CI.
+
+## Future roadmap (post-sprint)
+
+- Wire the structured/compensation lanes directly into the chat answer path.
+- Real dataset ingestion + semantic embeddings; labelled relevance judgements.
+- Deeper interview↔career loop (feed interview outcomes back into preparation).
+
+## Documentation
+
+Reviewer-facing: [docs/reviewer_guide.md](docs/reviewer_guide.md),
+[docs/assignment_traceability.md](docs/assignment_traceability.md),
+[docs/demo_script.md](docs/demo_script.md),
+[docs/team_leader_direction.md](docs/team_leader_direction.md),
+[docs/rebuild_knowledge_base.md](docs/rebuild_knowledge_base.md),
+[docs/source_licensing.md](docs/source_licensing.md).
+
 ---
 
 ## Interview Practice (module)
