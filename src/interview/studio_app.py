@@ -146,11 +146,12 @@ def render_developer_settings(config: AppConfig) -> dict:
             format_func=lambda tid: technique_labels.get(tid, tid),
         )
 
-        # Capability gating from cached metadata only (no network on render).
-        # A parameter the model does not support is not offered, so the UI never
-        # implies a setting works when OpenRouter says the model rejects it.
+        # Capability gating. Live OpenRouter metadata (populated by "Test
+        # connection") takes precedence; otherwise a static per-model default is
+        # used so the slider is gated correctly on first render without a network
+        # call. Reasoning models (the GPT-5 family) reject a custom temperature.
         supported = st.session_state.get(_METADATA_CACHE_KEY, {}).get(model)
-        temperature_supported = supported is None or "temperature" in supported
+        temperature_supported = ui_helpers.model_supports_temperature(model, supported)
 
         if temperature_supported:
             temperature = st.slider(
@@ -163,8 +164,8 @@ def render_developer_settings(config: AppConfig) -> dict:
         else:
             temperature = constants.DEFAULT_TEMPERATURE
             st.caption(
-                "⚙️ This model does not support a temperature setting, so it is "
-                "disabled and never sent."
+                f"⚙️ `{model}` does not support a temperature setting, so the "
+                "slider is disabled and no temperature is sent."
             )
         max_tokens = st.number_input(
             "Maximum output tokens",

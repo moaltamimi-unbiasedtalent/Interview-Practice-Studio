@@ -95,7 +95,8 @@ class TestSuccess:
             captured["body"] = json.loads(request.content)
             return httpx.Response(200, json=_success_body())
 
-        _call(_client(handler))
+        # Advertise temperature support so this auth/stream test sends it.
+        _call(_client(handler), supported_parameters=["temperature", "max_tokens"])
         assert captured["auth"] == "Bearer test-key-not-real"
         assert captured["body"]["stream"] is False
         assert captured["body"]["model"] == MODEL
@@ -496,6 +497,37 @@ class TestParameterGating:
             temperature=0.7,
             max_tokens=64,
             supported_parameters=["temperature", "max_tokens"],
+        )
+        assert seen["payload"]["temperature"] == 0.7
+
+    def test_temperature_omitted_for_reasoning_model_without_metadata(self) -> None:
+        # No metadata: fall back to the static list — gpt-5-mini rejects temperature.
+        seen: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        _client_h(handler).create_chat_completion(
+            model="openai/gpt-5-mini",
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.7,
+            max_tokens=64,
+        )
+        assert "temperature" not in seen["payload"]
+
+    def test_temperature_sent_for_supporting_model_without_metadata(self) -> None:
+        seen: dict = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json=_success_body())
+
+        _client_h(handler).create_chat_completion(
+            model="openai/gpt-4o-mini",  # not in MODELS_WITHOUT_TEMPERATURE
+            messages=[{"role": "user", "content": "hi"}],
+            temperature=0.7,
+            max_tokens=64,
         )
         assert seen["payload"]["temperature"] == 0.7
 

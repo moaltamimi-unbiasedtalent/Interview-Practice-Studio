@@ -200,6 +200,14 @@ class TestUiHelpers:
         for model in ui_helpers.MODELS:
             assert model in constants.APPROVED_MODELS
 
+    def test_model_supports_temperature(self) -> None:
+        # Static default: the GPT-5 reasoning family rejects temperature.
+        assert ui_helpers.model_supports_temperature("openai/gpt-5-mini") is False
+        assert ui_helpers.model_supports_temperature("openai/gpt-4o-mini") is True
+        # Live metadata overrides the static default in both directions.
+        assert ui_helpers.model_supports_temperature("openai/gpt-5-mini", ["temperature"]) is True
+        assert ui_helpers.model_supports_temperature("openai/gpt-4o-mini", ["max_tokens"]) is False
+
     def test_format_usd(self) -> None:
         assert ui_helpers.format_usd(None) == "—"
         assert ui_helpers.format_usd(0.0015).startswith("$")
