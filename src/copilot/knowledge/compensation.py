@@ -95,3 +95,9 @@ class CompensationRepository:
 
     def countries(self) -> list[str]:
         return [r[0] for r in self._conn.execute("SELECT DISTINCT country FROM compensation_records")]
+
+    def counts_by_source(self) -> dict[str, int]:
+        rows = self._conn.execute(
+            "SELECT source_id, COUNT(*) AS n FROM compensation_records GROUP BY source_id"
+        ).fetchall()
+        return {r["source_id"]: r["n"] for r in rows}

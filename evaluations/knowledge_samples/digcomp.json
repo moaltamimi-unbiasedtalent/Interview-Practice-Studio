@@ -1,0 +1,32 @@
+{
+  "framework": "DigComp 2.2",
+  "competences": [
+    {
+      "area": "Information and data literacy",
+      "name": "Browsing, searching and filtering data, information and digital content",
+      "description": "Articulate information needs; find and access data and content in digital environments.",
+      "levels": [
+        {"level": "Foundation", "descriptor": "With guidance, find data and content through a simple search."},
+        {"level": "Intermediate", "descriptor": "On my own, and solving routine problems, search for data and content."},
+        {"level": "Advanced", "descriptor": "Guide others in searching and filtering data and content."}
+      ]
+    },
+    {
+      "area": "Communication and collaboration",
+      "name": "Interacting through digital technologies",
+      "description": "Interact through a variety of digital technologies and select appropriate means.",
+      "levels": [
+        {"level": "Foundation", "descriptor": "With guidance, select simple digital technologies to interact."},
+        {"level": "Intermediate", "descriptor": "Select well-defined digital technologies to interact."}
+      ]
+    },
+    {
+      "area": "Digital content creation",
+      "name": "Developing digital content",
+      "description": "Create and edit digital content in different formats.",
+      "levels": [
+        {"level": "Intermediate", "descriptor": "On my own, create and edit content in different formats."}
+      ]
+    }
+  ]
+}

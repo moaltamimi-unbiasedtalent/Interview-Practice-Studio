@@ -182,3 +182,23 @@ boundaries of the tool.
 - Browser E2E (Playwright) and the manual live suite are not part of CI.
 - Real performance and cost numbers require live sessions (see the readiness
   report); the app never invents cost figures.
+
+---
+
+## KB-2 — knowledge expansion status
+
+- **25 sources are *configured*, not all loaded.** Only sources with data loaded
+  locally read as AVAILABLE (16/25 from the committed offline samples); the rest
+  are honestly MANUAL ACQUISITION or LICENCE REVIEW in `data/source_status.json`.
+  A source in the manifest is never implied to be retrieval-ready.
+- **Structured records shown are from small offline samples** (53 records), not
+  the full third-party datasets — those are acquired locally under their own
+  licences (see `docs/source_licensing.md`); none are committed.
+- **Licence terms are not guessed.** Sources whose reuse terms are unconfirmed are
+  flagged for review and treated as non-redistributable.
+- **The chat answer path still uses vector RAG.** The structured lanes (role,
+  competency, compensation, labour-market) and new router lanes are surfaced via
+  the router/inspector and tools; wiring every lane directly into the chat answer
+  synthesis is future work.
+- **Coverage is breadth-of-source, not depth.** The offline samples demonstrate
+  each store and lane; production depth needs the real normalised extracts.

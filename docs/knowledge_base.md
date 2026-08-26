@@ -6,6 +6,13 @@ cleaned, chunked, and indexed, and the current limitations. Advanced retrieval
 (embeddings, vector store, hybrid search, reranking) is **not** part of this
 layer and is built in a later phase.
 
+> **Scope note.** This document covers the **vector/narrative** layer only. Career
+> Intelligence is a multi-source system: structured data (occupations, skills,
+> competencies, compensation, labour-market) lives in SQLite stores, not the
+> vector index. For the full 25-source picture, the store routing and the measured
+> source lifecycle, see [knowledge_architecture.md](knowledge_architecture.md) and
+> [knowledge_source_catalogue.md](knowledge_source_catalogue.md).
+
 ## Source strategy
 
 The Copilot is designed to give **grounded** career guidance — every answer

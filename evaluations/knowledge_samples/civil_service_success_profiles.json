@@ -1,0 +1,10 @@
+{
+  "framework": "UK Civil Service Success Profiles",
+  "behaviours": [
+    {"level": "Grade 6/7", "behaviour": "Leadership", "expectation": "Promote diversity and inclusion; role-model organisational values across teams."},
+    {"level": "Grade 6/7", "behaviour": "Seeing the Big Picture", "expectation": "Understand how your role aligns with organisational objectives and wider priorities."},
+    {"level": "SEO/HEO", "behaviour": "Delivering at Pace", "expectation": "Take responsibility for delivering outcomes to agreed quality and timescales."},
+    {"level": "SEO/HEO", "behaviour": "Making Effective Decisions", "expectation": "Use evidence and analysis to support accurate, risk-based decisions."},
+    {"level": "EO", "behaviour": "Working Together", "expectation": "Build supportive, trusting relationships and contribute to an inclusive team."}
+  ]
+}

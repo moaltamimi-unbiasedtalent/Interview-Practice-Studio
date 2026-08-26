@@ -1,0 +1,17 @@
+{
+  "series": [
+    {
+      "series": "GS-1560 Data Science",
+      "requirements": [
+        {"type": "education", "requirement": "Degree in mathematics, statistics, computer science, data science or a related field with at least 15 semester hours of statistics."},
+        {"type": "experience", "requirement": "Specialised experience applying data science methods to solve mission problems, equivalent to the next lower grade."}
+      ]
+    },
+    {
+      "series": "GS-0343 Management and Program Analysis",
+      "requirements": [
+        {"type": "experience", "requirement": "Specialised experience in analytical and evaluative methods to assess programme effectiveness."}
+      ]
+    }
+  ]
+}

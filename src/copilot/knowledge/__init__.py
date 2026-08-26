@@ -16,6 +16,22 @@ Interview Practice.
 """
 
 from src.copilot.knowledge.provenance import AuthorityLevel, Provenance
-from src.copilot.knowledge.router import RetrievalLane, route_question
+from src.copilot.knowledge.router import (
+    RetrievalLane,
+    route_question,
+    source_priority,
+    detect_country,
+)
+from src.copilot.knowledge.status import SourceStatus, compute_status, summary
 
-__all__ = ["Provenance", "AuthorityLevel", "RetrievalLane", "route_question"]
+__all__ = [
+    "Provenance",
+    "AuthorityLevel",
+    "RetrievalLane",
+    "route_question",
+    "source_priority",
+    "detect_country",
+    "SourceStatus",
+    "compute_status",
+    "summary",
+]

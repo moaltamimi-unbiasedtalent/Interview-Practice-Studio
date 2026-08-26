@@ -47,8 +47,19 @@ models, so the code stays provider-neutral and keys live in one place.
 (here: job analysis, gap analysis, plan, questions) with validated arguments.
 
 **How does the tool router work?** A deterministic classifier picks the retrieval
-lane (role / skill / compensation / forecast / mixed) from the question; the LLM
-is only consulted when the rules are ambiguous.
+lane from the question; the LLM is only consulted when the rules are ambiguous.
+Lanes: role, skill, compensation, forecast, mixed, plus the KB-2 additions —
+competency (DigComp), cybersecurity (NICE work roles), shortage, openings,
+transition, and seniority. It also detects the country and prefers national
+official sources for country-specific questions (e.g. Germany → KldB/Entgeltatlas
+before ESCO).
+
+**How do you know a source is really loaded?** Each source has a *measured*
+lifecycle in `data/source_status.json` derived from what is on disk — a source in
+the manifest is "configured", not "available", until its records are actually
+loaded. The Knowledge Base page shows this honestly (CONFIGURED / MANUAL
+ACQUISITION / LICENCE REVIEW / AVAILABLE), so nothing is implied to exist that
+doesn't.
 
 **Why are calculations deterministic?** Match percentages and study-hour
 allocations are computed in Python from explicit rules — the model never invents
@@ -82,6 +93,13 @@ dataset.
 structured-role retrieval, compensation correctness and provenance. Core
 retrieval metrics were unchanged (the expansion adds lanes; it doesn't alter
 narrative retrieval).
+
+**What changed in KB-2?** The knowledge foundation was expanded to 25
+authoritative sources across five stores (role, competency, compensation,
+labour-market, vector), each kept in the right store for its data type, with a
+measured source lifecycle, geographic source precedence, and new routing lanes.
+`scripts/eval_knowledge_expansion.py` measures routing (1.0), geographic
+precedence (1.0) and coverage — without touching the 11R / 11R-A baseline.
 
 **What are the limitations?** Synthetic sample data (so numbers are illustrative),
 a lexical offline embedder (semantic quality needs an OpenAI key), best-effort

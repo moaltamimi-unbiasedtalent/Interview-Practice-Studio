@@ -1,0 +1,6 @@
+{
+  "openings": [
+    {"occupation": "Data Analyst", "geography": "EU", "period": "2022-2035", "new_jobs": 480000, "replacement_demand": 760000, "total_openings": 1240000},
+    {"occupation": "Nurse", "geography": "EU", "period": "2022-2035", "new_jobs": 590000, "replacement_demand": 1800000, "total_openings": 2390000}
+  ]
+}

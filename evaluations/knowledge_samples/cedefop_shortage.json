@@ -1,0 +1,7 @@
+{
+  "shortages": [
+    {"occupation": "Software Developer", "country": "DE", "skill_level": "high", "shortage_indicator": "high shortage", "period": "2023"},
+    {"occupation": "Nurse", "country": "EU", "skill_level": "high", "shortage_indicator": "shortage", "period": "2023"},
+    {"occupation": "Data Analyst", "country": "EU", "skill_level": "high", "shortage_indicator": "moderate shortage", "period": "2023"}
+  ]
+}

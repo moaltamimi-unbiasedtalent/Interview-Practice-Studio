@@ -138,3 +138,9 @@ class RoleRepository:
 
     def all_codes(self) -> list[str]:
         return [r["occupation_code"] for r in self._conn.execute("SELECT occupation_code FROM occupations")]
+
+    def counts_by_source(self) -> dict[str, int]:
+        rows = self._conn.execute(
+            "SELECT source_id, COUNT(*) AS n FROM occupations GROUP BY source_id"
+        ).fetchall()
+        return {r["source_id"]: r["n"] for r in rows}

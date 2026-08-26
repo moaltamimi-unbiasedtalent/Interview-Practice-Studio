@@ -1,0 +1,13 @@
+id,query,expected_lane,actual_lane,correct
+k_role_01,What does a Logistics Manager do?,structured_role,structured_role,True
+k_skill_01,What skills do cybersecurity analysts need?,structured_role,structured_role,True
+k_comp_01,What does a Data Analyst earn in Germany?,compensation,compensation,True
+k_fore_01,Is demand for AI roles expected to grow?,forecast,forecast,True
+k_vec_01,Explain the STAR method,vector,vector,True
+k_mixed_01,What skills does a Product Manager need and what would they earn in Germany?,mixed,mixed,True
+k_comp_lane_01,What digital competencies does a project manager need?,competency,competency,True
+k_cyber_01,What are cybersecurity incident response responsibilities?,cybersecurity,cybersecurity,True
+k_short_01,Is there a shortage of software developers in Germany?,shortage,shortage,True
+k_open_01,How many job openings are there for nurses?,openings,openings,True
+k_trans_01,How do I transition from teaching into a data analyst role?,transition,transition,True
+k_senior_01,What behaviours are expected at Grade 7?,seniority,seniority,True

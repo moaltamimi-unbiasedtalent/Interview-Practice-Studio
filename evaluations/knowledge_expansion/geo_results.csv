@@ -1,0 +1,5 @@
+id,query,expected_country,actual_country,expected_top_source,actual_top_source,correct
+g_de_01,What does a Data Analyst earn in Germany?,DE,DE,kldb,kldb,True
+g_uk_01,Median salary for a nurse in the UK,UK,UK,ons_ashe,ons_ashe,True
+g_us_01,Federal data scientist qualifications in the US,US,US,onet,onet,True
+g_eu_01,Skills demand across Europe,EU,EU,esco,esco,True

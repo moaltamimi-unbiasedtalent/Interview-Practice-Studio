@@ -1,0 +1,28 @@
+[
+  {
+    "soc_code": "15-2051",
+    "title": "Data Scientists",
+    "summary": "Data scientists use analytical tools and techniques to extract meaningful insights from data.",
+    "duties": [
+      "Determine the data needed to answer a question or solve a problem",
+      "Develop analytical models and algorithms",
+      "Communicate recommendations to stakeholders"
+    ],
+    "skills": ["Analytical skills", "Communication skills", "Problem-solving skills"],
+    "knowledge": ["Statistics", "Programming"],
+    "entry_education": "Bachelor's degree"
+  },
+  {
+    "soc_code": "29-1141",
+    "title": "Registered Nurses",
+    "summary": "Registered nurses provide and coordinate patient care and educate patients about health conditions.",
+    "duties": [
+      "Assess patients' conditions",
+      "Record patients' medical histories and symptoms",
+      "Administer patients' medicines and treatments"
+    ],
+    "skills": ["Communication skills", "Critical-thinking skills", "Compassion"],
+    "knowledge": ["Medicine", "Patient care"],
+    "entry_education": "Bachelor's degree"
+  }
+]

@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.copilot import constants  # noqa: E402
 from src.copilot.knowledge import normalisers as norm  # noqa: E402
+from src.copilot.knowledge import normalisers_ext as norm_ext  # noqa: E402
 from src.copilot.knowledge.roles import RoleRepository  # noqa: E402
 
 _DEFAULT_SOURCE = "evaluations/knowledge_samples"
@@ -47,6 +48,9 @@ def _dispatch(path: str, repo: RoleRepository) -> int:
     elif name.startswith("kldb"):
         for row in data:
             repo.add_occupation(norm.normalise_kldb(row)); added += 1
+    elif name.startswith("bls_ooh"):
+        for row in data:
+            repo.add_occupation(norm_ext.normalise_bls_ooh(row)); added += 1
     return added
 
 
@@ -60,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No source directory at {args.source}. See data/source_manifest.json.")
         return 0
     files = [p for p in sorted(Path(args.source).glob("*.json"))]
-    role_files = [p for p in files if p.name.lower().startswith(("roles_", "isco", "kldb"))]
+    role_files = [p for p in files if p.name.lower().startswith(("roles_", "isco", "kldb", "bls_ooh"))]
     if not role_files:
         print(f"No role source files found under {args.source}.")
         return 0

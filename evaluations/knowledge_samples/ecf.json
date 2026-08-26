@@ -1,0 +1,8 @@
+{
+  "framework": "e-CF (European e-Competence Framework)",
+  "competences": [
+    {"area": "PLAN", "name": "A.6 Application Design", "description": "Designs and engineers software and/or hardware components to meet required specifications."},
+    {"area": "BUILD", "name": "B.1 Application Development", "description": "Interprets the design specification to develop, test and document software and hardware components."},
+    {"area": "RUN", "name": "C.4 Problem Management", "description": "Identifies and resolves the root cause of incidents to maintain service availability."}
+  ]
+}

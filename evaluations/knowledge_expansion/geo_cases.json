@@ -1,0 +1,9 @@
+{
+  "description": "KB-2 geographic precedence cases. For a country-specific question, the top-priority source should be the national/official source, not a generic international one.",
+  "cases": [
+    { "id": "g_de_01", "query": "What does a Data Analyst earn in Germany?", "expected_country": "DE", "expected_top_source": "kldb" },
+    { "id": "g_uk_01", "query": "Median salary for a nurse in the UK", "expected_country": "UK", "expected_top_source": "ons_ashe" },
+    { "id": "g_us_01", "query": "Federal data scientist qualifications in the US", "expected_country": "US", "expected_top_source": "onet" },
+    { "id": "g_eu_01", "query": "Skills demand across Europe", "expected_country": "EU", "expected_top_source": "esco" }
+  ]
+}
