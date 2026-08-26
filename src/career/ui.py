@@ -158,7 +158,10 @@ def _page_chat() -> None:
         candidate_background = st.text_area("Candidate background", height=100, key="chat_bg")
         cols = st.columns(2)
         days = cols[0].number_input("Days until interview", 0, 365, 0, key="chat_days")
-        hpw = cols[1].number_input("Hours per week", 0.0, 80.0, 0.0, key="chat_hpw")
+        # Match the Career Tools "Hours per week" input exactly (min 1.0, value 6.0).
+        hpw = cols[1].number_input(
+            "Hours per week", min_value=1.0, max_value=80.0, value=6.0, key="chat_hpw"
+        )
 
     st.session_state.setdefault("chat_history", [])
 
