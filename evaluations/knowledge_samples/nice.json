@@ -1,0 +1,30 @@
+{
+  "framework": "NICE Workforce Framework for Cybersecurity",
+  "work_roles": [
+    {
+      "id": "PR-CDA-001",
+      "name": "Cyber Defense Analyst",
+      "tasks": [
+        "Monitor network traffic for unusual activity",
+        "Characterize and analyze network events to identify anomalous activity"
+      ],
+      "knowledge_skills": [
+        "Knowledge of intrusion detection methodologies",
+        "Skill in using incident handling methodologies",
+        "Knowledge of network traffic analysis methods"
+      ]
+    },
+    {
+      "id": "PR-INF-001",
+      "name": "Cyber Defense Incident Responder",
+      "tasks": [
+        "Perform incident triage to determine scope and priority",
+        "Coordinate incident response actions"
+      ],
+      "knowledge_skills": [
+        "Skill in preserving evidence integrity",
+        "Knowledge of incident response and handling methodologies"
+      ]
+    }
+  ]
+}

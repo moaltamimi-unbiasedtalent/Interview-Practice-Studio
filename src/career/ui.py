@@ -262,10 +262,15 @@ def _page_chat() -> None:
 
 
 def _render_source_sections() -> None:
-    """Show the multi-source knowledge architecture (Role / Compensation / Narrative)."""
-    import os
+    """Multi-source knowledge architecture with measured lifecycle status.
 
+    Every row shows the *measured* local state (record count + lifecycle badge)
+    derived from what is actually on disk — a source in the manifest is never
+    implied to be loaded. Grouped by data type so structured vs narrative lanes
+    are visible at a glance.
+    """
     from src.copilot.knowledge import manifest as km
+    from src.copilot.knowledge import status as kstatus
 
     try:
         entries = km.load_manifest(constants.SOURCE_MANIFEST_PATH)
@@ -273,54 +278,48 @@ def _render_source_sections() -> None:
         st.caption("No source manifest found.")
         return
 
-    # Structured record counts (0 until the load scripts are run — no data shipped).
-    role_count = comp_count = 0
-    if os.path.isfile(constants.ROLE_DB_PATH):
-        from src.copilot.knowledge.roles import RoleRepository
+    statuses = {s.source_id: s for s in kstatus.compute_status(constants.SOURCE_MANIFEST_PATH)}
+    health = kstatus.summary(list(statuses.values()))
 
-        repo = RoleRepository(constants.ROLE_DB_PATH)
-        role_count = repo.counts().get("occupations", 0)
-        repo.close()
-    if os.path.isfile(constants.COMPENSATION_DB_PATH):
-        from src.copilot.knowledge.compensation import CompensationRepository
+    # --- Knowledge Health dashboard (measured, honest) ---
+    st.markdown("### Knowledge Health")
+    cols = st.columns(3)
+    cols[0].metric("Configured sources", health["configured"])
+    cols[1].metric("Available for retrieval", health["available_locally"])
+    cols[2].metric("Structured records", health["structured_records"])
+    cols = st.columns(3)
+    cols[0].metric("Acquired (on disk)", health["acquired"])
+    cols[1].metric("Manual acquisition", health["manual_acquisition"])
+    cols[2].metric("Licence review", health["licence_review"])
+    st.caption(
+        "Lifecycle is measured from local stores, not the manifest: a configured "
+        "source is only 'AVAILABLE' once its records are actually loaded."
+    )
 
-        crepo = CompensationRepository(constants.COMPENSATION_DB_PATH)
-        comp_count = crepo.count()
-        crepo.close()
+    def _row(e):
+        s = statuses.get(e.source_id)
+        return {
+            "Source": e.title,
+            "Auth": e.authority_level,
+            "Region": e.region or e.country or "—",
+            "Version/Year": e.version or e.reference_year or "—",
+            "Records": s.record_count if s else 0,
+            "Lifecycle": s.lifecycle if s else "CONFIGURED",
+            "Licence": "review" if e.licence_review_required else (e.licence or "—"),
+        }
 
-    def _table(rows):
-        st.dataframe(
-            [
-                {
-                    "Source": e.title,
-                    "Authority": e.authority_level,
-                    "Version/Year": e.version or e.reference_year or "—",
-                    "Status": "manual" if e.manual_acquisition_required else "auto",
-                    "Licence": "review" if e.licence_review_required else (e.licence or "—"),
-                }
-                for e in rows
-            ],
-            use_container_width=True, hide_index=True,
-        )
+    for group_id, group_label in km.GROUPS:
+        rows = km.by_group(entries, group_id)
+        if not rows:
+            continue
+        st.markdown(f"### {group_label}")
+        st.dataframe([_row(e) for e in rows], use_container_width=True, hide_index=True)
 
-    st.markdown("### Role & Skill Data")
-    st.caption(f"Structured occupations indexed: {role_count} (run `scripts/normalise_roles.py`).")
-    _table(km.by_type(entries, "occupation_taxonomy") + km.by_type(entries, "skills_taxonomy"))
-
-    st.markdown("### Compensation Data")
-    st.caption(f"Structured compensation records: {comp_count} (run `scripts/load_compensation.py`).")
-    _table(km.by_type(entries, "compensation_dataset"))
-
-    st.markdown("### Labour Market Data")
-    _table(km.by_type(entries, "labour_market_forecast"))
-
-    st.markdown("### Narrative Knowledge (vector)")
-    _table(km.by_type(entries, "methodology") + km.by_type(entries, "competency_framework")
-           + km.by_type(entries, "industry_report"))
     st.caption(
         "Authority level is retrieval metadata (1 official · 2 public framework · "
-        "3 industry), not a truth score. No datasets are committed; see "
-        "docs/knowledge_architecture.md for reproduction."
+        "3 industry), not a truth score. No third-party datasets are committed; "
+        "run the load scripts against acquired sources — see "
+        "docs/rebuild_knowledge_base.md and docs/source_licensing.md."
     )
     st.divider()
 

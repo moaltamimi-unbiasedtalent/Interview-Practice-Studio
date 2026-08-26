@@ -4,16 +4,18 @@ Career Intelligence is a **multi-source** knowledge system, not a single vector
 store. A router sends each question to the lane that can actually answer it.
 
 ```
-                    CAREER INTELLIGENCE
-                           │
-        ┌──────────────────┼───────────────────┐
-   Structured Role DB   Vector Knowledge     Compensation DB
-   (ESCO, O*NET,        (methodology,        (OEWS, ASHE,
-    ISCO, KldB)          reports, frameworks) Eurostat, Entgeltatlas)
-        └──────────────────┼───────────────────┘
-                     Hybrid Router
-                           ▼
-                    Grounded answer (with provenance)
+                              CAREER INTELLIGENCE
+                                     │
+   ┌───────────────┬──────────────┬──┴───────────┬───────────────┬─────────────┐
+ Role DB       Competency DB   Compensation DB  Labour-Market DB  Vector Knowledge
+ (ESCO,O*NET,  (DigComp,NICE,  (OEWS,ASHE,      (Cedefop          (methodology,
+  ISCO,KldB,    e-CF,BA,OPM,    Eurostat,        forecast,         handbooks,
+  BLS OOH)      Civil Service)  Entgeltatlas)    openings,         WEF reports)
+                                                 shortage)
+   └───────────────┴──────────────┴──────────────┴───────────────┴─────────────┘
+                              Deterministic Router
+                                     ▼
+                        Grounded answer (with provenance)
 ```
 
 ## Why not everything in Chroma
@@ -33,30 +35,63 @@ wrong tool for structured facts:
 
 So we keep structured data in structured stores and narrative in vectors.
 
-## The three lanes
+## The stores
 
-| Lane | Store | Sources | Good for |
-| ---- | ----- | ------- | -------- |
-| **Structured Role DB** | SQLite (`src/copilot/knowledge/roles.py`) | ESCO, O*NET, ISCO, KldB | role duties, tasks, skills, occupation hierarchy, transitions |
-| **Vector Knowledge** | Chroma (existing RAG) | methodology, market reports, competency frameworks | conceptual / narrative questions |
+| Store | Module | Sources | Good for |
+| ----- | ------ | ------- | -------- |
+| **Role DB** | SQLite (`roles.py`) | ESCO, O*NET, ISCO, KldB, BLS OOH | role duties, tasks, skills, occupation hierarchy, transitions |
+| **Competency DB** | SQLite (`structured_ext.py`) | DigComp, NICE, e-CF, BA Kompetenzkatalog, OPM qual standards, UK Civil Service Success Profiles | digital/cyber competencies, behaviours by grade, qualification requirements |
 | **Compensation DB** | SQLite (`compensation.py`) | OEWS, ASHE, Eurostat, Entgeltatlas | pay statistics with strict context |
+| **Labour-Market DB** | SQLite (`structured_ext.py`) | Cedefop forecast / openings / shortage | employment change, replacement demand, openings, shortages |
+| **Vector Knowledge** | Chroma (existing RAG) | ESCO handbook, WEF, methodology | conceptual / narrative questions |
 
 ## Routing
 
 `src/copilot/knowledge/router.py` classifies questions **deterministically**
-(keyword rules), consulting an LLM only when ambiguous:
+(narrowly-scoped keyword rules), consulting an LLM only when ambiguous. The
+specific lanes are checked before the generic role/skill/trend rules so an
+existing query (e.g. "what skills do cybersecurity analysts need?") still routes
+to the role lane:
 
 | Question | Lane |
 | -------- | ---- |
-| "What does a Logistics Manager do?" | Structured Role DB |
-| "What skills do cybersecurity analysts need?" | Structured Role DB (+ vector context) |
-| "What does a Data Analyst earn in Germany?" | Compensation DB |
-| "Is demand for AI roles expected to grow?" | Vector / Forecast |
-| "What skills does a PM need and what do they earn in Germany?" | Mixed |
+| "What does a Logistics Manager do?" | `structured_role` |
+| "What skills do cybersecurity analysts need?" | `structured_role` (+ vector context) |
+| "What does a Data Analyst earn in Germany?" | `compensation` |
+| "Is demand for AI roles expected to grow?" | `forecast` |
+| "What digital competencies does a PM need?" | `competency` (DigComp) |
+| "What are cybersecurity incident response responsibilities?" | `cybersecurity` (NICE) |
+| "Is there a shortage of developers in Germany?" | `shortage` |
+| "How many job openings are there for nurses?" | `openings` |
+| "How do I transition from teaching into data analysis?" | `transition` |
+| "What behaviours are expected at Grade 7?" | `seniority` |
+| "What skills does a PM need and what do they earn in Germany?" | `mixed` |
+
+**Geographic precedence.** `detect_country()` reads the country/region from the
+question and `source_priority(country)` returns the ordered sources to prefer, so
+country-specific official statistics outrank generic international material (e.g.
+Germany → KldB/BERUFENET/Entgeltatlas before ESCO). Defined in
+`constants.COUNTRY_SOURCE_PRIORITY`.
 
 The chosen lane is shown in the **RAG Inspector**. (The baseline chat still runs
-vector RAG; structured lanes are surfaced as capabilities and via the router in
-this phase.)
+vector RAG; structured lanes are surfaced as capabilities and via the router.)
+
+## Source lifecycle & status
+
+Static catalogue metadata lives in `data/source_manifest.json`; the **mutable,
+measured** runtime status lives in `data/source_status.json`
+(`src/copilot/knowledge/status.py`, regenerated by
+`python scripts/source_status.py`). A source progresses:
+
+```
+CONFIGURED → ACQUISITION AVAILABLE → ACQUIRED → NORMALISED → INDEXED → AVAILABLE
+```
+
+plus the off-path states **MANUAL ACQUISITION**, **LICENCE REVIEW**, and
+**AUTO DOWNLOAD AVAILABLE**. Status is derived **only from what is on disk** (the
+structured stores' `counts_by_source()` and the vector manifest) — **a source in
+the manifest is never assumed to be loaded**. The Knowledge Base page shows a
+Knowledge Health dashboard and per-group lifecycle tables from this data.
 
 ## Provenance & authority
 
@@ -107,11 +142,13 @@ Indeed/Levels.fyi/proprietary salary sites or paid reports.
 **No datasets are committed** (licensing/size). Reproduce locally:
 
 ```bash
-python scripts/source_status.py        # see configured sources + flags
-python scripts/download_sources.py     # fetch only auto-downloadable sources
-python scripts/normalise_roles.py      # build the structured role DB
-python scripts/load_compensation.py    # build the compensation DB
-python scripts/rebuild_vector_index.py # re-embed narrative knowledge
+python scripts/source_status.py         # measured lifecycle table + write source_status.json
+python scripts/download_sources.py      # fetch only auto-downloadable sources
+python scripts/normalise_roles.py       # build the role DB (ESCO/O*NET/ISCO/KldB/BLS OOH)
+python scripts/load_competencies.py     # build the competency DB (DigComp/NICE/e-CF/BA/OPM/Civil Service)
+python scripts/load_labour_market.py    # build the labour-market DB (Cedefop forecast/openings/shortage)
+python scripts/load_compensation.py     # build the compensation DB
+python scripts/rebuild_vector_index.py  # re-embed narrative knowledge
 ```
 
 Committed synthetic samples (`evaluations/knowledge_samples/`) let the pipeline
@@ -128,6 +165,15 @@ run end-to-end without downloads for demonstration and tests.
   `compensation_cases.json`). `scripts/eval_expanded.py` produced
   `evaluations/expanded_architecture_{results.csv,evaluation.md}` **without**
   touching the 11R artifacts (also copied to `evaluations/baseline/`).
+
+- **KB-2 — knowledge-expansion measurement** (new, additive): deterministic
+  evaluation of the expanded corpus and router in
+  `scripts/eval_knowledge_expansion.py` over labelled cases
+  (`evaluations/knowledge_expansion/routing_cases.json`, `geo_cases.json`),
+  writing only under `evaluations/knowledge_expansion/` (routing/geo/coverage CSVs
+  + `results.md`). It does **not** modify the 11R or 11R-A artifacts. Measured on
+  committed samples: **lane routing 1.0**, **geographic precedence 1.0**, coverage
+  16/25 sources loaded locally (offline samples), 53 structured records.
 
 Measured on the committed samples: **routing accuracy 1.0** (per lane), structured
 role **hit 1.0 / provenance 1.0**, compensation **accuracy 1.0 / provenance 1.0**.

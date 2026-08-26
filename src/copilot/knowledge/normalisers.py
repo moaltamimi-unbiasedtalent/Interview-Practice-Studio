@@ -104,7 +104,7 @@ def normalise_isco(raw: dict, source_id: str = "isco08") -> list[NormalisedOccup
     return out
 
 
-def normalise_kldb(raw: dict, source_id: str = "kldb2010") -> NormalisedOccupation:
+def normalise_kldb(raw: dict, source_id: str = "kldb") -> NormalisedOccupation:
     """KldB 2010 occupation → NormalisedOccupation.
 
     KldB fields: code, title, occupation_group, tasks, activities, skills,

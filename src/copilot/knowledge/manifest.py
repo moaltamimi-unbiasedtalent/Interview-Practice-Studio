@@ -14,7 +14,21 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from src.copilot import constants
 
-__all__ = ["SourceEntry", "load_manifest", "by_type", "auto_downloadable", "manual_sources"]
+__all__ = [
+    "SourceEntry", "load_manifest", "by_type", "by_group", "auto_downloadable",
+    "manual_sources", "GROUPS",
+]
+
+# UI grouping order for the Knowledge Base page.
+GROUPS = [
+    ("occupations", "Occupations & Role Data"),
+    ("skills", "Skills & Competencies"),
+    ("job_architecture", "Seniority & Job Architecture"),
+    ("compensation", "Compensation"),
+    ("labour_market", "Labour Market & Forecasts"),
+    ("narrative", "Narrative / Methodology"),
+    ("specialist", "Specialist Profession Packs"),
+]
 
 
 class SourceEntry(BaseModel):
@@ -29,15 +43,20 @@ class SourceEntry(BaseModel):
     language: str | None = None
     source_type: str = "industry_report"
     version: str | None = None
+    version_policy: str | None = None  # e.g. "detect-at-acquisition" | "pinned"
     reference_year: int | None = None
+    region: str | None = None
+    publication_date: str | None = None
     licence: str | None = None
     licence_notes: str | None = None
     source_url: str | None = None
     download_url: str | None = None
     retrieval_date: str | None = None
-    storage_target: str | None = None  # structured_role | vector | compensation
+    storage_target: str | None = None  # structured_role | compensation | labour_market | competency | vector
     ingestion_method: str | None = None
     refresh_frequency: str | None = None
+    group: str | None = None  # UI section: occupations | skills | job_architecture | compensation | labour_market | narrative | specialist
+    coverage_areas: list[str] = Field(default_factory=list)
     redistribution_allowed: bool = False
     manual_acquisition_required: bool = False
     licence_review_required: bool = False
@@ -53,6 +72,10 @@ def load_manifest(path: str = constants.SOURCE_MANIFEST_PATH) -> list[SourceEntr
 
 def by_type(entries: list[SourceEntry], source_type: str) -> list[SourceEntry]:
     return [e for e in entries if e.source_type == source_type]
+
+
+def by_group(entries: list[SourceEntry], group: str) -> list[SourceEntry]:
+    return [e for e in entries if e.group == group]
 
 
 def auto_downloadable(entries: list[SourceEntry]) -> list[SourceEntry]:

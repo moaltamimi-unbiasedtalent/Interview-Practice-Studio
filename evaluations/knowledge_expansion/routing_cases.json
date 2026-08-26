@@ -1,0 +1,17 @@
+{
+  "description": "KB-2 labelled retrieval-lane cases for the expanded router. expected_lane is the lane the deterministic router should select. Includes the new lanes (competency, cybersecurity, shortage, openings, seniority, transition) alongside preserved existing lanes.",
+  "cases": [
+    { "id": "k_role_01", "query": "What does a Logistics Manager do?", "expected_lane": "structured_role" },
+    { "id": "k_skill_01", "query": "What skills do cybersecurity analysts need?", "expected_lane": "structured_role" },
+    { "id": "k_comp_01", "query": "What does a Data Analyst earn in Germany?", "expected_lane": "compensation" },
+    { "id": "k_fore_01", "query": "Is demand for AI roles expected to grow?", "expected_lane": "forecast" },
+    { "id": "k_vec_01", "query": "Explain the STAR method", "expected_lane": "vector" },
+    { "id": "k_mixed_01", "query": "What skills does a Product Manager need and what would they earn in Germany?", "expected_lane": "mixed" },
+    { "id": "k_comp_lane_01", "query": "What digital competencies does a project manager need?", "expected_lane": "competency" },
+    { "id": "k_cyber_01", "query": "What are cybersecurity incident response responsibilities?", "expected_lane": "cybersecurity" },
+    { "id": "k_short_01", "query": "Is there a shortage of software developers in Germany?", "expected_lane": "shortage" },
+    { "id": "k_open_01", "query": "How many job openings are there for nurses?", "expected_lane": "openings" },
+    { "id": "k_trans_01", "query": "How do I transition from teaching into a data analyst role?", "expected_lane": "transition" },
+    { "id": "k_senior_01", "query": "What behaviours are expected at Grade 7?", "expected_lane": "seniority" }
+  ]
+}

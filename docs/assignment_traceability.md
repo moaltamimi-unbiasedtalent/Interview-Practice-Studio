@@ -12,11 +12,11 @@ actually implemented and tested.
 | **Embeddings** | pluggable (OpenAI / local), dimensions | `src/copilot/embeddings.py` | `test_copilot_rag.py` | RAG Inspector metrics | PASS |
 | **Vector retrieval** | Chroma (persistent) + in-memory fallback | `src/copilot/vectorstore.py`, `retrieval/vector.py` | `test_copilot_rag.py` | RAG Inspector vector hits | PASS |
 | **Query translation** | intent, rewrite, multi-query, safe filters | `src/copilot/rag/translation.py` | `test_copilot_translation.py` | RAG Inspector translation | PASS |
-| **Structured retrieval** | metadata filters + structured role/compensation DBs + router | `src/copilot/rag/translation.py`, `src/copilot/knowledge/*` | `test_copilot_translation.py`, `test_copilot_knowledge.py` | Role/compensation query | PASS |
+| **Structured retrieval** | metadata filters + five structured stores (role/competency/compensation/labour-market) + router with geo precedence | `src/copilot/rag/translation.py`, `src/copilot/knowledge/*` (`structured_ext.py`, `status.py`, `normalisers_ext.py`) | `test_copilot_translation.py`, `test_copilot_knowledge.py`, `test_knowledge_expansion.py` | Role/competency/compensation/shortage query | PASS |
 | **Hybrid search (hard optional)** | vector + BM25 fused with RRF | `src/copilot/retrieval/{keyword,hybrid,fusion}.py` | `test_copilot_hybrid.py` | RAG Inspector fused ranking | PASS |
 | **Tool calling (≥3 → 4)** | Job Analyzer, Gap Analyzer, Prep Plan, Question Generator | `src/copilot/tools/*` | `test_copilot_tools.py` | Career Tools page | PASS |
 | **RAG + tools orchestration** | one non-autonomous service | `src/copilot/service.py` | `test_copilot_orchestration.py` | Chat answer | PASS |
-| **Domain specialisation** | careers/roles/skills/compensation + prompts | `src/copilot/*`, `src/copilot/knowledge/*` | `test_copilot_knowledge.py` | Any career query | PASS |
+| **Domain specialisation** | careers/roles/skills/competencies/compensation/labour-market across 25 authoritative sources + prompts | `src/copilot/*`, `src/copilot/knowledge/*`, `data/source_manifest.json` | `test_copilot_knowledge.py`, `test_knowledge_expansion.py` | Any career query; Knowledge Base page | PASS |
 | **Domain security / prompt injection (medium optional)** | scanner, RAG guard, output guard, safe tool records | `src/copilot/security/*` | `test_copilot_security.py` | Try "ignore instructions…" | PASS |
 | **Streamlit UI** | one app, grouped nav, design system | `app.py`, `src/ui/*`, `src/career/ui.py` | `test_os_shell` / `test_copilot_app_smoke.py` | Whole app | PASS |
 | **Sources / citations** | numbered context → citations mapping | `src/copilot/rag/context.py` | `test_copilot_rag.py` | Answer "Sources" | PASS |

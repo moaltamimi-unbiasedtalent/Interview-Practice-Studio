@@ -255,18 +255,43 @@ LANE_VECTOR = "vector"
 LANE_COMPENSATION = "compensation"
 LANE_FORECAST = "forecast"
 LANE_MIXED = "mixed"
+LANE_COMPETENCY = "competency"      # DigComp / digital capabilities
+LANE_CYBERSECURITY = "cybersecurity"  # NICE work roles / cyber responsibilities
+LANE_SHORTAGE = "shortage"          # labour/skills shortage data
+LANE_OPENINGS = "openings"          # future job openings / replacement demand
+LANE_SENIORITY = "seniority"        # behaviour/seniority frameworks
+LANE_TRANSITION = "transition"      # career transition comparison
 RETRIEVAL_LANES = (
     LANE_STRUCTURED_ROLE,
     LANE_VECTOR,
     LANE_COMPENSATION,
     LANE_FORECAST,
     LANE_MIXED,
+    LANE_COMPETENCY,
+    LANE_CYBERSECURITY,
+    LANE_SHORTAGE,
+    LANE_OPENINGS,
+    LANE_SENIORITY,
+    LANE_TRANSITION,
 )
+
+# Geographic source precedence: country-specific official data outranks generic
+# international material when the question is country-specific.
+COUNTRY_SOURCE_PRIORITY = {
+    "DE": ["kldb", "berufenet", "ba_kompetenzkatalog", "ba_entgeltatlas", "esco", "isco08"],
+    "US": ["onet", "bls_ooh", "bls_oews", "opm_occupational_groups", "isco08"],
+    "UK": ["ons_ashe", "uk_civil_service_success_profiles", "uk_hr_success_profiles", "esco", "isco08"],
+    "EU": ["esco", "esco_matrix", "eurostat_earnings", "cedefop_skills_forecast", "isco08"],
+}
 
 # Default local stores for the structured knowledge (git-ignored, like data/).
 ROLE_DB_PATH = "data/knowledge/roles.db"
 COMPENSATION_DB_PATH = "data/knowledge/compensation.db"
+COMPETENCY_DB_PATH = "data/knowledge/competencies.db"
+LABOUR_MARKET_DB_PATH = "data/knowledge/labour_market.db"
 SOURCE_MANIFEST_PATH = "data/source_manifest.json"
+# Generated runtime lifecycle status (derived; not hand-maintained).
+SOURCE_STATUS_PATH = "data/source_status.json"
 
 # --- Cost currency -----------------------------------------------------------
 

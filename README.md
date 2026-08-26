@@ -20,13 +20,20 @@ Practise, Review & Improve). The two modules keep clear boundaries and are each
 independently testable; see [docs/interview_os_architecture.md](docs/interview_os_architecture.md).
 
 **Career Intelligence is a multi-source knowledge system**, not just a vector
-store: a router sends each question to the right lane — a **Structured Role DB**
-(ESCO/O*NET/ISCO/KldB in SQLite), **Vector Knowledge** (narrative docs in Chroma),
-or a **Compensation DB** (OEWS/ASHE/Eurostat/Entgeltatlas) — every record
-carrying provenance and source authority. See
+store: a deterministic router sends each question to the right lane across five
+stores — a **Role DB** (ESCO/O*NET/ISCO/KldB/BLS OOH), a **Competency DB**
+(DigComp/NICE/e-CF/BA/OPM/UK Civil Service), a **Compensation DB**
+(OEWS/ASHE/Eurostat/Entgeltatlas), a **Labour-Market DB** (Cedefop
+forecast/openings/shortage), and **Vector Knowledge** (narrative docs in Chroma) —
+every record carrying provenance and source authority, with geographic source
+precedence for country-specific questions. **25 authoritative sources** are
+configured (see [docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md)),
+each tracked through a measured lifecycle in `data/source_status.json` — a source
+in the manifest is never assumed loaded. See
 [docs/knowledge_architecture.md](docs/knowledge_architecture.md). No datasets are
 committed; reproduce with the `scripts/*` loaders (`source_status`,
-`download_sources`, `normalise_roles`, `load_compensation`, `rebuild_vector_index`).
+`download_sources`, `normalise_roles`, `load_competencies`, `load_labour_market`,
+`load_compensation`, `rebuild_vector_index`).
 
 **RAG evaluation is versioned.** Phase 11R established the baseline benchmark
 (`evaluations/retrieval_results.csv`, `rag_evaluation.md`), preserved unchanged
@@ -155,37 +162,48 @@ flowchart TD
 Career Intelligence is a **multi-source** system, not one vector store:
 
 ```
-Structured Role DB      Vector Knowledge      Compensation DB
-(ESCO/O*NET/ISCO/KldB)  (reports/frameworks)  (OEWS/ASHE/Eurostat/Entgeltatlas)
-            └───────────────┬───────────────┘
-                      Hybrid Router
-                            ↓
-                 Grounded answer (with provenance)
+ Role DB   Competency DB   Compensation DB   Labour-Market DB   Vector Knowledge
+ (ESCO/    (DigComp/NICE/  (OEWS/ASHE/       (Cedefop           (reports/
+  O*NET/    e-CF/BA/OPM/    Eurostat/         forecast/          frameworks)
+  ISCO/     Civil Service)  Entgeltatlas)     openings/
+  KldB/                                       shortage)
+  BLS OOH)
+     └──────────────┴──────────────┬──────────────┴───────────────┘
+                          Deterministic Router (+ geo precedence)
+                                    ↓
+                        Grounded answer (with provenance)
 ```
 
-**Why not everything in Chroma:** occupations/skills are relational and
-enumerable (a taxonomy lookup, not nearest-prose); compensation is tabular and
-context-bound (currency/period/geography/year); only narrative belongs in
-vectors. Details: [docs/knowledge_architecture.md](docs/knowledge_architecture.md).
+**Why not everything in Chroma:** occupations/skills/competencies are relational
+and enumerable (a taxonomy lookup, not nearest-prose); compensation and
+labour-market data are tabular and context-bound
+(currency/period/geography/year); only narrative belongs in vectors. Details:
+[docs/knowledge_architecture.md](docs/knowledge_architecture.md).
 
 ## Knowledge sources
 
-Configured in [data/source_manifest.json](data/source_manifest.json). **No
+**25 authoritative sources** are configured in
+[data/source_manifest.json](data/source_manifest.json); each has a measured
+lifecycle in `data/source_status.json`. Full list with lifecycle and licence:
+[docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md). **No
 datasets are committed** (see [docs/source_licensing.md](docs/source_licensing.md)).
+A representative subset:
 
-| Source | Publisher | Role | Store | Geo | Year/Ver | Licence note |
-| --- | --- | --- | --- | --- | --- | --- |
-| O*NET | US DOL | occupations/skills | structured | US | 2024 | CC BY 4.0 |
-| ESCO | European Commission | occupations/skills | structured | EU | v1.2.0 | review before reuse |
-| ISCO-08 | ILO | occupation hierarchy | structured | global | 2008 | review before reuse |
-| KldB 2010 | Bundesagentur für Arbeit | occupations | structured | DE | 2010 | review before reuse |
-| OEWS | US BLS | compensation | structured | US | 2023 | public domain (US gov) |
-| ASHE | UK ONS | compensation | structured | UK | 2023 | OGL v3.0 |
-| Eurostat earnings | Eurostat | compensation | structured | EU | 2022 | CC BY 4.0 |
-| Entgeltatlas | Bundesagentur für Arbeit | compensation | structured | DE | 2024 | review; manual |
-| Cedefop Skills Forecast | Cedefop | labour-market forecast | vector | EU | 2023 | review; manual |
-| EQF | European Commission | competency framework | vector | EU | 2017 | review; manual |
-| Future of Jobs | World Economic Forum | industry report | vector | global | 2023 | review; manual |
+| Source | Publisher | Group | Geo | Licence note |
+| --- | --- | --- | --- | --- |
+| O*NET | US DOL | occupations | US | CC BY 4.0 |
+| ESCO | European Commission | occupations/skills | EU | review before reuse |
+| ISCO-08 | ILO | occupation hierarchy | global | review before reuse |
+| KldB / BERUFENET | Bundesagentur für Arbeit | occupations | DE | review before reuse |
+| BLS Occupational Outlook Handbook | US BLS | occupations | US | public domain (US gov) |
+| DigComp | European Commission (JRC) | skills | EU | review before reuse |
+| NICE Framework | NIST | skills (cyber) | US | public domain (US gov) |
+| e-CF | CEN | skills | EU | review before reuse |
+| UK Civil Service Success Profiles | Cabinet Office | job architecture | UK | OGL v3.0 |
+| OPM qualification standards | US OPM | job architecture | US | public domain (US gov) |
+| OEWS / ASHE / Eurostat / Entgeltatlas | BLS / ONS / Eurostat / BA | compensation | US/UK/EU/DE | public domain / OGL / CC BY / review |
+| Cedefop forecast / openings / shortage | Cedefop | labour market | EU | review before reuse |
+| ESCO handbook / WEF Future of Jobs | EC / WEF | narrative | EU/global | review before reuse |
 
 ## RAG flow
 
@@ -229,6 +247,13 @@ hybrid** — reported, not rewritten. Tool selection 1.0; citation validity 1.0.
 Core vector/keyword/hybrid metrics are **unchanged vs baseline (Δ = 0)** — the
 expansion adds lanes and coverage, it does not change narrative retrieval. No
 improvement is claimed where the numbers do not show one.
+
+**KB-2 knowledge expansion:** lane routing **1.0** and geographic precedence
+**1.0** over labelled cases; coverage of **16/25** sources loaded locally from
+offline samples (53 structured records) — the rest are configured with honest
+MANUAL ACQUISITION / LICENCE REVIEW lifecycle. Reproduce with
+`python scripts/eval_knowledge_expansion.py`; it writes only under
+`evaluations/knowledge_expansion/` and never touches the 11R / 11R-A artifacts.
 
 ## Security
 

@@ -1,0 +1,26 @@
+source_id,group,authority,records,lifecycle,manual_acquisition,licence_review
+onet,occupations,1,3,AVAILABLE,False,False
+esco,occupations,1,1,AVAILABLE,True,True
+esco_matrix,skills,1,0,MANUAL ACQUISITION,True,True
+isco08,occupations,1,3,AVAILABLE,True,True
+kldb,occupations,1,0,MANUAL ACQUISITION,True,True
+berufenet,occupations,1,0,MANUAL ACQUISITION,True,True
+bls_ooh,occupations,1,2,AVAILABLE,False,False
+digcomp,skills,2,9,AVAILABLE,True,True
+ba_kompetenzkatalog,skills,1,3,AVAILABLE,True,True
+nice_framework,specialist,1,10,AVAILABLE,False,False
+ecf,skills,2,3,AVAILABLE,True,True
+eqf,job_architecture,2,0,MANUAL ACQUISITION,True,True
+opm_occupational_groups,job_architecture,1,0,AUTO DOWNLOAD AVAILABLE,False,False
+opm_qualification_standards,job_architecture,1,3,AVAILABLE,False,False
+uk_civil_service_success_profiles,job_architecture,2,5,AVAILABLE,True,False
+uk_hr_success_profiles,specialist,2,0,MANUAL ACQUISITION,True,False
+bls_oews,compensation,1,2,AVAILABLE,False,False
+ons_ashe,compensation,1,1,AVAILABLE,False,False
+eurostat_earnings,compensation,1,0,AUTO DOWNLOAD AVAILABLE,False,False
+ba_entgeltatlas,compensation,1,1,AVAILABLE,True,True
+cedefop_skills_forecast,labour_market,1,2,AVAILABLE,True,True
+cedefop_future_job_openings,labour_market,1,2,AVAILABLE,True,True
+cedefop_shortage_index,labour_market,1,3,AVAILABLE,True,True
+esco_handbook,narrative,1,0,MANUAL ACQUISITION,True,True
+wef_future_of_jobs,narrative,3,0,MANUAL ACQUISITION,True,True

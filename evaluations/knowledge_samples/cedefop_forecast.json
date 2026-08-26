@@ -1,0 +1,6 @@
+{
+  "forecasts": [
+    {"occupation": "Data Analyst", "country": "EU", "sector": "Information and communication", "employment_change": 0.14, "replacement_demand": 0.22, "horizon": "2022-2035", "reference_year": 2023},
+    {"occupation": "Operations Manager", "country": "EU", "sector": "Administrative and support services", "employment_change": 0.05, "replacement_demand": 0.31, "horizon": "2022-2035", "reference_year": 2023}
+  ]
+}

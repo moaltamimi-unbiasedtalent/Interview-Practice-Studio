@@ -1,0 +1,8 @@
+{
+  "framework": "BA Kompetenzkatalog",
+  "competences": [
+    {"area": "Fachkompetenz", "name": "Datenanalyse", "description": "Erhebung, Aufbereitung und Auswertung von Daten."},
+    {"area": "Methodenkompetenz", "name": "Projektmanagement", "description": "Planung und Steuerung von Projekten."},
+    {"area": "Sozialkompetenz", "name": "Teamfähigkeit", "description": "Zusammenarbeit in interdisziplinären Teams."}
+  ]
+}
