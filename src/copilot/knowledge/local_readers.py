@@ -27,12 +27,15 @@ from src.copilot.knowledge.structured_ext import (
     Competency,
     LabourForecast,
     LabourOpenings,
+    LabourShortage,
+    LabourVacancy,
 )
 
 __all__ = [
     "read_onet", "read_esco", "read_isco", "read_kldb",
     "read_oews", "read_ashe", "read_ooh", "read_nice_structured",
-    "read_bls_projections",
+    "read_bls_projections", "read_bls_ep_characteristics",
+    "read_cedefop_clssi", "read_eurostat_vacancy", "read_digcomp_structured",
 ]
 
 _TAG_RE = re.compile(r"<[^>]+>")
@@ -550,3 +553,164 @@ def read_bls_projections(path: str = "data/raw/occupation.xlsx",
                 source_id=source_id, occupation=title, geography="US",
                 period="2025-2035 annual avg", total_openings=openings_val))
     return forecasts, openings
+
+
+# --- Cedefop CLSSI (structural labour-shortage index) ------------------------
+
+
+def read_cedefop_clssi(path: str = "data/raw/2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx",
+                       *, source_id: str = "cedefop_clssi", period: str = "2026"):
+    """Read the Cedefop CLSSI (per-country sheets) into LabourShortage records.
+
+    Each sheet is a country (EU27, AT, BE, …); each row is a 2-digit ISCO
+    occupation group with a Labour Shortage Index. This is *structural* shortage
+    (kept distinct from real-time demand and long-term forecasts).
+    """
+    if not os.path.isfile(path):
+        return []
+    import pandas as pd
+
+    xl = pd.ExcelFile(path)
+    out: list[LabourShortage] = []
+    for sheet in xl.sheet_names:
+        df = pd.read_excel(xl, sheet)
+        occ_c = next((c for c in df.columns if "2 digit" in str(c).lower() or "occupation group" in str(c).lower()), None)
+        idx_c = next((c for c in df.columns if "shortage index" in str(c).lower()), None)
+        main_c = next((c for c in df.columns if "main occupation" in str(c).lower()), None)
+        if not (occ_c and idx_c):
+            continue
+        for _, row in df.iterrows():
+            occ = row.get(occ_c)
+            val = row.get(idx_c)
+            if occ is None or pd.isna(occ) or pd.isna(val):
+                continue
+            try:
+                score = float(val)
+            except (TypeError, ValueError):
+                continue
+            band = ("high shortage" if score >= 3.5 else "shortage" if score >= 2.5
+                    else "balanced" if score >= 1.5 else "surplus")
+            out.append(LabourShortage(
+                source_id=source_id, occupation=str(occ).strip(), country=str(sheet).strip(),
+                skill_level=(str(row.get(main_c)).strip() if main_c and not pd.isna(row.get(main_c)) else None),
+                shortage_indicator=f"CLSSI {score:.2f} ({band})", period=period))
+    return out
+
+
+# --- Eurostat Job Vacancy Statistics (jvs_a_isco3 default view) ---------------
+
+
+def read_eurostat_vacancy(path: str = "data/raw/jvs_a_isco3_r1$defaultview_spreadsheet.xlsx",
+                          *, source_id: str = "eurostat_occ_vacancy"):
+    """Read Eurostat job-vacancy sheets into LabourVacancy records (country level).
+
+    The default-view export carries the ISCO dimension as "Total" (not broken out
+    by occupation), so this yields country-level job-vacancy-rate and job-vacancy
+    counts by year. Eurostat JVS-by-occupation is experimental — flagged as such.
+    """
+    if not os.path.isfile(path):
+        return []
+    import pandas as pd
+
+    xl = pd.ExcelFile(path)
+    wanted = {"Job vacancy rate", "Job vacancies"}
+    out: list[LabourVacancy] = []
+    for sheet in xl.sheet_names:
+        if not sheet.lower().startswith("sheet"):
+            continue
+        raw = pd.read_excel(xl, sheet, header=None)
+        meta = {}
+        header_idx = None
+        for i in range(min(15, len(raw))):
+            key = str(raw.iloc[i, 0])
+            val = str(raw.iloc[i, 2]) if raw.shape[1] > 2 else ""
+            if "Classification" in key:
+                meta["isco"] = val
+            if "indicator" in key.lower():
+                meta["indicator"] = val
+            if "Unit" in key:
+                meta["unit"] = val
+            if key.strip().upper() == "TIME":
+                header_idx = i
+        if meta.get("indicator") not in wanted or header_idx is None:
+            continue
+        # Year columns are on the TIME row; values on GEO rows below "GEO (Labels)".
+        years = {}
+        for j, cell in enumerate(raw.iloc[header_idx].tolist()):
+            try:
+                y = int(float(cell))
+                if 1990 <= y <= 2100:
+                    years[j] = y
+            except (TypeError, ValueError):
+                pass
+        geo_start = header_idx + 1
+        for i in range(header_idx + 1, len(raw)):
+            if str(raw.iloc[i, 0]).strip().upper().startswith("GEO"):
+                geo_start = i + 1
+                break
+        for i in range(geo_start, len(raw)):
+            geo = raw.iloc[i, 0]
+            if geo is None or (isinstance(geo, float) and geo != geo) or not str(geo).strip():
+                continue
+            geo_s = str(geo).strip()
+            # The GEO block ends at the flag/footnote legend.
+            if geo_s.lower().startswith(("special value", "available flags", "flags:", ":")):
+                break
+            # Pick the most recent real value across year columns (skip ":" / NaN).
+            val = None; year = None
+            for j in sorted(years, key=lambda k: -years[k]):
+                cell = raw.iloc[i, j] if j < raw.shape[1] else None
+                try:
+                    f = float(cell)
+                except (TypeError, ValueError):
+                    continue
+                if f == f:  # not NaN
+                    val = f; year = years[j]; break
+            if val is None:
+                continue
+            out.append(LabourVacancy(
+                source_id=source_id, occupation=meta.get("isco", "Total") or "Total",
+                country=str(geo).strip(), year=year, indicator=meta.get("indicator"),
+                unit=meta.get("unit"), value=val, experimental=True))
+    return out
+
+
+# --- DigComp 2.2 (real structured competences from the ESCO mapping) ----------
+
+
+def read_digcomp_structured(path: str = "data/raw/DigComp 2.2 ESCO Skills Mapping.xlsx",
+                            *, source_id: str = "digcomp"):
+    """Read the DigComp 2.2 competences from the ESCO↔DigComp mapping workbook.
+
+    Rows flagged ``MapDigComp == 1`` carry the DigComp competence in the
+    ``DigComp 1..4`` columns (e.g. "1.3: Managing data …"). We emit the distinct
+    DigComp 2.2 competences (area parsed from the "X.Y" code) — real structured
+    framework data replacing the earlier sample.
+    """
+    if not os.path.isfile(path):
+        return []
+    import pandas as pd
+
+    sheet = "ESCO DigComp OJA mapping"
+    xl = pd.ExcelFile(path)
+    if sheet not in xl.sheet_names:
+        return []
+    df = pd.read_excel(xl, sheet)
+    mapped = df[df.get("MapDigComp") == 1] if "MapDigComp" in df.columns else df
+
+    _AREAS = {"1": "Information and data literacy", "2": "Communication and collaboration",
+              "3": "Digital content creation", "4": "Safety", "5": "Problem solving"}
+    seen: dict[str, Competency] = {}
+    for _, row in mapped.iterrows():
+        for col in ("DigComp 1", "DigComp 2", "DigComp 3", "DigComp 4"):
+            comp = row.get(col)
+            if comp is None or (isinstance(comp, float) and comp != comp) or not str(comp).strip():
+                continue
+            comp = str(comp).strip()
+            if comp in seen:
+                continue
+            area = _AREAS.get(comp.split(".", 1)[0], "DigComp")
+            name = comp.split(":", 1)[1].strip() if ":" in comp else comp
+            seen[comp] = Competency(source_id=source_id, framework="DigComp 2.2",
+                                    area=area, name=name, description=comp)
+    return list(seen.values())

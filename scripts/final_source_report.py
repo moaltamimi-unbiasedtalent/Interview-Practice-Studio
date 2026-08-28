@@ -75,6 +75,11 @@ def main() -> int:
             _q(LM, "SELECT COUNT(*) FROM labour_market_forecasts")
             + _q(LM, "SELECT COUNT(*) FROM labour_market_openings")
             + _q(LM, "SELECT COUNT(*) FROM labour_shortages")
+            + _q(LM, "SELECT COUNT(*) FROM labour_vacancies")
+        ),
+        "Credential records": (
+            _q(constants.CREDENTIAL_DB_PATH, "SELECT COUNT(*) FROM certifications")
+            + _q(constants.CREDENTIAL_DB_PATH, "SELECT COUNT(*) FROM occupational_licences")
         ),
         "Vector documents (narrative files indexed)": sum(
             1 for f in inv["files"]

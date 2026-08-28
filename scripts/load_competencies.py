@@ -88,6 +88,10 @@ def main(argv: list[str] | None = None) -> int:
     nice_real = lr.read_nice_structured()
     if nice_real:
         files = [p for p in files if not p.name.lower().startswith("nice")]
+    # Prefer the real DigComp 2.2 (ESCO mapping) over the digcomp sample.
+    digcomp_real = lr.read_digcomp_structured()
+    if digcomp_real:
+        files = [p for p in files if not p.name.lower().startswith("digcomp")]
 
     # filename prefix → manifest source_id, to record data origin per source.
     _SRC = {"digcomp": "digcomp", "ecf": "ecf", "ba_kompetenzkatalog": "ba_kompetenzkatalog",
@@ -116,6 +120,12 @@ def main(argv: list[str] | None = None) -> int:
         total += len(nice_real)
         origin_map["nice_framework"] = constants.ORIGIN_OFFICIAL_LOCAL
         print(f"  ✓ NICE Framework Components (local): {len(nice_real)} record(s)")
+    if digcomp_real:
+        for c in digcomp_real:
+            repo.add_competency(c)
+        total += len(digcomp_real)
+        origin_map["digcomp"] = constants.ORIGIN_OFFICIAL_LOCAL
+        print(f"  ✓ DigComp 2.2 (local, ESCO mapping): {len(digcomp_real)} competence(s)")
     counts = repo.counts()
     repo.close()
     korigins.record_origins(origin_map)

@@ -15,7 +15,8 @@ from pydantic import BaseModel
 __all__ = [
     "Competency", "CompetencyLevel", "OccupationCompetency", "RoleBehaviour",
     "QualificationRequirement", "CompetencyRepository",
-    "LabourForecast", "LabourOpenings", "LabourShortage", "LabourMarketRepository",
+    "LabourForecast", "LabourOpenings", "LabourShortage", "LabourVacancy",
+    "LabourMarketRepository",
     "Certification", "OccupationLicence", "CredentialRepository",
 ]
 
@@ -199,12 +200,25 @@ class LabourShortage(BaseModel):
     period: str | None = None
 
 
+class LabourVacancy(BaseModel):
+    source_id: str
+    occupation: str          # ISCO occupation or "Total" (all occupations)
+    country: str
+    region: str | None = None  # NUTS region if applicable
+    year: int | None = None
+    indicator: str | None = None  # e.g. Job vacancy rate | Job vacancies
+    unit: str | None = None       # Percentage | Thousand
+    value: float | None = None
+    experimental: bool = False    # Eurostat experimental-statistics flag
+
+
 _LM_SCHEMA = """
 CREATE TABLE IF NOT EXISTS labour_market_forecasts (source_id TEXT, occupation TEXT, country TEXT, sector TEXT, employment_change REAL, replacement_demand REAL, horizon TEXT, reference_year INTEGER);
 CREATE TABLE IF NOT EXISTS labour_market_openings (source_id TEXT, occupation TEXT, geography TEXT, period TEXT, new_jobs REAL, replacement_demand REAL, total_openings REAL);
 CREATE TABLE IF NOT EXISTS labour_shortages (source_id TEXT, occupation TEXT, country TEXT, skill_level TEXT, shortage_indicator TEXT, period TEXT);
+CREATE TABLE IF NOT EXISTS labour_vacancies (source_id TEXT, occupation TEXT, country TEXT, region TEXT, year INTEGER, indicator TEXT, unit TEXT, value REAL, experimental INTEGER);
 """
-_LM_TABLES = ["labour_market_forecasts", "labour_market_openings", "labour_shortages"]
+_LM_TABLES = ["labour_market_forecasts", "labour_market_openings", "labour_shortages", "labour_vacancies"]
 
 
 class LabourMarketRepository:
@@ -252,6 +266,22 @@ class LabourMarketRepository:
         if country:
             q += " AND lower(country)=?"; params.append(country.lower())
         return [dict(r) for r in self._conn.execute(q, params)]
+
+    def add_vacancy(self, v: LabourVacancy) -> None:
+        self._conn.execute("INSERT INTO labour_vacancies VALUES (?,?,?,?,?,?,?,?,?)",
+                           (v.source_id, v.occupation, v.country, v.region, v.year,
+                            v.indicator, v.unit, v.value, int(v.experimental)))
+        self._conn.commit()
+
+    def vacancies_for(self, country: str | None = None, occupation: str | None = None) -> list[dict]:
+        clauses, params = [], []
+        if country:
+            clauses.append("lower(country) LIKE ?"); params.append(f"%{country.lower()}%")
+        if occupation:
+            clauses.append("lower(occupation) LIKE ?"); params.append(f"%{occupation.lower()}%")
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return [dict(r) for r in self._conn.execute(
+            f"SELECT * FROM labour_vacancies{where} ORDER BY year DESC", params)]
 
     def counts(self) -> dict[str, int]:
         return {t: self._conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _LM_TABLES}

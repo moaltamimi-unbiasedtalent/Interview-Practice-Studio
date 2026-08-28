@@ -463,11 +463,40 @@ class StructuredRetrievalCoordinator:
                      + (f" — {reqs}" if reqs else "")))
 
     def _current_vacancy(self, query, out) -> None:
-        # No real-time vacancy source is loaded; say so plainly (never guess).
-        out.insufficient = True
-        out.notes.append(
-            "No real-time vacancy/demand source is loaded. Structured forecasts and "
-            "openings (long-term) are available; real-time demand is not.")
+        # Eurostat job-vacancy statistics (country-level; ISCO 'Total' in the
+        # default export). Real official data, flagged experimental.
+        if self.labour_repo is None or not hasattr(self.labour_repo, "vacancies_for"):
+            out.insufficient = True
+            out.notes.append("No vacancy source is loaded.")
+            return
+        country = out.country
+        rate_country = {"DE": "germany", "UK": "united kingdom", "US": "united states",
+                        "EU": "european union"}.get(country)
+        rows = self.labour_repo.vacancies_for(country=rate_country) if rate_country else []
+        if not rows:
+            rows = self.labour_repo.vacancies_for()  # fall back to all countries
+        out.structured_queries.append(f"labour.vacancies_for(country={rate_country!r})")
+        # Prefer the vacancy-rate (%) indicator.
+        rates = [r for r in rows if (r.get("indicator") or "").lower() == "job vacancy rate"
+                 and (r.get("unit") or "").lower() == "percentage"]
+        rows = (rates or rows)
+        if not rows:
+            out.insufficient = True
+            out.notes.append("No job-vacancy record is loaded for that geography.")
+            return
+        for r in rows[:6]:
+            sid = r.get("source_id", "")
+            if sid not in out.sources_considered:
+                out.sources_considered.append(sid)
+            exp = " [experimental statistics]" if r.get("experimental") else ""
+            out.evidence.append(self._evidence(
+                eid=f"vac:{sid}:{r.get('country')}:{r.get('year')}", source_id=sid,
+                lane=RetrievalLane.CURRENT_VACANCY, etype="vacancy",
+                country=r.get("country"), year=r.get("year"), score=2.4,
+                text=(f"{r.get('indicator')}: {r.get('value')}{'%' if (r.get('unit') or '').lower()=='percentage' else ''} "
+                      f"in {r.get('country')} ({r.get('year')}), all occupations{exp}.")))
+        out.notes.append("Vacancy data is country-level (ISCO 'Total'); per-occupation "
+                         "vacancy breakdown is not in the current Eurostat export.")
 
     def _transition(self, query, country, out) -> None:
         if self.role_repo is None:

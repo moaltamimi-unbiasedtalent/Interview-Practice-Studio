@@ -170,3 +170,60 @@ def test_bls_ep_characteristics_reader() -> None:
     assert occs
     assert any(o.entry_education for o in occs)
     assert any(o.work_experience for o in occs)
+
+
+# --- Labour vacancy store + new-source readers (CLSSI / Eurostat / DigComp) ---
+
+
+class TestLabourVacancy:
+    def test_vacancy_repo_roundtrip(self) -> None:
+        from src.copilot.knowledge.structured_ext import LabourMarketRepository, LabourVacancy
+        repo = LabourMarketRepository(":memory:")
+        repo.add_vacancy(LabourVacancy(
+            source_id="eurostat_occ_vacancy", occupation="Total", country="Belgium",
+            year=2024, indicator="Job vacancy rate", unit="Percentage", value=4.27,
+            experimental=True))
+        rows = repo.vacancies_for(country="belgium")
+        assert rows and rows[0]["value"] == 4.27 and rows[0]["experimental"] == 1
+        assert "labour_vacancies" in repo.counts()
+        repo.close()
+
+    def test_current_vacancy_lane_uses_vacancy_store(self) -> None:
+        from unittest import mock
+        from src.copilot.knowledge.retrieval import StructuredRetrievalCoordinator
+        from src.copilot.knowledge.structured_ext import LabourMarketRepository, LabourVacancy
+        labour = LabourMarketRepository(":memory:")
+        labour.add_vacancy(LabourVacancy(
+            source_id="eurostat_occ_vacancy", occupation="Total", country="Germany",
+            year=2024, indicator="Job vacancy rate", unit="Percentage", value=3.1))
+        coord = StructuredRetrievalCoordinator(labour_repo=labour, manifest_entries=[])
+        with mock.patch.object(labour, "vacancies_for", wraps=labour.vacancies_for) as spy:
+            out = coord.retrieve(route_question("What is demand like right now in Germany?"),
+                                 "What is demand like right now in Germany?")
+        assert spy.called
+        assert any(e.evidence_type == "vacancy" for e in out.evidence)
+
+
+@pytest.mark.skipif(not os.path.isfile("data/raw/2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx"),
+                    reason="CLSSI dataset not present")
+def test_clssi_reader() -> None:
+    rows = lr.read_cedefop_clssi()
+    assert len(rows) > 100
+    assert all(r.source_id == "cedefop_clssi" and r.shortage_indicator for r in rows)
+
+
+@pytest.mark.skipif(not os.path.isfile("data/raw/jvs_a_isco3_r1$defaultview_spreadsheet.xlsx"),
+                    reason="Eurostat JVS not present")
+def test_eurostat_vacancy_reader() -> None:
+    rows = lr.read_eurostat_vacancy()
+    rates = [r for r in rows if r.indicator == "Job vacancy rate" and r.unit == "Percentage"]
+    assert rates and all(r.experimental for r in rates)
+
+
+@pytest.mark.skipif(not os.path.isfile("data/raw/DigComp 2.2 ESCO Skills Mapping.xlsx"),
+                    reason="DigComp mapping not present")
+def test_digcomp_structured_reader() -> None:
+    comps = lr.read_digcomp_structured()
+    assert comps
+    assert all(c.framework == "DigComp 2.2" for c in comps)
+    assert {c.area for c in comps} & {"Information and data literacy", "Problem solving"}

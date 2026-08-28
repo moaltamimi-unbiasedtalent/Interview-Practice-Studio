@@ -76,9 +76,14 @@ to the role lane:
 The role store now also carries **entry education, work experience, on-the-job
 training and outlook** attributes (from BLS OOH and BLS Employment Projections),
 and a separate **credentials** store distinguishes required occupational
-**licences** from optional professional **certifications**. A factual gap with no
-matching record (e.g. real-time vacancy data, which is not loaded) is reported
-plainly rather than guessed.
+**licences** from optional professional **certifications**. The labour-market
+store now holds four conceptually-distinct signals kept separate (never merged
+into one "demand score"): long-term **forecasts** (Cedefop / BLS EP), **openings**
+(BLS EP), structural **shortage** (Cedefop CLSSI), and near-real-time **vacancy
+rates** (Eurostat JVS, country-level, flagged experimental). Digital competences
+come from the real **DigComp 2.2** ESCO mapping. A factual gap with no matching
+record (e.g. a per-occupation vacancy breakdown, which the Eurostat export does
+not provide) is reported plainly rather than guessed.
 
 **Geographic precedence.** `detect_country()` reads the country/region from the
 question and `source_priority(country)` returns the ordered sources to prefer, so

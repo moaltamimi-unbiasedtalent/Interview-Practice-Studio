@@ -37,6 +37,8 @@ publisher before redistributing anything derived from a source.
 | Future of Jobs Report | World Economic Forum | narrative | review required | manual | not until confirmed |
 | BLS Employment Projections | U.S. Bureau of Labor Statistics | labour_market | Public domain (U.S. Government work) | auto-download | allowed w/ attribution |
 | Cedefop Short-Term Analytical System (STAS) | Cedefop | labour_market | review required | — | not until confirmed |
+| Cedefop Labour & Skills Shortage Index (CLSSI) | Cedefop | labour_market | review required | — | not until confirmed |
+| Eurostat Job Vacancy Statistics (by occupation) | Eurostat | labour_market | CC BY 4.0 | auto-download | allowed w/ attribution |
 
 Notes:
 

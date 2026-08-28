@@ -839,6 +839,63 @@
       "storage_target": "structured",
       "ingestion_method": "manual",
       "refresh_frequency": "annual"
+    },
+    {
+      "authority_level": 1,
+      "language": "en",
+      "version": "2026",
+      "version_policy": "detect-at-acquisition",
+      "redistribution_allowed": false,
+      "manual_acquisition_required": false,
+      "licence_review_required": true,
+      "manual_review_required": false,
+      "coverage_areas": [
+        "structural_shortage",
+        "occupation_group"
+      ],
+      "source_id": "cedefop_clssi",
+      "title": "Cedefop Labour & Skills Shortage Index (CLSSI)",
+      "publisher": "Cedefop",
+      "authority": "official",
+      "country": "EU",
+      "source_type": "labour_market_forecast",
+      "group": "labour_market",
+      "licence": null,
+      "licence_notes": "Cedefop reuse terms to confirm.",
+      "source_url": "https://www.cedefop.europa.eu/en/tools/skills-intelligence",
+      "download_url": null,
+      "storage_target": "structured",
+      "ingestion_method": "local_or_download",
+      "refresh_frequency": "annual"
+    },
+    {
+      "authority_level": 1,
+      "language": "en",
+      "version": "jvs_a_isco3_r1",
+      "version_policy": "detect-at-acquisition",
+      "redistribution_allowed": true,
+      "manual_acquisition_required": false,
+      "licence_review_required": false,
+      "manual_review_required": false,
+      "coverage_areas": [
+        "job_vacancy_rate",
+        "job_vacancies",
+        "current_demand"
+      ],
+      "source_id": "eurostat_occ_vacancy",
+      "title": "Eurostat Job Vacancy Statistics (by occupation)",
+      "publisher": "Eurostat",
+      "authority": "official",
+      "country": "EU",
+      "source_type": "labour_market_forecast",
+      "group": "labour_market",
+      "licence": "CC BY 4.0",
+      "licence_notes": "Eurostat CC BY 4.0; JVS-by-occupation is experimental.",
+      "source_url": "https://ec.europa.eu/eurostat/databrowser/product/view/jvs_a_isco3_r1",
+      "download_url": "https://ec.europa.eu/eurostat/databrowser/product/view/jvs_a_isco3_r1",
+      "storage_target": "structured",
+      "ingestion_method": "local_or_download",
+      "refresh_frequency": "annual"
     }
   ]
 }

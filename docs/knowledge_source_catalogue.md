@@ -8,11 +8,11 @@ fixtures are never production-ready. Raw datasets are not committed.
 
 ## Summary
 
-- Configured sources: **27**
-- Retrieval-ready (total): **24**
-- Production-ready (real data): **10**
-- Real-data sources: **19** · Fixture-only: **5**
-- Structured records: **13,899** · Vector chunks: **3,528**
+- Configured sources: **29**
+- Retrieval-ready (total): **26**
+- Production-ready (real data): **11**
+- Real-data sources: **21** · Fixture-only: **5**
+- Structured records: **15,211** · Vector chunks: **3,528**
 
 Authority level is retrieval metadata (1 official · 2 public framework · 3 industry), **not** a truth score.
 
@@ -32,7 +32,7 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 | Source | Region | Auth | Version | Origin | Prod-ready | Lifecycle | Records | Chunks |
 |---|---|---|---|---|---|---|---|---|
 | ESCO Skills–Occupations Matrix | EU | 1 | v1.2.1 | authorised_manual | no | AVAILABLE | 0 | 33 |
-| DigComp — European Digital Competence Framework | EU | 2 | 3.0 | authorised_manual | no | AVAILABLE | 9 | 462 |
+| DigComp — European Digital Competence Framework | EU | 2 | 2.2 | mixed | no | AVAILABLE | 17 | 462 |
 | BA Kompetenzkatalog | DE | 1 | current release | synthetic_fixture | 🧪 fixture | AVAILABLE | 3 | 0 |
 | European e-Competence Framework (e-CF) | EU | 2 | current release | synthetic_fixture | 🧪 fixture | AVAILABLE | 3 | 0 |
 
@@ -63,6 +63,8 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 | Cedefop Labour & Skills Shortage Index | EU | 1 | current release | synthetic_fixture | 🧪 fixture | AVAILABLE | 3 | 0 |
 | BLS Employment Projections | US | 1 | 2025-2035 | official_local | ✅ yes | AVAILABLE | 2,493 | 0 |
 | Cedefop Short-Term Analytical System (STAS) | EU | 1 | Jan 2026 | — | no | LOCAL FILE FOUND | 0 | 0 |
+| Cedefop Labour & Skills Shortage Index (CLSSI) | EU | 1 | 2026 | official_local | no | AVAILABLE | 1,178 | 0 |
+| Eurostat Job Vacancy Statistics (by occupation) | EU | 1 | jvs_a_isco3_r1 | official_local | ✅ yes | AVAILABLE | 126 | 0 |
 
 ## Narrative / Methodology
 
@@ -80,8 +82,6 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 
 ## Storage routing
 
-- **Structured stores (SQLite)** — roles.db (incl. education/training/experience/outlook attributes), competencies.db, compensation.db, labour_market.db, credentials.db.
+- **Structured stores (SQLite)** — roles.db (incl. education/training/experience/outlook), competencies.db, compensation.db, labour_market.db (forecasts/openings/shortages/vacancies), credentials.db.
 - **Vector store (Chroma)** — narrative/methodology PDFs only.
 - Structured tables are never vectorised; narrative is never forced into tables.
-
-See `docs/source_licensing.md`, `docs/local_source_inventory.md`, `docs/local_source_report.md`.
