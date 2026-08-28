@@ -56,7 +56,10 @@ def main() -> int:
         "Sources found locally": len(inv["source_ids_found"]),
         "Sources normalised (records>0)": sum(1 for s in statuses if s.record_count > 0),
         "Sources indexed (vector chunks>0)": H["indexed_narrative"],
-        "Sources retrieval-ready": H["available_locally"],
+        "Sources retrieval-ready (total)": H["available_locally"],
+        "Sources production-ready (real data)": H["production_ready"],
+        "Real-data sources": H["real_data_sources"],
+        "Fixture-only sources": H["fixture_only"],
         "Structured occupation records": _q(R, "SELECT COUNT(*) FROM occupations"),
         "Task records": _q(R, "SELECT COUNT(*) FROM occupation_tasks"),
         "Skill relationships": _q(R, "SELECT COUNT(*) FROM occupation_skills"),
@@ -98,10 +101,28 @@ def main() -> int:
         e = entries.get(sid)
         how = "manual" if (e and e.manual_acquisition_required) else ("auto-download" if (e and e.download_url) else "—")
         lines.append(f"- `{sid}` — {e.title if e else sid} (acquisition: {how})")
+    # Data-origin integrity table (real vs fixture).
+    lines.append("\n## Data origin & production readiness (measured)\n")
+    lines.append("`retrieval-ready` = loaded locally; `production-ready` = real official "
+                 "data with a clear licence. Synthetic fixtures are never production-ready.\n")
+    lines.append("| Source | Origin | Fixture-only | Production-ready | Records |")
+    lines.append("|---|---|---|---|---|")
+    for sid, s in sorted(by_id.items()):
+        if not s.available_for_retrieval:
+            continue
+        lines.append(f"| `{sid}` | {s.data_origin or '—'} | "
+                     f"{'yes' if s.fixture_only else 'no'} | "
+                     f"{'yes' if s.production_ready else 'no'} | {s.record_count:,} |")
+    fixture_only = sorted(sid for sid, s in by_id.items() if s.fixture_only)
+    lines.append("\n### Fixture-only sources (NOT production-ready)\n")
+    for sid in fixture_only:
+        lines.append(f"- `{sid}` — served by a synthetic sample pending a real extract")
     lines.append("\n## Recommended sources still missing\n")
-    lines.append("- BLS Occupational Outlook Handbook structured export (US outlook + entry education)")
     lines.append("- BERUFENET authorised export (German occupation detail beyond KldB)")
     lines.append("- BA Entgeltatlas authorised export (German compensation)")
+    lines.append("- Real extracts to replace fixture-only competency/labour samples "
+                 "(e-CF, BA Kompetenzkatalog, OPM qualification standards, Cedefop "
+                 "openings/shortage)")
     lines.append("")
 
     OUT.write_text("\n".join(lines), encoding="utf-8")

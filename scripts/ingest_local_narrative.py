@@ -105,6 +105,17 @@ def main(argv: list[str] | None = None) -> int:
             json.dump({"generated": "on-demand", "chunks_by_source": per_source,
                        "total_chunks": len(chunks)}, handle, indent=2)
         print(f"Wrote {VECTOR_SOURCES}")
+        # These chunks came from real local PDFs → official (authorised-manual
+        # where the source requires manual acquisition under licence).
+        from src.copilot.knowledge import origins as korigins
+        origin_map = {}
+        for sid in per_source:
+            e = entries.get(sid)
+            origin_map[sid] = (constants.ORIGIN_AUTHORISED_MANUAL
+                               if (e and e.manual_acquisition_required)
+                               else constants.ORIGIN_OFFICIAL_LOCAL)
+        korigins.record_origins(origin_map)
+        print(f"Recorded data origins: {origin_map}")
 
     for sid, n in sorted(per_source.items(), key=lambda kv: -kv[1]):
         print(f"  {sid:34} {n:5} chunks")

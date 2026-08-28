@@ -76,6 +76,9 @@ def load_roles(db: str = constants.ROLE_DB_PATH) -> dict:
         print(f"  ✓ {name}: {len(occs)} occupation(s) in {time.time() - t:.1f}s")
     totals = repo.counts()
     repo.close()
+    from src.copilot.knowledge import origins as korigins
+    korigins.record_origins({name: constants.ORIGIN_OFFICIAL_LOCAL
+                             for name, n in counts.items() if n})
     print(f"Role DB {db}: {totals['occupations']} occupations, "
           f"{totals['occupation_skills']} skills, {totals['occupation_tasks']} tasks.")
     return {"by_source": counts, "totals": totals}
@@ -95,6 +98,9 @@ def load_compensation(db: str = constants.COMPENSATION_DB_PATH) -> dict:
         print(f"  ✓ {name}: {len(recs)} record(s) in {time.time() - t:.1f}s")
     total = repo.count()
     repo.close()
+    from src.copilot.knowledge import origins as korigins
+    korigins.record_origins({name: constants.ORIGIN_OFFICIAL_LOCAL
+                             for name, n in counts.items() if n})
     print(f"Compensation DB {db}: {total} records across {counts}.")
     return {"by_source": counts, "total": total}
 

@@ -67,6 +67,16 @@ comes from the compensation store and is cited to, say, "BLS OEWS — … — US
 clearly-labelled evidence from another geography — it does not fall back to guessed
 numbers.
 
+**How do you tell real data from test fixtures?** Every source carries a
+`data_origin` (official_local / official_download / authorised_manual /
+api_snapshot / synthetic_fixture) and a `production_ready` flag. A source is
+production-ready only when it is available, its data is real (not a fixture), and
+its licence is clear. The Knowledge Base shows two counts — *retrieval-ready*
+(anything loaded) and *production-ready (real)* — and badges each source REAL DATA
+or FIXTURE DATA. So a small hand-authored sample can never masquerade as loaded
+official data. Loaders also refuse to run without an explicit `--source` or
+`--fixtures`, so fixture use is always deliberate.
+
 **How do you know a source is really loaded?** Each source has a *measured*
 lifecycle in `data/source_status.json` derived from what is on disk — a source in
 the manifest is "configured", not "available", until its records are actually

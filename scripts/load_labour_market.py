@@ -51,16 +51,17 @@ _PREFIXES = ("cedefop_forecast", "cedefop_openings", "cedefop_shortage")
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.copilot.knowledge import origins as korigins
+    from src.copilot.knowledge.loader_cli import add_source_args, resolve_source
+
     parser = argparse.ArgumentParser(description="Load labour-market data into the labour-market DB.")
-    parser.add_argument("--source", default=_DEFAULT_SOURCE)
+    add_source_args(parser)
     parser.add_argument("--db", default=constants.LABOUR_MARKET_DB_PATH)
     args = parser.parse_args(argv)
+    source_dir, json_origin = resolve_source(args)
 
-    if not os.path.isdir(args.source):
-        print(f"No source directory at {args.source}. See data/source_manifest.json.")
-        return 0
-    files = [p for p in sorted(Path(args.source).glob("*.json"))
-             if p.name.lower().startswith(_PREFIXES)]
+    files = ([p for p in sorted(Path(source_dir).glob("*.json"))
+              if p.name.lower().startswith(_PREFIXES)] if os.path.isdir(source_dir) else [])
 
     # Real BLS Employment Projections (US), if present locally.
     from src.copilot.knowledge import local_readers as lr
@@ -68,19 +69,27 @@ def main(argv: list[str] | None = None) -> int:
     bls_fc, bls_open = lr.read_bls_projections()
 
     if not files and not (bls_fc or bls_open):
-        print(f"No labour-market source files found under {args.source}.")
+        print(f"No labour-market source files found under {source_dir}.")
         return 0
+
+    _SRC = {"cedefop_forecast": "cedefop_skills_forecast",
+            "cedefop_openings": "cedefop_future_job_openings",
+            "cedefop_shortage": "cedefop_shortage_index"}
 
     os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)
     if os.path.isfile(args.db):
         os.remove(args.db)
     repo = LabourMarketRepository(args.db)
     total = 0
+    origin_map: dict[str, str] = {}
     for path in files:
         try:
             added = _dispatch(str(path), repo)
             total += added
             print(f"  ✓ {path.name}: {added} record(s)")
+            for pref, sid in _SRC.items():
+                if path.name.lower().startswith(pref):
+                    origin_map[sid] = json_origin
         except Exception as exc:  # noqa: BLE001 - fail safely, keep going
             print(f"  ✗ {path.name}: {type(exc).__name__}")
     if bls_fc or bls_open:
@@ -89,11 +98,14 @@ def main(argv: list[str] | None = None) -> int:
         for o in bls_open:
             repo.add_openings(o)
         total += len(bls_fc) + len(bls_open)
+        origin_map["bls_projections"] = constants.ORIGIN_OFFICIAL_LOCAL
         print(f"  ✓ BLS Employment Projections (local): "
               f"{len(bls_fc)} forecast(s), {len(bls_open)} openings")
     counts = repo.counts()
     repo.close()
+    korigins.record_origins(origin_map)
     print(f"\nLabour-market DB {args.db}: {counts}")
+    print(f"Recorded data origins: {origin_map}")
     return 0
 
 
