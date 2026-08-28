@@ -15,7 +15,9 @@ from pydantic import BaseModel
 __all__ = [
     "Competency", "CompetencyLevel", "OccupationCompetency", "RoleBehaviour",
     "QualificationRequirement", "CompetencyRepository",
-    "LabourForecast", "LabourOpenings", "LabourShortage", "LabourMarketRepository",
+    "LabourForecast", "LabourOpenings", "LabourShortage", "LabourVacancy",
+    "LabourMarketRepository",
+    "Certification", "OccupationLicence", "CredentialRepository",
 ]
 
 
@@ -198,12 +200,25 @@ class LabourShortage(BaseModel):
     period: str | None = None
 
 
+class LabourVacancy(BaseModel):
+    source_id: str
+    occupation: str          # ISCO occupation or "Total" (all occupations)
+    country: str
+    region: str | None = None  # NUTS region if applicable
+    year: int | None = None
+    indicator: str | None = None  # e.g. Job vacancy rate | Job vacancies
+    unit: str | None = None       # Percentage | Thousand
+    value: float | None = None
+    experimental: bool = False    # Eurostat experimental-statistics flag
+
+
 _LM_SCHEMA = """
 CREATE TABLE IF NOT EXISTS labour_market_forecasts (source_id TEXT, occupation TEXT, country TEXT, sector TEXT, employment_change REAL, replacement_demand REAL, horizon TEXT, reference_year INTEGER);
 CREATE TABLE IF NOT EXISTS labour_market_openings (source_id TEXT, occupation TEXT, geography TEXT, period TEXT, new_jobs REAL, replacement_demand REAL, total_openings REAL);
 CREATE TABLE IF NOT EXISTS labour_shortages (source_id TEXT, occupation TEXT, country TEXT, skill_level TEXT, shortage_indicator TEXT, period TEXT);
+CREATE TABLE IF NOT EXISTS labour_vacancies (source_id TEXT, occupation TEXT, country TEXT, region TEXT, year INTEGER, indicator TEXT, unit TEXT, value REAL, experimental INTEGER);
 """
-_LM_TABLES = ["labour_market_forecasts", "labour_market_openings", "labour_shortages"]
+_LM_TABLES = ["labour_market_forecasts", "labour_market_openings", "labour_shortages", "labour_vacancies"]
 
 
 class LabourMarketRepository:
@@ -252,12 +267,116 @@ class LabourMarketRepository:
             q += " AND lower(country)=?"; params.append(country.lower())
         return [dict(r) for r in self._conn.execute(q, params)]
 
+    def add_vacancy(self, v: LabourVacancy) -> None:
+        self._conn.execute("INSERT INTO labour_vacancies VALUES (?,?,?,?,?,?,?,?,?)",
+                           (v.source_id, v.occupation, v.country, v.region, v.year,
+                            v.indicator, v.unit, v.value, int(v.experimental)))
+        self._conn.commit()
+
+    def vacancies_for(self, country: str | None = None, occupation: str | None = None) -> list[dict]:
+        clauses, params = [], []
+        if country:
+            clauses.append("lower(country) LIKE ?"); params.append(f"%{country.lower()}%")
+        if occupation:
+            clauses.append("lower(occupation) LIKE ?"); params.append(f"%{occupation.lower()}%")
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return [dict(r) for r in self._conn.execute(
+            f"SELECT * FROM labour_vacancies{where} ORDER BY year DESC", params)]
+
     def counts(self) -> dict[str, int]:
         return {t: self._conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _LM_TABLES}
 
     def counts_by_source(self) -> dict[str, int]:
         totals: dict[str, int] = {}
         for t in _LM_TABLES:
+            for r in self._conn.execute(f"SELECT source_id, COUNT(*) AS n FROM {t} GROUP BY source_id"):
+                totals[r["source_id"]] = totals.get(r["source_id"], 0) + r["n"]
+        return totals
+
+
+# --- Credentials: certifications & occupational licences ----------------------
+
+
+class Certification(BaseModel):
+    source_id: str
+    certification_id: str
+    name: str
+    organisation: str | None = None
+    type: str | None = None           # e.g. vendor | professional | industry
+    occupation_code: str | None = None
+    occupation_title: str | None = None
+    last_updated: str | None = None
+
+
+class OccupationLicence(BaseModel):
+    source_id: str
+    licence_id: str
+    title: str
+    occupation: str | None = None
+    jurisdiction: str | None = None   # e.g. US-CA, UK, DE
+    issuing_body: str | None = None
+    education_requirement: str | None = None
+    exam_requirement: str | None = None
+    experience_requirement: str | None = None
+    description: str | None = None
+
+
+_CRED_SCHEMA = """
+CREATE TABLE IF NOT EXISTS certifications (source_id TEXT, certification_id TEXT, name TEXT, organisation TEXT, type TEXT, occupation_code TEXT, occupation_title TEXT, last_updated TEXT);
+CREATE TABLE IF NOT EXISTS occupational_licences (source_id TEXT, licence_id TEXT, title TEXT, occupation TEXT, jurisdiction TEXT, issuing_body TEXT, education_requirement TEXT, exam_requirement TEXT, experience_requirement TEXT, description TEXT);
+"""
+_CRED_TABLES = ["certifications", "occupational_licences"]
+
+
+class CredentialRepository:
+    """Certifications (optional) and occupational licences (may be required).
+
+    The two are deliberately separate models: a licence is a legal requirement to
+    practise in a jurisdiction; a certification is an optional professional
+    credential. Nothing here implies a credential is *required* unless the source
+    says so.
+    """
+
+    def __init__(self, path: str = ":memory:") -> None:
+        self._conn = sqlite3.connect(path)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.executescript(_CRED_SCHEMA)
+
+    def close(self) -> None:
+        self._conn.close()
+
+    def add_certification(self, c: Certification) -> None:
+        self._conn.execute("INSERT INTO certifications VALUES (?,?,?,?,?,?,?,?)",
+                           (c.source_id, c.certification_id, c.name, c.organisation, c.type,
+                            c.occupation_code, c.occupation_title, c.last_updated))
+        self._conn.commit()
+
+    def add_licence(self, l: OccupationLicence) -> None:
+        self._conn.execute("INSERT INTO occupational_licences VALUES (?,?,?,?,?,?,?,?,?,?)",
+                           (l.source_id, l.licence_id, l.title, l.occupation, l.jurisdiction,
+                            l.issuing_body, l.education_requirement, l.exam_requirement,
+                            l.experience_requirement, l.description))
+        self._conn.commit()
+
+    def certifications_for(self, occupation: str) -> list[dict]:
+        like = f"%{occupation.lower()}%"
+        return [dict(r) for r in self._conn.execute(
+            "SELECT * FROM certifications WHERE lower(occupation_title) LIKE ? OR lower(name) LIKE ?",
+            (like, like))]
+
+    def licences_for(self, occupation: str, jurisdiction: str | None = None) -> list[dict]:
+        q = "SELECT * FROM occupational_licences WHERE (lower(occupation) LIKE ? OR lower(title) LIKE ?)"
+        params = [f"%{occupation.lower()}%", f"%{occupation.lower()}%"]
+        if jurisdiction:
+            q += " AND lower(jurisdiction) LIKE ?"; params.append(f"%{jurisdiction.lower()}%")
+        return [dict(r) for r in self._conn.execute(q, params)]
+
+    def counts(self) -> dict[str, int]:
+        return {t: self._conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _CRED_TABLES}
+
+    def counts_by_source(self) -> dict[str, int]:
+        totals: dict[str, int] = {}
+        for t in _CRED_TABLES:
             for r in self._conn.execute(f"SELECT source_id, COUNT(*) AS n FROM {t} GROUP BY source_id"):
                 totals[r["source_id"]] = totals.get(r["source_id"], 0) + r["n"]
         return totals

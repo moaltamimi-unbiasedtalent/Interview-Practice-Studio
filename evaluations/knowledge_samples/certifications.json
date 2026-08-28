@@ -1,0 +1,5 @@
+[
+  {"certification_id": "CERT-PMP", "name": "Project Management Professional (PMP)", "organisation": "Project Management Institute", "type": "professional", "occupation_code": "11-3021", "occupation_title": "Project Manager", "last_updated": "2026-01"},
+  {"certification_id": "CERT-CISSP", "name": "Certified Information Systems Security Professional (CISSP)", "organisation": "ISC2", "type": "professional", "occupation_code": "15-1212", "occupation_title": "Information Security Analyst", "last_updated": "2026-01"},
+  {"certification_id": "CERT-AWS-SAA", "name": "AWS Certified Solutions Architect – Associate", "organisation": "Amazon Web Services", "type": "vendor", "occupation_code": "15-1252", "occupation_title": "Software Developer", "last_updated": "2026-01"}
+]

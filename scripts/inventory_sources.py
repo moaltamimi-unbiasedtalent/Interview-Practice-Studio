@@ -94,6 +94,14 @@ def _rules():
         (P("ooh xml-compilation"), "bls_ooh", "2025", 2025, _STRUCTURED, "high", "BLS OOH XML compilation"),
         # BLS Employment Projections occupation tables (2025–2035).
         (P("occupation.xlsx"), "bls_projections", "2025-2035", 2025, _STRUCTURED, "high", "BLS Employment Projections occupation tables"),
+        # Cedefop STAS (short-term analytical system) — sector-macro, not occupation-level.
+        (P("stas_dataset"), "cedefop_stas", "Jan 2026", 2026, _STRUCTURED, "medium", "Cedefop STAS (sector-macro; not normalised into occupation stores)"),
+        # Cedefop CLSSI structural labour-shortage index (per-country, ISCO 2-digit).
+        (P("clssi"), "cedefop_clssi", "2026", 2026, _STRUCTURED, "high", "Cedefop CLSSI structural shortage index"),
+        # Eurostat Job Vacancy Statistics (jvs_a_isco3 default view).
+        (P("jvs_a_isco3"), "eurostat_occ_vacancy", "jvs_a_isco3_r1", 2026, _STRUCTURED, "high", "Eurostat job vacancy statistics"),
+        # DigComp 2.2 ESCO skills mapping — real structured digital-competence data.
+        (P("digcomp 2.2 esco"), "digcomp", "2.2", 2022, _STRUCTURED, "high", "DigComp 2.2 structured (ESCO mapping)"),
     ]
 
 

@@ -270,6 +270,12 @@ LANE_SHORTAGE = "shortage"          # labour/skills shortage data
 LANE_OPENINGS = "openings"          # future job openings / replacement demand
 LANE_SENIORITY = "seniority"        # behaviour/seniority frameworks
 LANE_TRANSITION = "transition"      # career transition comparison
+LANE_EDUCATION = "education"        # typical education needed for entry
+LANE_TRAINING = "training"          # on-the-job / work-experience training
+LANE_CERTIFICATION = "certification"  # optional professional certifications
+LANE_LICENCE = "licence"            # required occupational licences
+LANE_CURRENT_VACANCY = "current_vacancy"  # real-time vacancy/demand
+LANE_SHORT_TERM_OUTLOOK = "short_term_outlook"  # near-term outlook/demand
 RETRIEVAL_LANES = (
     LANE_STRUCTURED_ROLE,
     LANE_VECTOR,
@@ -282,6 +288,12 @@ RETRIEVAL_LANES = (
     LANE_OPENINGS,
     LANE_SENIORITY,
     LANE_TRANSITION,
+    LANE_EDUCATION,
+    LANE_TRAINING,
+    LANE_CERTIFICATION,
+    LANE_LICENCE,
+    LANE_CURRENT_VACANCY,
+    LANE_SHORT_TERM_OUTLOOK,
 )
 
 # Geographic source precedence: country-specific official data outranks generic
@@ -298,6 +310,7 @@ ROLE_DB_PATH = "data/knowledge/roles.db"
 COMPENSATION_DB_PATH = "data/knowledge/compensation.db"
 COMPETENCY_DB_PATH = "data/knowledge/competencies.db"
 LABOUR_MARKET_DB_PATH = "data/knowledge/labour_market.db"
+CREDENTIAL_DB_PATH = "data/knowledge/credentials.db"
 SOURCE_MANIFEST_PATH = "data/source_manifest.json"
 # Generated runtime lifecycle status (derived; not hand-maintained).
 SOURCE_STATUS_PATH = "data/source_status.json"

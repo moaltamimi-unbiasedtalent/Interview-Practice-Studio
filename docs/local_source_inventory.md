@@ -3,10 +3,10 @@
 Measured inventory of `data/raw` mapped to `data/source_manifest.json`.
 Read-only over the raw corpus; no files were moved, renamed or deleted.
 
-- Files discovered: **195**
-- Total size: **469.9 MB**
-- Distinct sources found locally: **19**
-- Unresolved files: **1**
+- Files discovered: **198**
+- Total size: **470.6 MB**
+- Distinct sources found locally: **22**
+- Unresolved files: **0**
 
 ## Source → local files
 
@@ -33,10 +33,17 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 ### `bls_projections` — 1 file(s)
 - `occupation.xlsx`
 
+### `cedefop_clssi` — 1 file(s)
+- `2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx`
+
 ### `cedefop_skills_forecast` — 1 file(s)
 - `skills_forecast_2026_technical_report.pdf`
 
-### `digcomp` — 1 file(s)
+### `cedefop_stas` — 1 file(s)
+- `stas_dataset_release_jan_2026.xlsx`
+
+### `digcomp` — 2 file(s)
+- `DigComp 2.2 ESCO Skills Mapping.xlsx`
 - `JRC144121_01.pdf`
 
 ### `eqf` — 1 file(s)
@@ -73,6 +80,9 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 
 ### `eurostat_earnings` — 1 file(s)
 - `KS-01-25-044-EN-N.pdf`
+
+### `eurostat_occ_vacancy` — 1 file(s)
+- `jvs_a_isco3_r1$defaultview_spreadsheet.xlsx`
 
 ### `isco08` — 5 file(s)
 - `ISCO-08 -88 EN Index.xlsx`
@@ -193,9 +203,6 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 - `Guidance-Application_of_Success_Profiles_during_HR_Director_recruitment_v0e.pdf`
 - `Success_Profile-HR_Director_Collection_v0e.pdf`
 
-### `unresolved` — 1 file(s)
-- `stas_dataset_release_jan_2026.xlsx`
-
 ### `wef_future_of_jobs` — 1 file(s)
 - `WEF_Future_of_Jobs_Report_2025.pdf`
 
@@ -203,10 +210,12 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 
 | File | Source | Ver | Year | Store | Parse | Licence | Conf |
 |---|---|---|---|---|---|---|---|
+| `2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx` | cedefop_clssi | 2026 | 2026 | structured | ✓ | review required | high |
 | `Abilities.xlsx` | onet | 31.0 | 2026 | structured | ✓ | CC BY 4.0 | high |
 | `Aenderungen-KldB-2010-Ueberarbeitung-2020.pdf` | kldb | 2010 (Fassung 2020) | 2020 | structured | ✓ | review required | high |
 | `Alphabetisches-Verzeichnis-Berufsbenennungen.xlsx` | kldb | 2010 (Fassung 2020) | 2020 | structured | ✓ | review required | medium |
 | `Berufssektoren-und-Segmente-KldB2010-ueF2020.xls` | kldb | 2010 (Fassung 2020) | 2020 | structured | ✓ | review required | high |
+| `DigComp 2.2 ESCO Skills Mapping.xlsx` | digcomp | 2.2 | 2022 | structured | ✓ | review required | high |
 | `EQF Brochure-EN.pdf` | eqf | brochure | — | vector | ✓ | review required | high |
 | `ESCO dataset - v1.2.1 - classification - en - csv/ISCOGroups_en.csv` | esco | v1.2.1 | 2022 | structured | ✓ | review required | high |
 | `ESCO dataset - v1.2.1 - classification - en - csv/broaderRelationsOccPillar_en.csv` | esco | v1.2.1 | 2022 | structured | ✓ | review required | high |
@@ -378,6 +387,7 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 | `db_31_0_excel/Work Styles to Work Context.xlsx` | onet | 31.0 | 2026 | structured | ✓ | CC BY 4.0 | high |
 | `db_31_0_excel/Work Styles.xlsx` | onet | 31.0 | 2026 | structured | ✓ | CC BY 4.0 | high |
 | `en_ESCO Skill-Occupation Matrix Tables Technical Report.pdf` | esco_matrix | v1.2.1 | 2022 | vector | ✓ | review required | high |
+| `jvs_a_isco3_r1$defaultview_spreadsheet.xlsx` | eurostat_occ_vacancy | jvs_a_isco3_r1 | 2026 | structured | ✓ | CC BY 4.0 | high |
 | `occupation.xlsx` | bls_projections | 2025-2035 | 2025 | structured | ✓ | Public domain (U.S. Government work) | high |
 | `occupation_definitions_m2025.xlsx` | bls_oews | M2025 | 2025 | structured | ✓ | Public domain (U.S. Government work) | high |
 | `occupationalhandbook.pdf` | opm_occupational_groups | Dec 2018 | 2018 | vector | ✓ | Public domain (U.S. Government work) | high |
@@ -397,4 +407,4 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 | `oesm25st/oesm25st/state_M2025_dl.xlsx` | bls_oews | M2025 | 2025 | structured | ✓ | Public domain (U.S. Government work) | high |
 | `positionclassificationintro-app-1-edits-per-cap-request-final.pdf` | opm_occupational_groups | 2009 rev | 2009 | vector | ✓ | Public domain (U.S. Government work) | medium |
 | `skills_forecast_2026_technical_report.pdf` | cedefop_skills_forecast | 2026 | 2026 | vector | ✓ | review required | high |
-| `stas_dataset_release_jan_2026.xlsx` | unresolved | — | 2026 | — | ✓ | unknown | none |
+| `stas_dataset_release_jan_2026.xlsx` | cedefop_stas | Jan 2026 | 2026 | structured | ✓ | review required | medium |

@@ -63,12 +63,14 @@ def main(argv: list[str] | None = None) -> int:
     files = ([p for p in sorted(Path(source_dir).glob("*.json"))
               if p.name.lower().startswith(_PREFIXES)] if os.path.isdir(source_dir) else [])
 
-    # Real BLS Employment Projections (US), if present locally.
+    # Real local labour-market datasets, if present.
     from src.copilot.knowledge import local_readers as lr
 
     bls_fc, bls_open = lr.read_bls_projections()
+    clssi = lr.read_cedefop_clssi()
+    vacancies = lr.read_eurostat_vacancy()
 
-    if not files and not (bls_fc or bls_open):
+    if not files and not (bls_fc or bls_open or clssi or vacancies):
         print(f"No labour-market source files found under {source_dir}.")
         return 0
 
@@ -101,6 +103,18 @@ def main(argv: list[str] | None = None) -> int:
         origin_map["bls_projections"] = constants.ORIGIN_OFFICIAL_LOCAL
         print(f"  ✓ BLS Employment Projections (local): "
               f"{len(bls_fc)} forecast(s), {len(bls_open)} openings")
+    if clssi:
+        for s in clssi:
+            repo.add_shortage(s)
+        total += len(clssi)
+        origin_map["cedefop_clssi"] = constants.ORIGIN_OFFICIAL_LOCAL
+        print(f"  ✓ Cedefop CLSSI (local): {len(clssi)} structural-shortage record(s)")
+    if vacancies:
+        for v in vacancies:
+            repo.add_vacancy(v)
+        total += len(vacancies)
+        origin_map["eurostat_occ_vacancy"] = constants.ORIGIN_OFFICIAL_LOCAL
+        print(f"  ✓ Eurostat job vacancies (local): {len(vacancies)} record(s)")
     counts = repo.counts()
     repo.close()
     korigins.record_origins(origin_map)

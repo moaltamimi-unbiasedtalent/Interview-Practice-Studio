@@ -65,7 +65,25 @@ to the role lane:
 | "How many job openings are there for nurses?" | `openings` |
 | "How do I transition from teaching into data analysis?" | `transition` |
 | "What behaviours are expected at Grade 7?" | `seniority` |
+| "What degree is typical for a nurse?" | `education` |
+| "What training does a plumber need?" | `training` |
+| "What certifications are relevant for a PM?" | `certification` |
+| "Do I need a licence to practise as an electrician?" | `licence` |
+| "What is demand like right now?" | `current_vacancy` |
+| "What is the short-term outlook?" | `short_term_outlook` |
 | "What skills does a PM need and what do they earn in Germany?" | `mixed` |
+
+The role store now also carries **entry education, work experience, on-the-job
+training and outlook** attributes (from BLS OOH and BLS Employment Projections),
+and a separate **credentials** store distinguishes required occupational
+**licences** from optional professional **certifications**. The labour-market
+store now holds four conceptually-distinct signals kept separate (never merged
+into one "demand score"): long-term **forecasts** (Cedefop / BLS EP), **openings**
+(BLS EP), structural **shortage** (Cedefop CLSSI), and near-real-time **vacancy
+rates** (Eurostat JVS, country-level, flagged experimental). Digital competences
+come from the real **DigComp 2.2** ESCO mapping. A factual gap with no matching
+record (e.g. a per-occupation vacancy breakdown, which the Eurostat export does
+not provide) is reported plainly rather than guessed.
 
 **Geographic precedence.** `detect_country()` reads the country/region from the
 question and `source_priority(country)` returns the ordered sources to prefer, so

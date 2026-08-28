@@ -1,20 +1,23 @@
 {
   "generated": "on-demand",
   "raw_dir": "data/raw",
-  "file_count": 195,
-  "total_bytes": 492723982,
-  "unresolved_count": 1,
+  "file_count": 198,
+  "total_bytes": 493473760,
+  "unresolved_count": 0,
   "source_ids_found": [
     "bls_oews",
     "bls_ooh",
     "bls_projections",
+    "cedefop_clssi",
     "cedefop_skills_forecast",
+    "cedefop_stas",
     "digcomp",
     "eqf",
     "esco",
     "esco_handbook",
     "esco_matrix",
     "eurostat_earnings",
+    "eurostat_occ_vacancy",
     "isco08",
     "kldb",
     "nice_framework",
@@ -49,10 +52,17 @@
     "bls_projections": [
       "occupation.xlsx"
     ],
+    "cedefop_clssi": [
+      "2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx"
+    ],
     "cedefop_skills_forecast": [
       "skills_forecast_2026_technical_report.pdf"
     ],
+    "cedefop_stas": [
+      "stas_dataset_release_jan_2026.xlsx"
+    ],
     "digcomp": [
+      "DigComp 2.2 ESCO Skills Mapping.xlsx",
       "JRC144121_01.pdf"
     ],
     "eqf": [
@@ -89,6 +99,9 @@
     ],
     "eurostat_earnings": [
       "KS-01-25-044-EN-N.pdf"
+    ],
+    "eurostat_occ_vacancy": [
+      "jvs_a_isco3_r1$defaultview_spreadsheet.xlsx"
     ],
     "isco08": [
       "ISCO-08 -88 EN Index.xlsx",
@@ -255,14 +268,31 @@
       "Guidance-Application_of_Success_Profiles_during_HR_Director_recruitment_v0e.pdf",
       "Success_Profile-HR_Director_Collection_v0e.pdf"
     ],
-    "unresolved": [
-      "stas_dataset_release_jan_2026.xlsx"
-    ],
     "wef_future_of_jobs": [
       "WEF_Future_of_Jobs_Report_2025.pdf"
     ]
   },
   "files": [
+    {
+      "relative_path": "2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx",
+      "filename": "2026_cedefop_labour_skills_shortage_index_clssi_dataset.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 91737,
+      "sha256": "79e066fa33631c4e5f641374280729204b1297ec575ff2f609d2f224ebf988a5",
+      "source_id": "cedefop_clssi",
+      "likely_publisher": "Cedefop",
+      "likely_geography": "EU",
+      "likely_source_type": "labour_market_forecast",
+      "detected_version": "2026",
+      "detected_reference_year": 2026,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "structured",
+      "licensing_status": "review required",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "Cedefop CLSSI structural shortage index"
+    },
     {
       "relative_path": "Abilities.xlsx",
       "filename": "Abilities.xlsx",
@@ -342,6 +372,26 @@
       "ingestion_readiness": "ready",
       "identification_confidence": "high",
       "notes": "KldB 2010"
+    },
+    {
+      "relative_path": "DigComp 2.2 ESCO Skills Mapping.xlsx",
+      "filename": "DigComp 2.2 ESCO Skills Mapping.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 564189,
+      "sha256": "a0a23101cd6925e72528fa2d57305fe3702dc025ec0bbfe0398fd37bf43c3419",
+      "source_id": "digcomp",
+      "likely_publisher": "European Commission (JRC)",
+      "likely_geography": "EU",
+      "likely_source_type": "competency_framework",
+      "detected_version": "2.2",
+      "detected_reference_year": 2022,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "structured",
+      "licensing_status": "review required",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "DigComp 2.2 structured (ESCO mapping)"
     },
     {
       "relative_path": "EQF Brochure-EN.pdf",
@@ -3764,6 +3814,26 @@
       "notes": "ESCO matrix technical report (narrative)"
     },
     {
+      "relative_path": "jvs_a_isco3_r1$defaultview_spreadsheet.xlsx",
+      "filename": "jvs_a_isco3_r1$defaultview_spreadsheet.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 93852,
+      "sha256": "19f7b425ebc184bcef7dc691bb805e933276a59241279715b134dd580c4d3fdb",
+      "source_id": "eurostat_occ_vacancy",
+      "likely_publisher": "Eurostat",
+      "likely_geography": "EU",
+      "likely_source_type": "labour_market_forecast",
+      "detected_version": "jvs_a_isco3_r1",
+      "detected_reference_year": 2026,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "structured",
+      "licensing_status": "CC BY 4.0",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "Eurostat job vacancy statistics"
+    },
+    {
       "relative_path": "occupation.xlsx",
       "filename": "occupation.xlsx",
       "extension": ".xlsx",
@@ -4149,19 +4219,19 @@
       "extension": ".xlsx",
       "size_bytes": 231823,
       "sha256": "ff60da07082a7706832a306d8833562564bd52ce5afdb8431144cadb665f61dc",
-      "source_id": "unresolved",
-      "likely_publisher": null,
-      "likely_geography": null,
-      "likely_source_type": null,
-      "detected_version": null,
+      "source_id": "cedefop_stas",
+      "likely_publisher": "Cedefop",
+      "likely_geography": "EU",
+      "likely_source_type": "labour_market_forecast",
+      "detected_version": "Jan 2026",
       "detected_reference_year": 2026,
       "acquisition_method": "local_existing",
       "parseable": true,
-      "intended_storage_target": null,
-      "licensing_status": "unknown",
-      "ingestion_readiness": "review",
-      "identification_confidence": "none",
-      "notes": "source identity not confirmed"
+      "intended_storage_target": "structured",
+      "licensing_status": "review required",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "medium",
+      "notes": "Cedefop STAS (sector-macro; not normalised into occupation stores)"
     }
   ]
 }

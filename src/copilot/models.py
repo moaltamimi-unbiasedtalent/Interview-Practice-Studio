@@ -244,6 +244,9 @@ class KnowledgeEvidence(_Base):
             "activity": "Activities", "technology": "Technologies",
             "competency": "Competencies", "behaviour": "Behaviours",
             "qualification": "Qualifications", "transition": "Transition",
+            "education": "Entry education", "training": "Training/experience",
+            "outlook": "Outlook", "certification": "Certification",
+            "licence": "Licence", "vacancy": "Current vacancy",
         }.get(self.evidence_type)
         if label:
             parts.append(label)
