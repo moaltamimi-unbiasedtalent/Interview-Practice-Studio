@@ -103,7 +103,21 @@ chunks are excluded.
 
 **What is PreparationContext?** A small, plain-data contract that carries the
 role, requirements, gaps and sources from Career Intelligence to Interview
-Practice — no framework objects cross the boundary.
+Practice — no framework objects cross the boundary. It can also carry a **safe,
+summarised company context** (never raw files).
+
+**How does company context work?** A candidate supplies an employer's official
+URL / careers page and/or uploads company materials (annual report, investor
+deck). `build_company_context` validates the URLs, classifies each source
+(official / careers / investor relations / annual report / filing / press
+release), scans every document for prompt injection (attack text is dropped),
+extracts publication dates, and stamps `retrieved_at` — company facts are
+time-sensitive and are **kept out of the permanent occupational knowledge base**.
+It never invents company news: recent updates come only from dated lines in the
+supplied material. The summary is added to the answer as clearly-labelled
+`[COMPANY CONTEXT]` data (never treated as an occupational fact or as
+instructions). Live web search is optional and behind a provider interface — the
+sprint default fetches nothing.
 
 **Why combine the two products?** So preparation flows straight into practice:
 understand the role, then rehearse for it, in one place.

@@ -150,6 +150,76 @@ def _render_sources(results, citations) -> None:
                     st.markdown(f"[Open source ↗]({url})")
 
 
+def _extract_upload_text(upload) -> tuple[str, str] | None:
+    """Extract (title, text) from a Streamlit upload via the ingestion loaders."""
+    import os
+    import tempfile
+
+    from src.copilot.ingestion.loaders import LoaderError, load_document
+
+    suffix = os.path.splitext(upload.name)[1] or ".txt"
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp.write(upload.getvalue())
+            path = tmp.name
+        units = load_document(path)
+        text = "\n".join(u.text for u in units)
+        return (upload.name, text)
+    except (LoaderError, Exception):  # noqa: BLE001 - a bad upload never breaks the page
+        return None
+    finally:
+        try:
+            os.unlink(path)
+        except Exception:  # noqa: BLE001
+            pass
+
+
+def _render_company_context_input():
+    """Optional Company Context section — builds a time-stamped CompanyContext.
+
+    Company research is kept separate from the permanent occupational KB and is
+    never persisted into it. Returns a CompanyContext or None.
+    """
+    from src.copilot.company import build_company_context
+
+    with st.expander("Company context (optional — for company-specific prep)"):
+        st.caption(
+            "Time-sensitive employer research from sources you trust. Kept separate "
+            "from the occupational knowledge base and never treated as an "
+            "occupational fact. Uploaded/pasted text is scanned for injection."
+        )
+        name = st.text_input("Company name", key="co_name")
+        cols = st.columns(2)
+        website = cols[0].text_input("Official website URL", key="co_site")
+        careers = cols[1].text_input("Careers page URL", key="co_careers")
+        industry = st.text_input("Industry (optional)", key="co_industry")
+        uploads = st.file_uploader(
+            "Upload company materials (annual report, investor deck, press release)",
+            type=["pdf", "txt", "md", "csv"], accept_multiple_files=True, key="co_docs")
+        if not name.strip():
+            return None
+        docs = []
+        for up in uploads or []:
+            got = _extract_upload_text(up)
+            if got:
+                docs.append(got)
+        ctx = build_company_context(
+            name.strip(), official_website=website or None, career_page=careers or None,
+            industry=industry or None, documents=docs or None)
+        # Show source links + recency, honestly.
+        if ctx.source_references:
+            st.markdown("**Sources**")
+            for s in ctx.source_references:
+                label = s.url or s.title or "source"
+                link = f"[{label}]({s.url})" if s.url else label
+                st.markdown(f"- {link} — `{s.source_type}`"
+                            + (f" · {s.publication_date}" if s.publication_date else ""))
+        st.caption(f"Retrieved at {ctx.retrieved_at}. Company facts are time-sensitive.")
+        for note in ctx.notes:
+            st.caption(f"⚠ {note}")
+        return ctx
+
+
 def _render_tool_executions(executions) -> None:
     if not executions:
         return
@@ -192,6 +262,11 @@ def _page_chat() -> None:
         hpw = cols[1].number_input(
             "Hours per week", min_value=1.0, max_value=80.0, value=6.0, key="chat_hpw"
         )
+
+    company_context = _render_company_context_input()
+    if company_context is not None:
+        # Carry a safe summary for the interview handoff (never raw files).
+        st.session_state["company_context_summary"] = company_context.safe_summary()
 
     st.session_state.setdefault("chat_history", [])
 
@@ -243,6 +318,7 @@ def _page_chat() -> None:
                     candidate_background=candidate_background.strip() or None,
                     days_until_interview=int(days) or None,
                     hours_per_week=float(hpw) or None,
+                    company_context=company_context,
                     progress=lambda label: status.update(label=f"{label}…"),
                 )
             except Exception:  # noqa: BLE001 - never show a raw stack trace
@@ -766,6 +842,7 @@ def _render_practise_this_role(ss, role_req) -> None:
         gap_result=gap,
         evidence=evidence,
         job_description=ss.get("tool_jd") or None,
+        company_context=ss.get("company_context_summary") or None,
     )
     prev = handoff.preview(context)
     cols = st.columns(2)

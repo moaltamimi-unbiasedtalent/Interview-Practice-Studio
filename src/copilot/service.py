@@ -152,6 +152,7 @@ class CareerIntelligenceService:
         days_until_interview: int | None = None,
         hours_per_week: float | None = None,
         question_focus: list[str] | None = None,
+        company_context=None,
         model: str | None = None,
         progress=None,
     ) -> OrchestrationResult:
@@ -273,6 +274,13 @@ class CareerIntelligenceService:
 
         # 9) OpenRouter synthesis over the multi-section evidence.
         _step("Preparing response")
+        company_summary = None
+        if company_context is not None:
+            try:
+                company_summary = company_context.safe_summary()
+                trace.notes.append("Company context supplied (time-sensitive; labelled).")
+            except Exception:  # noqa: BLE001 - never break the turn on company context
+                company_summary = None
         messages = build_evidence_messages(
             query=query,
             sections=sections,
@@ -280,6 +288,7 @@ class CareerIntelligenceService:
             job_description=job_description,
             candidate_background=candidate_background,
             coverage_notes=coverage_notes,
+            company_summary=company_summary,
         )
         answer_text, usage = self._synthesize(
             messages, trace, rag_required=rag_required,
