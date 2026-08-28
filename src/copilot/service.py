@@ -541,8 +541,11 @@ class CareerIntelligenceService:
         "role_task": "structured_role", "skill": "structured_role",
         "knowledge": "structured_role", "activity": "structured_role",
         "technology": "structured_role", "transition": "structured_role",
+        "education": "structured_role", "training": "structured_role",
+        "certification": "structured_role", "licence": "structured_role",
         "compensation": "compensation",
         "forecast": "labour_market", "openings": "labour_market", "shortage": "labour_market",
+        "outlook": "labour_market", "vacancy": "labour_market",
         "competency": "competency", "behaviour": "competency", "qualification": "competency",
         "narrative": "narrative",
     }

@@ -49,11 +49,12 @@ class StructuredOutcome:
 
 class StructuredRetrievalCoordinator:
     def __init__(self, *, role_repo=None, comp_repo=None, competency_repo=None,
-                 labour_repo=None, manifest_entries=None) -> None:
+                 labour_repo=None, credential_repo=None, manifest_entries=None) -> None:
         self.role_repo = role_repo
         self.comp_repo = comp_repo
         self.competency_repo = competency_repo
         self.labour_repo = labour_repo
+        self.credential_repo = credential_repo
         entries = manifest_entries
         if entries is None:
             try:
@@ -110,6 +111,15 @@ class StructuredRetrievalCoordinator:
                 self._labour(query, country, out, kind="shortage")
             elif lane == RetrievalLane.TRANSITION:
                 self._transition(query, country, out)
+            elif lane in (RetrievalLane.EDUCATION, RetrievalLane.TRAINING,
+                          RetrievalLane.SHORT_TERM_OUTLOOK):
+                self._entry_attributes(query, country, out, lane)
+            elif lane == RetrievalLane.CERTIFICATION:
+                self._certification(query, out)
+            elif lane == RetrievalLane.LICENCE:
+                self._licence(query, country, out)
+            elif lane == RetrievalLane.CURRENT_VACANCY:
+                self._current_vacancy(query, out)
             elif lane == RetrievalLane.MIXED:
                 self._role(query, country, out)
                 self._role_or_comp_compensation(query, country, out)
@@ -359,6 +369,106 @@ class StructuredRetrievalCoordinator:
         return (f"{occ} ({r.get('country')}): shortage {r.get('shortage_indicator')} "
                 f"at {r.get('skill_level') or 'n/a'} level, {r.get('period') or 'n/a'}.")
 
+    def _entry_attributes(self, query, country, out, lane) -> None:
+        """Education / training / outlook from occupation attributes (BLS OOH, EP)."""
+        resolved = self._resolve(query, country, out)
+        if not resolved or not resolved.candidates or resolved.ambiguous:
+            return
+        want = {
+            RetrievalLane.EDUCATION: [("entry_education", "education")],
+            RetrievalLane.TRAINING: [("work_experience", "training"),
+                                     ("on_the_job_training", "training")],
+            RetrievalLane.SHORT_TERM_OUTLOOK: [("outlook", "outlook")],
+        }[lane]
+        seen_sources = set()
+        for cand in resolved.candidates:
+            base = cand.source_id.split(":", 1)[0]
+            if base in seen_sources:
+                continue
+            occ = self.role_repo.get_occupation(cand.occupation_code)
+            out.structured_queries.append(f"role.get_occupation('{cand.occupation_code}')")
+            if not occ:
+                continue
+            emitted = False
+            for field, etype in want:
+                val = occ.get(field)
+                if val:
+                    emitted = True
+                    label = field.replace("_", " ")
+                    out.evidence.append(self._evidence(
+                        eid=f"{cand.occupation_code}:{field}", source_id=cand.source_id,
+                        lane=lane, etype=etype, occ_title=occ.get("title"),
+                        occ_code=cand.occupation_code, score=2.5,
+                        text=f"{label.capitalize()}: {val}"))
+            if emitted:
+                seen_sources.add(base)
+                if cand.source_id not in out.sources_considered:
+                    out.sources_considered.append(cand.source_id)
+            if len(seen_sources) >= 2:
+                break
+        if not out.evidence:
+            out.insufficient = True
+            out.notes.append(f"No {lane.replace('_', ' ')} attribute found for "
+                             f"'{resolved.phrase}'.")
+
+    def _certification(self, query, out) -> None:
+        if self.credential_repo is None:
+            out.insufficient = True
+            out.notes.append("No certification data is loaded.")
+            return
+        resolved = self._resolve(query, out.country, out)
+        phrase = resolved.phrase if resolved else query
+        rows = self.credential_repo.certifications_for(phrase) if phrase else []
+        out.structured_queries.append(f"credentials.certifications_for('{phrase}')")
+        if not rows:
+            out.insufficient = True
+            out.notes.append(f"No certification records for '{phrase}'.")
+            return
+        for i, r in enumerate(rows[:_MAX_ITEMS]):
+            sid = r.get("source_id", "")
+            if sid not in out.sources_considered:
+                out.sources_considered.append(sid)
+            out.evidence.append(self._evidence(
+                eid=f"cert:{sid}:{i}", source_id=sid, lane=RetrievalLane.CERTIFICATION,
+                etype="certification", occ_title=r.get("occupation_title"), score=2.3,
+                text=f"Certification (optional): {r.get('name')}"
+                     + (f" — {r.get('organisation')}" if r.get("organisation") else "")))
+
+    def _licence(self, query, country, out) -> None:
+        if self.credential_repo is None:
+            out.insufficient = True
+            out.notes.append("No occupational-licence data is loaded.")
+            return
+        resolved = self._resolve(query, country, out)
+        phrase = resolved.phrase if resolved else query
+        rows = self.credential_repo.licences_for(phrase, country) if phrase else []
+        out.structured_queries.append(f"credentials.licences_for('{phrase}', {country!r})")
+        if not rows:
+            out.insufficient = True
+            out.notes.append(f"No occupational-licence record for '{phrase}'"
+                             + (f" in {country}." if country else "."))
+            return
+        for i, r in enumerate(rows[:_MAX_ITEMS]):
+            sid = r.get("source_id", "")
+            if sid not in out.sources_considered:
+                out.sources_considered.append(sid)
+            reqs = "; ".join(x for x in [r.get("education_requirement"),
+                                         r.get("exam_requirement"),
+                                         r.get("experience_requirement")] if x)
+            out.evidence.append(self._evidence(
+                eid=f"lic:{sid}:{i}", source_id=sid, lane=RetrievalLane.LICENCE,
+                etype="licence", occ_title=r.get("occupation"), country=r.get("jurisdiction"),
+                score=2.7,
+                text=f"Required licence: {r.get('title')} ({r.get('jurisdiction') or 'n/a'})"
+                     + (f" — {reqs}" if reqs else "")))
+
+    def _current_vacancy(self, query, out) -> None:
+        # No real-time vacancy source is loaded; say so plainly (never guess).
+        out.insufficient = True
+        out.notes.append(
+            "No real-time vacancy/demand source is loaded. Structured forecasts and "
+            "openings (long-term) are available; real-time demand is not.")
+
     def _transition(self, query, country, out) -> None:
         if self.role_repo is None:
             out.notes.append("No role store available for transition comparison.")
@@ -400,6 +510,7 @@ def build_default_coordinator(config=None) -> StructuredRetrievalCoordinator:
     from src.copilot.knowledge.roles import RoleRepository
     from src.copilot.knowledge.structured_ext import (
         CompetencyRepository,
+        CredentialRepository,
         LabourMarketRepository,
     )
 
@@ -411,4 +522,5 @@ def build_default_coordinator(config=None) -> StructuredRetrievalCoordinator:
         comp_repo=_open(constants.COMPENSATION_DB_PATH, CompensationRepository),
         competency_repo=_open(constants.COMPETENCY_DB_PATH, CompetencyRepository),
         labour_repo=_open(constants.LABOUR_MARKET_DB_PATH, LabourMarketRepository),
+        credential_repo=_open(constants.CREDENTIAL_DB_PATH, CredentialRepository),
     )

@@ -8,11 +8,11 @@ fixtures are never production-ready. Raw datasets are not committed.
 
 ## Summary
 
-- Configured sources: **26**
+- Configured sources: **27**
 - Retrieval-ready (total): **24**
 - Production-ready (real data): **10**
 - Real-data sources: **19** · Fixture-only: **5**
-- Structured records: **13,068** · Vector chunks: **3,528**
+- Structured records: **13,899** · Vector chunks: **3,528**
 
 Authority level is retrieval metadata (1 official · 2 public framework · 3 industry), **not** a truth score.
 
@@ -61,7 +61,8 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 | Cedefop Skills Forecast | EU | 1 | 2026 | authorised_manual | no | AVAILABLE | 2 | 71 |
 | Cedefop Future Job Openings | EU | 1 | current release | synthetic_fixture | 🧪 fixture | AVAILABLE | 2 | 0 |
 | Cedefop Labour & Skills Shortage Index | EU | 1 | current release | synthetic_fixture | 🧪 fixture | AVAILABLE | 3 | 0 |
-| BLS Employment Projections | US | 1 | 2025-2035 | official_local | ✅ yes | AVAILABLE | 1,662 | 0 |
+| BLS Employment Projections | US | 1 | 2025-2035 | official_local | ✅ yes | AVAILABLE | 2,493 | 0 |
+| Cedefop Short-Term Analytical System (STAS) | EU | 1 | Jan 2026 | — | no | LOCAL FILE FOUND | 0 | 0 |
 
 ## Narrative / Methodology
 
@@ -79,7 +80,7 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 
 ## Storage routing
 
-- **Structured stores (SQLite)** — roles.db, competencies.db, compensation.db, labour_market.db.
+- **Structured stores (SQLite)** — roles.db (incl. education/training/experience/outlook attributes), competencies.db, compensation.db, labour_market.db, credentials.db.
 - **Vector store (Chroma)** — narrative/methodology PDFs only.
 - Structured tables are never vectorised; narrative is never forced into tables.
 

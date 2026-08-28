@@ -65,7 +65,20 @@ to the role lane:
 | "How many job openings are there for nurses?" | `openings` |
 | "How do I transition from teaching into data analysis?" | `transition` |
 | "What behaviours are expected at Grade 7?" | `seniority` |
+| "What degree is typical for a nurse?" | `education` |
+| "What training does a plumber need?" | `training` |
+| "What certifications are relevant for a PM?" | `certification` |
+| "Do I need a licence to practise as an electrician?" | `licence` |
+| "What is demand like right now?" | `current_vacancy` |
+| "What is the short-term outlook?" | `short_term_outlook` |
 | "What skills does a PM need and what do they earn in Germany?" | `mixed` |
+
+The role store now also carries **entry education, work experience, on-the-job
+training and outlook** attributes (from BLS OOH and BLS Employment Projections),
+and a separate **credentials** store distinguishes required occupational
+**licences** from optional professional **certifications**. A factual gap with no
+matching record (e.g. real-time vacancy data, which is not loaded) is reported
+plainly rather than guessed.
 
 **Geographic precedence.** `detect_country()` reads the country/region from the
 question and `source_priority(country)` returns the ordered sources to prefer, so

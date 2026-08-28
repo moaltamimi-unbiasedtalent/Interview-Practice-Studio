@@ -35,6 +35,8 @@ publisher before redistributing anything derived from a source.
 | Cedefop Labour & Skills Shortage Index | Cedefop | labour_market | review required | manual | not until confirmed |
 | ESCO Handbook (methodology) | European Commission | narrative | review required | manual | not until confirmed |
 | Future of Jobs Report | World Economic Forum | narrative | review required | manual | not until confirmed |
+| BLS Employment Projections | U.S. Bureau of Labor Statistics | labour_market | Public domain (U.S. Government work) | auto-download | allowed w/ attribution |
+| Cedefop Short-Term Analytical System (STAS) | Cedefop | labour_market | review required | — | not until confirmed |
 
 Notes:
 

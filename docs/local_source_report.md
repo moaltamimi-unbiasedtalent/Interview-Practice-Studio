@@ -7,17 +7,17 @@ Measured values only — every number is a real count from the loaded stores or 
 | Metric | Value |
 |---|---|
 | Files discovered in data/raw | 195 |
-| Files mapped to known sources | 194 |
-| Unresolved files | 1 |
-| Configured sources | 26 |
-| Sources found locally | 19 |
+| Files mapped to known sources | 195 |
+| Unresolved files | 0 |
+| Configured sources | 27 |
+| Sources found locally | 20 |
 | Sources normalised (records>0) | 17 |
 | Sources indexed (vector chunks>0) | 11 |
 | Sources retrieval-ready (total) | 24 |
 | Sources production-ready (real data) | 10 |
 | Real-data sources | 19 |
 | Fixture-only sources | 5 |
-| Structured occupation records | 7,204 |
+| Structured occupation records | 8,035 |
 | Task records | 22,339 |
 | Skill relationships | 111,455 |
 | Technology relationships | 11,572 |
@@ -49,7 +49,7 @@ Measured values only — every number is a real count from the loaded stores or 
 | `ba_kompetenzkatalog` | synthetic_fixture | yes | no | 3 |
 | `bls_oews` | official_local | no | yes | 1,393 |
 | `bls_ooh` | official_local | no | yes | 343 |
-| `bls_projections` | official_local | no | yes | 1,662 |
+| `bls_projections` | official_local | no | yes | 2,493 |
 | `cedefop_future_job_openings` | synthetic_fixture | yes | no | 2 |
 | `cedefop_shortage_index` | synthetic_fixture | yes | no | 3 |
 | `cedefop_skills_forecast` | authorised_manual | no | no | 2 |

@@ -3,12 +3,13 @@
   "raw_dir": "data/raw",
   "file_count": 195,
   "total_bytes": 492723982,
-  "unresolved_count": 1,
+  "unresolved_count": 0,
   "source_ids_found": [
     "bls_oews",
     "bls_ooh",
     "bls_projections",
     "cedefop_skills_forecast",
+    "cedefop_stas",
     "digcomp",
     "eqf",
     "esco",
@@ -51,6 +52,9 @@
     ],
     "cedefop_skills_forecast": [
       "skills_forecast_2026_technical_report.pdf"
+    ],
+    "cedefop_stas": [
+      "stas_dataset_release_jan_2026.xlsx"
     ],
     "digcomp": [
       "JRC144121_01.pdf"
@@ -254,9 +258,6 @@
       "Guidance-Application_of_Success_Profiles_during_HR_Deputy_Director_recruitment_v0e.pdf",
       "Guidance-Application_of_Success_Profiles_during_HR_Director_recruitment_v0e.pdf",
       "Success_Profile-HR_Director_Collection_v0e.pdf"
-    ],
-    "unresolved": [
-      "stas_dataset_release_jan_2026.xlsx"
     ],
     "wef_future_of_jobs": [
       "WEF_Future_of_Jobs_Report_2025.pdf"
@@ -4149,19 +4150,19 @@
       "extension": ".xlsx",
       "size_bytes": 231823,
       "sha256": "ff60da07082a7706832a306d8833562564bd52ce5afdb8431144cadb665f61dc",
-      "source_id": "unresolved",
-      "likely_publisher": null,
-      "likely_geography": null,
-      "likely_source_type": null,
-      "detected_version": null,
+      "source_id": "cedefop_stas",
+      "likely_publisher": "Cedefop",
+      "likely_geography": "EU",
+      "likely_source_type": "labour_market_forecast",
+      "detected_version": "Jan 2026",
       "detected_reference_year": 2026,
       "acquisition_method": "local_existing",
       "parseable": true,
-      "intended_storage_target": null,
-      "licensing_status": "unknown",
-      "ingestion_readiness": "review",
-      "identification_confidence": "none",
-      "notes": "source identity not confirmed"
+      "intended_storage_target": "structured",
+      "licensing_status": "review required",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "medium",
+      "notes": "Cedefop STAS (sector-macro; not normalised into occupation stores)"
     }
   ]
 }

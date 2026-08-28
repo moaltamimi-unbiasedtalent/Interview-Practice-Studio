@@ -41,7 +41,9 @@ _TAG_RE = re.compile(r"<[^>]+>")
 def _strip_html(text: str | None) -> str:
     if not text:
         return ""
-    text = _TAG_RE.sub(" ", str(text))
+    import html
+
+    text = html.unescape(_TAG_RE.sub(" ", str(text)))
     return re.sub(r"\s+", " ", text).strip()
 
 # O*NET importance scale id; keep elements at/above this importance so rows stay
@@ -369,12 +371,88 @@ def read_ooh(path: str = "data/raw/OOH xml-compilation.xml", *, source_id: str =
         # Duties: list items inside the HTML, if any.
         duties = [_strip_html(li) for li in re.findall(r"<li>(.*?)</li>", what, re.S)]
         duties = [d for d in duties if d][:15]
+        # Education/training (how to become one), outlook, related occupations.
+        how = _strip_html(occ.findtext("summary_how_to_become_one"))[:600] or None
+        outlook = _strip_html(occ.findtext("summary_outlook"))[:600] or None
+        similar_html = occ.findtext("summary_similar_occupations") or ""
+        related = [_strip_html(a) for a in re.findall(r"<a[^>]*>(.*?)</a>", similar_html, re.S)]
+        related = [r for r in dict.fromkeys(related) if r][:10]
         out.append(NormalisedOccupation(
             occupation_code=code or title,
             title=title,
             source_id=source_id,
             description=_strip_html(what)[:800] or None,
             tasks=duties,
+            entry_education=how,
+            outlook=outlook,
+            relationships=[Relationship(related_code=r, relation_type="similar") for r in related],
+        ))
+    return out
+
+
+def read_bls_ep_characteristics(path: str = "data/raw/occupation.xlsx",
+                                *, source_id: str = "bls_projections"):
+    """Read BLS EP Table 1.2 (worker characteristics) into occupation attributes.
+
+    Provides entry education, related work experience, on-the-job training and a
+    growth-based outlook per US occupation. The median wage is captured as
+    *contextual* supporting evidence only — OEWS remains the primary wage source.
+    """
+    if not os.path.isfile(path):
+        return []
+    import pandas as pd
+
+    xl = pd.ExcelFile(path)
+    if "Table 1.2" not in xl.sheet_names:
+        return []
+    df = pd.read_excel(xl, "Table 1.2", header=1)
+
+    def col(*needles):
+        for c in df.columns:
+            cl = str(c).lower()
+            if all(n in cl for n in needles):
+                return c
+        return None
+
+    title_c = col("title")
+    code_c = col("code")
+    type_c = col("occupation type")
+    edu_c = col("typical education")
+    exp_c = col("work experience")
+    ojt_c = col("on-the-job training")
+    growth_c = col("employment change", "percent")
+    wage_c = col("median annual wage")
+
+    def _s(v):
+        return None if v is None or (isinstance(v, float) and v != v) else str(v).strip() or None
+
+    out: list[NormalisedOccupation] = []
+    for _, row in df.iterrows():
+        title = _s(row.get(title_c))
+        if not title or title.lower().startswith("total"):
+            continue
+        if type_c and str(row.get(type_c) or "").strip().lower() != "line item":
+            continue
+        growth = row.get(growth_c) if growth_c else None
+        outlook = None
+        try:
+            g = float(growth)
+            trend = ("much faster than average" if g >= 8 else "faster than average" if g >= 5
+                     else "about as fast as average" if g >= 2 else "little or no change" if g >= -1
+                     else "decline")
+            outlook = f"Projected 2025–35 employment change {g:g}% ({trend})."
+        except (TypeError, ValueError):
+            pass
+        # Median wage is intentionally NOT stored here — OEWS remains the primary
+        # wage source; EP wage is only contextual and would duplicate it.
+        out.append(NormalisedOccupation(
+            occupation_code=_s(row.get(code_c)) or title,
+            title=title,
+            source_id=source_id,
+            entry_education=_s(row.get(edu_c)) if edu_c else None,
+            work_experience=_s(row.get(exp_c)) if exp_c else None,
+            on_the_job_training=_s(row.get(ojt_c)) if ojt_c else None,
+            outlook=outlook,
         ))
     return out
 

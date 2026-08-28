@@ -609,7 +609,7 @@
       "normalised": true,
       "indexed": true,
       "available_for_retrieval": true,
-      "record_count": 1662,
+      "record_count": 2493,
       "chunk_count": 0,
       "detected_version": "2025-2035",
       "detected_reference_year": 2025,
@@ -624,6 +624,30 @@
       "fixture_only": false,
       "production_ready": true,
       "lifecycle": "AVAILABLE"
+    },
+    {
+      "source_id": "cedefop_stas",
+      "configured": true,
+      "acquisition_available": false,
+      "acquired": true,
+      "normalised": false,
+      "indexed": false,
+      "available_for_retrieval": false,
+      "record_count": 0,
+      "chunk_count": 0,
+      "detected_version": "Jan 2026",
+      "detected_reference_year": 2026,
+      "local_files": 1,
+      "local_file_found": true,
+      "last_refresh": null,
+      "last_error": null,
+      "freshness": "UNKNOWN",
+      "needs_manual_acquisition": false,
+      "needs_licence_review": true,
+      "data_origin": null,
+      "fixture_only": false,
+      "production_ready": false,
+      "lifecycle": "LOCAL FILE FOUND"
     }
   ]
 }

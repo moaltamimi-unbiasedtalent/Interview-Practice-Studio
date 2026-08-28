@@ -94,6 +94,8 @@ def _rules():
         (P("ooh xml-compilation"), "bls_ooh", "2025", 2025, _STRUCTURED, "high", "BLS OOH XML compilation"),
         # BLS Employment Projections occupation tables (2025–2035).
         (P("occupation.xlsx"), "bls_projections", "2025-2035", 2025, _STRUCTURED, "high", "BLS Employment Projections occupation tables"),
+        # Cedefop STAS (short-term analytical system) — sector-macro, not occupation-level.
+        (P("stas_dataset"), "cedefop_stas", "Jan 2026", 2026, _STRUCTURED, "medium", "Cedefop STAS (sector-macro; not normalised into occupation stores)"),
     ]
 
 

@@ -14,6 +14,7 @@ Measured from the loaded structured stores — every number is a real row count,
 - ESCO — Occupations & Skills (`esco`) — 3,039 records
 - Klassifikation der Berufe (KldB) (`kldb`) — 2,193 records
 - O*NET Database (`onet`) — 1,016 records
+- BLS Employment Projections (`bls_projections`) — 831 records
 - ISCO-08 Classification of Occupations (`isco08`) — 613 records
 - Occupational Outlook Handbook (OOH) (`bls_ooh`) — 343 records
 
@@ -72,10 +73,11 @@ Measured from the loaded structured stores — every number is a real row count,
 - `ba_kompetenzkatalog` — lifecycle AVAILABLE, 3 records, version — (VERSION_UNKNOWN)
 - `bls_oews` — lifecycle AVAILABLE, 1,393 records, version M2025 (VERSION_UNKNOWN)
 - `bls_ooh` — lifecycle AVAILABLE, 343 records, version 2025 (VERSION_UNKNOWN)
-- `bls_projections` — lifecycle AVAILABLE, 1,662 records, version 2025-2035 (VERSION_UNKNOWN)
+- `bls_projections` — lifecycle AVAILABLE, 2,493 records, version 2025-2035 (VERSION_UNKNOWN)
 - `cedefop_future_job_openings` — lifecycle AVAILABLE, 2 records, version — (VERSION_UNKNOWN)
 - `cedefop_shortage_index` — lifecycle AVAILABLE, 3 records, version — (VERSION_UNKNOWN)
 - `cedefop_skills_forecast` — lifecycle AVAILABLE, 2 records, version 2026 (VERSION_UNKNOWN)
+- `cedefop_stas` — lifecycle LOCAL FILE FOUND, 0 records, version Jan 2026 (VERSION_UNKNOWN)
 - `digcomp` — lifecycle AVAILABLE, 9 records, version 3.0 (VERSION_UNKNOWN)
 - `ecf` — lifecycle AVAILABLE, 3 records, version — (VERSION_UNKNOWN)
 - `eqf` — lifecycle AVAILABLE, 0 records, version brochure (VERSION_UNKNOWN)
@@ -119,6 +121,7 @@ Local versions are reported as detected; latest official versions were **not fet
 | `cedefop_future_job_openings` | — | — | VERSION_UNKNOWN |
 | `cedefop_shortage_index` | — | — | VERSION_UNKNOWN |
 | `cedefop_skills_forecast` | 2026 | — | VERSION_UNKNOWN |
+| `cedefop_stas` | Jan 2026 | — | VERSION_UNKNOWN |
 | `digcomp` | 3.0 | — | VERSION_UNKNOWN |
 | `ecf` | — | — | VERSION_UNKNOWN |
 | `eqf` | brochure | — | VERSION_UNKNOWN |

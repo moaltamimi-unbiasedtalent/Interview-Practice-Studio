@@ -811,6 +811,34 @@
       "storage_target": "structured",
       "ingestion_method": "local_or_download",
       "refresh_frequency": "annual"
+    },
+    {
+      "authority_level": 1,
+      "language": "en",
+      "version": "release Jan 2026",
+      "version_policy": "detect-at-acquisition",
+      "redistribution_allowed": false,
+      "manual_acquisition_required": false,
+      "licence_review_required": true,
+      "manual_review_required": true,
+      "coverage_areas": [
+        "short_term_employment",
+        "sector_macro"
+      ],
+      "source_id": "cedefop_stas",
+      "title": "Cedefop Short-Term Analytical System (STAS)",
+      "publisher": "Cedefop",
+      "authority": "official",
+      "country": "EU",
+      "source_type": "labour_market_forecast",
+      "group": "labour_market",
+      "licence": null,
+      "licence_notes": "Reuse terms unconfirmed; sector-macro (AMECO-based), not occupation-level.",
+      "source_url": "https://www.cedefop.europa.eu/en/tools/skills-forecast",
+      "download_url": null,
+      "storage_target": "structured",
+      "ingestion_method": "manual",
+      "refresh_frequency": "annual"
     }
   ]
 }

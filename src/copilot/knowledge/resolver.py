@@ -63,6 +63,10 @@ _PATTERNS = [
     re.compile(rf"(?:what is|what's) {_ART}(.+?)\s+(?:salary|pay)", re.I),
     re.compile(rf"(?:is|are)\s+{_ART}(.+?)\s+(?:in shortage|expected to|forecast)", re.I),
     re.compile(rf"(?:openings?|vacancies|demand|shortage|forecast|outlook)\b.*?\bfor\s+{_ART}(.+?)[\?\.]?$", re.I),
+    # Credential / entry questions: "... to work/practise as a X", "... for a X".
+    re.compile(rf"(?:to\s+(?:work|practi[sc]e|become)\s+(?:as\s+)?){_ART}(.+?)[\?\.]?$", re.I),
+    re.compile(rf"(?:licen[cs]e|certif\w*|training|degree|education)\b.*?\bfor\s+{_ART}(.+?)[\?\.]?$", re.I),
+    re.compile(rf"\bdoes\s+{_ART}(.+?)\s+(?:need|require)\b", re.I),
 ]
 
 # Country/qualifier words to trim off a captured phrase tail.

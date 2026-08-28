@@ -76,6 +76,7 @@ def _structured_counts() -> dict[str, int]:
     from src.copilot.knowledge.roles import RoleRepository
     from src.copilot.knowledge.structured_ext import (
         CompetencyRepository,
+        CredentialRepository,
         LabourMarketRepository,
     )
 
@@ -85,6 +86,7 @@ def _structured_counts() -> dict[str, int]:
         (constants.COMPENSATION_DB_PATH, CompensationRepository),
         (constants.COMPETENCY_DB_PATH, CompetencyRepository),
         (constants.LABOUR_MARKET_DB_PATH, LabourMarketRepository),
+        (constants.CREDENTIAL_DB_PATH, CredentialRepository),
     ]:
         for sid, n in _open_counts(path, cls).items():
             counts[sid] = counts.get(sid, 0) + n

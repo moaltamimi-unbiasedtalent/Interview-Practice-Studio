@@ -1,0 +1,4 @@
+[
+  {"licence_id": "LIC-RN-US", "title": "Registered Nurse Licence (NCLEX-RN)", "occupation": "Registered Nurse", "jurisdiction": "US", "issuing_body": "State Board of Nursing", "education_requirement": "Approved nursing program (ADN or BSN)", "exam_requirement": "Pass the NCLEX-RN examination", "experience_requirement": null, "description": "A licence is legally required to practise as a registered nurse in the US."},
+  {"licence_id": "LIC-ELEC-UK", "title": "Approved Electrician (competent person scheme)", "occupation": "Electrician", "jurisdiction": "UK", "issuing_body": "Registered competent-person scheme operator", "education_requirement": "Recognised electrical qualification (e.g. NVQ Level 3)", "exam_requirement": "Assessment of competence", "experience_requirement": "On-site experience", "description": "Registration is required to self-certify domestic electrical work in the UK."}
+]

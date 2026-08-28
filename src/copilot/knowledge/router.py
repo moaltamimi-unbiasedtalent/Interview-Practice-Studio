@@ -27,6 +27,12 @@ class RetrievalLane:
     OPENINGS = constants.LANE_OPENINGS
     SENIORITY = constants.LANE_SENIORITY
     TRANSITION = constants.LANE_TRANSITION
+    EDUCATION = constants.LANE_EDUCATION
+    TRAINING = constants.LANE_TRAINING
+    CERTIFICATION = constants.LANE_CERTIFICATION
+    LICENCE = constants.LANE_LICENCE
+    CURRENT_VACANCY = constants.LANE_CURRENT_VACANCY
+    SHORT_TERM_OUTLOOK = constants.LANE_SHORT_TERM_OUTLOOK
 
 
 @dataclass
@@ -63,6 +69,12 @@ _SENIORITY = re.compile(
     r"\b(behaviours?|leadership expectation|seniority|success profile|grade|career level|what makes a (?:senior|junior|lead|principal))\b",
     re.I,
 )
+_LICENCE = re.compile(r"\b(licen[cs]|licensure|registration to practi[sc]e)", re.I)
+_CERT = re.compile(r"\b(certif|credential|accreditation)", re.I)
+_EDUCATION = re.compile(r"\b(degree|education|qualification needed|what (?:degree|education)|do i need a degree|study to become|major)\b", re.I)
+_TRAINING = re.compile(r"\b(training|apprenticeship|on[- ]the[- ]job|work experience needed|how much experience)\b", re.I)
+_CURRENT_VACANCY = re.compile(r"\b(right now|currently hiring|current (?:demand|vacanc)|hiring now|job postings?|in demand right now|demand like)\b", re.I)
+_SHORT_OUTLOOK = re.compile(r"\b(short[- ]term outlook|short[- ]term demand|near[- ]term|next (?:year|few years))\b", re.I)
 
 # Country detection for geographic source precedence.
 _COUNTRY_PATTERNS = {
@@ -113,6 +125,19 @@ def route_question(query: str, llm_classifier=None) -> RouteDecision:
         return RouteDecision(RetrievalLane.CYBERSECURITY, "cybersecurity work-role terms (NICE)", 0.85)
     if _DIGITAL.search(text):
         return RouteDecision(RetrievalLane.COMPETENCY, "digital competency terms (DigComp)", 0.8)
+    # Credential / entry-requirement / real-time lanes (CI-PH3).
+    if _LICENCE.search(text):
+        return RouteDecision(RetrievalLane.LICENCE, "occupational licence terms", 0.85)
+    if _CERT.search(text):
+        return RouteDecision(RetrievalLane.CERTIFICATION, "professional certification terms", 0.85)
+    if _EDUCATION.search(text):
+        return RouteDecision(RetrievalLane.EDUCATION, "entry-education terms", 0.8)
+    if _CURRENT_VACANCY.search(text):
+        return RouteDecision(RetrievalLane.CURRENT_VACANCY, "real-time vacancy/demand terms", 0.8)
+    if _SHORT_OUTLOOK.search(text):
+        return RouteDecision(RetrievalLane.SHORT_TERM_OUTLOOK, "short-term outlook terms", 0.78)
+    if _TRAINING.search(text):
+        return RouteDecision(RetrievalLane.TRAINING, "training/experience terms", 0.75)
 
     comp = bool(_COMP.search(text))
     role = bool(_ROLE.search(text))

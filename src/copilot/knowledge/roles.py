@@ -48,6 +48,15 @@ class NormalisedOccupation(BaseModel):
     activities: list[str] = Field(default_factory=list)
     relationships: list[Relationship] = Field(default_factory=list)
     mappings: list[Mapping] = Field(default_factory=list)
+    # Career-entry / outlook attributes (BLS OOH, BLS EP). Scalars are stored in
+    # occupation_attributes; certifications/licences/industries are list tables.
+    entry_education: str | None = None
+    work_experience: str | None = None
+    on_the_job_training: str | None = None
+    outlook: str | None = None
+    certifications: list[str] = Field(default_factory=list)
+    licences: list[str] = Field(default_factory=list)
+    industries: list[str] = Field(default_factory=list)
     provenance: Provenance | None = None
 
 
@@ -63,13 +72,22 @@ CREATE TABLE IF NOT EXISTS occupation_knowledge (occupation_code TEXT, knowledge
 CREATE TABLE IF NOT EXISTS occupation_activities (occupation_code TEXT, activity TEXT, source_id TEXT);
 CREATE TABLE IF NOT EXISTS occupation_relationships (occupation_code TEXT, related_code TEXT, relation_type TEXT, source_id TEXT);
 CREATE TABLE IF NOT EXISTS occupation_mappings (occupation_code TEXT, scheme TEXT, code TEXT, source_id TEXT);
+-- CI-PH3: education/training/experience/outlook (scalar) + certification/licence/industry (list).
+CREATE TABLE IF NOT EXISTS occupation_attributes (occupation_code TEXT, attr_type TEXT, attr_value TEXT, source_id TEXT);
+CREATE TABLE IF NOT EXISTS occupation_certifications (occupation_code TEXT, certification TEXT, source_id TEXT);
+CREATE TABLE IF NOT EXISTS occupation_licences (occupation_code TEXT, licence TEXT, source_id TEXT);
+CREATE TABLE IF NOT EXISTS occupation_industries (occupation_code TEXT, industry TEXT, source_id TEXT);
 """
 
 _TABLES = [
     "occupations", "occupation_aliases", "occupation_tasks", "occupation_skills",
     "occupation_knowledge", "occupation_activities", "occupation_relationships",
-    "occupation_mappings",
+    "occupation_mappings", "occupation_attributes", "occupation_certifications",
+    "occupation_licences", "occupation_industries",
 ]
+
+# Scalar attribute keys stored in occupation_attributes.
+_ATTRS = ("entry_education", "work_experience", "on_the_job_training", "outlook")
 
 
 class RoleRepository:
@@ -102,6 +120,14 @@ class RoleRepository:
         cur.executemany("INSERT INTO occupation_activities VALUES (?,?,?)", [(code, a, sid) for a in occ.activities])
         cur.executemany("INSERT INTO occupation_relationships VALUES (?,?,?,?)", [(code, r.related_code, r.relation_type, sid) for r in occ.relationships])
         cur.executemany("INSERT INTO occupation_mappings VALUES (?,?,?,?)", [(code, m.scheme, m.code, sid) for m in occ.mappings])
+        # CI-PH3: scalar education/training/experience/outlook + list attributes.
+        cur.executemany(
+            "INSERT INTO occupation_attributes VALUES (?,?,?,?)",
+            [(code, attr, getattr(occ, attr), sid) for attr in _ATTRS if getattr(occ, attr)],
+        )
+        cur.executemany("INSERT INTO occupation_certifications VALUES (?,?,?)", [(code, c, sid) for c in occ.certifications])
+        cur.executemany("INSERT INTO occupation_licences VALUES (?,?,?)", [(code, l, sid) for l in occ.licences])
+        cur.executemany("INSERT INTO occupation_industries VALUES (?,?,?)", [(code, i, sid) for i in occ.industries])
         self._conn.commit()
 
     def get_occupation(self, code: str) -> dict | None:
@@ -116,6 +142,13 @@ class RoleRepository:
         out["activities"] = [r["activity"] for r in self._conn.execute("SELECT activity FROM occupation_activities WHERE occupation_code=?", (code,))]
         out["relationships"] = [dict(r) for r in self._conn.execute("SELECT related_code, relation_type FROM occupation_relationships WHERE occupation_code=?", (code,))]
         out["mappings"] = [dict(r) for r in self._conn.execute("SELECT scheme, code FROM occupation_mappings WHERE occupation_code=?", (code,))]
+        attrs = {r["attr_type"]: r["attr_value"] for r in self._conn.execute(
+            "SELECT attr_type, attr_value FROM occupation_attributes WHERE occupation_code=?", (code,))}
+        for attr in _ATTRS:
+            out[attr] = attrs.get(attr)
+        out["certifications"] = [r["certification"] for r in self._conn.execute("SELECT certification FROM occupation_certifications WHERE occupation_code=?", (code,))]
+        out["licences"] = [r["licence"] for r in self._conn.execute("SELECT licence FROM occupation_licences WHERE occupation_code=?", (code,))]
+        out["industries"] = [r["industry"] for r in self._conn.execute("SELECT industry FROM occupation_industries WHERE occupation_code=?", (code,))]
         return out
 
     def search(self, text: str, limit: int = 10) -> list[dict]:

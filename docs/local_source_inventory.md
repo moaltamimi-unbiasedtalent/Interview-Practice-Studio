@@ -5,8 +5,8 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 
 - Files discovered: **195**
 - Total size: **469.9 MB**
-- Distinct sources found locally: **19**
-- Unresolved files: **1**
+- Distinct sources found locally: **20**
+- Unresolved files: **0**
 
 ## Source → local files
 
@@ -35,6 +35,9 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 
 ### `cedefop_skills_forecast` — 1 file(s)
 - `skills_forecast_2026_technical_report.pdf`
+
+### `cedefop_stas` — 1 file(s)
+- `stas_dataset_release_jan_2026.xlsx`
 
 ### `digcomp` — 1 file(s)
 - `JRC144121_01.pdf`
@@ -192,9 +195,6 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 - `Guidance-Application_of_Success_Profiles_during_HR_Deputy_Director_recruitment_v0e.pdf`
 - `Guidance-Application_of_Success_Profiles_during_HR_Director_recruitment_v0e.pdf`
 - `Success_Profile-HR_Director_Collection_v0e.pdf`
-
-### `unresolved` — 1 file(s)
-- `stas_dataset_release_jan_2026.xlsx`
 
 ### `wef_future_of_jobs` — 1 file(s)
 - `WEF_Future_of_Jobs_Report_2025.pdf`
@@ -397,4 +397,4 @@ Read-only over the raw corpus; no files were moved, renamed or deleted.
 | `oesm25st/oesm25st/state_M2025_dl.xlsx` | bls_oews | M2025 | 2025 | structured | ✓ | Public domain (U.S. Government work) | high |
 | `positionclassificationintro-app-1-edits-per-cap-request-final.pdf` | opm_occupational_groups | 2009 rev | 2009 | vector | ✓ | Public domain (U.S. Government work) | medium |
 | `skills_forecast_2026_technical_report.pdf` | cedefop_skills_forecast | 2026 | 2026 | vector | ✓ | review required | high |
-| `stas_dataset_release_jan_2026.xlsx` | unresolved | — | 2026 | — | ✓ | unknown | none |
+| `stas_dataset_release_jan_2026.xlsx` | cedefop_stas | Jan 2026 | 2026 | structured | ✓ | review required | medium |
