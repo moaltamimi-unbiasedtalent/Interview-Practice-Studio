@@ -196,9 +196,12 @@ boundaries of the tool.
   licences (see `docs/source_licensing.md`); none are committed.
 - **Licence terms are not guessed.** Sources whose reuse terms are unconfirmed are
   flagged for review and treated as non-redistributable.
-- **The chat answer path still uses vector RAG.** The structured lanes (role,
-  competency, compensation, labour-market) and new router lanes are surfaced via
-  the router/inspector and tools; wiring every lane directly into the chat answer
-  synthesis is future work.
-- **Coverage is breadth-of-source, not depth.** The offline samples demonstrate
-  each store and lane; production depth needs the real normalised extracts.
+- **Structured lanes now participate in the chat answer.** The router drives a
+  StructuredRetrievalCoordinator that queries the role/competency/compensation/
+  labour-market stores, merges the typed evidence with vector RAG, and cites it.
+  Remaining edges: occupation resolution is lexical (title/alias LIKE, naive
+  singularisation) so an unusual phrasing can miss or need clarification, and
+  ESCO occupations carry skills but not task text in the current extract.
+- **Coverage is breadth-of-source, not depth.** The loaded datasets cover many
+  occupations, but some lanes (competency/labour-market) still rely on small
+  offline samples until the real framework extracts are added.

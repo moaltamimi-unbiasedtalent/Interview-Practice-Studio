@@ -317,13 +317,18 @@ Latest: **959 passed, 1 skipped** (Python); **10 passed** (frontend).
 - The offline/local embedder is lexical; semantic vector quality needs an OpenAI
   embedding key.
 - Deterministic injection defence is best-effort, not a guarantee.
-- Structured role/compensation lanes are populated by the loader scripts; the
-  baseline chat still runs vector RAG (lanes are surfaced + evaluated).
+- Structured lanes (role/competency/compensation/labour-market) now participate
+  directly in the production chat answer: the router drives a
+  `StructuredRetrievalCoordinator` that queries the real stores, resolves the
+  occupation, applies geographic source precedence, and merges typed evidence with
+  vector RAG — each fact cited to its source. Occupation resolution is lexical, so
+  unusual phrasings may need clarification.
 - Live LLM/Speech/Gemini paths require credentials and are not exercised in CI.
 
 ## Future roadmap (post-sprint)
 
-- Wire the structured/compensation lanes directly into the chat answer path.
+- Richer occupation resolution (embeddings/crosswalks) and per-source task text
+  for ESCO; deeper multi-source evidence merging.
 - Real dataset ingestion + semantic embeddings; labelled relevance judgements.
 - Deeper interview↔career loop (feed interview outcomes back into preparation).
 

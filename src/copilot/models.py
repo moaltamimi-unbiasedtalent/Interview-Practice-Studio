@@ -19,6 +19,7 @@ __all__ = [
     "TranslatedQuery",
     "ToolExecution",
     "Citation",
+    "KnowledgeEvidence",
     "ChatResponse",
     "UsageRecord",
 ]
@@ -198,12 +199,98 @@ class UsageRecord(_Base):
     currency: str = Field(default=constants.DEFAULT_CURRENCY)
 
 
+class KnowledgeEvidence(_Base):
+    """One piece of downstream evidence — from a structured store OR a vector chunk.
+
+    This is the common contract carried across the service boundary so structured
+    records and narrative chunks are treated uniformly for synthesis and
+    citation. It holds only plain data — never a SQLite row, LangChain Document
+    or DB connection — so it is safe to place in ``ChatResponse``/PreparationContext.
+    """
+
+    evidence_id: str = Field(description="Stable id for this evidence item.")
+    text: str = Field(description="Human-readable evidence content (already bounded).")
+    source_id: str = Field(default="", description="Manifest source id, if known.")
+    source_title: str | None = Field(default=None, description="Source display name.")
+    source_url: str | None = Field(default=None, description="Public source URL (clickable).")
+    publisher: str | None = Field(default=None)
+    evidence_type: str = Field(
+        default="narrative",
+        description="role_task | skill | knowledge | activity | technology | "
+        "compensation | forecast | openings | shortage | competency | behaviour | "
+        "qualification | transition | narrative",
+    )
+    retrieval_lane: str = Field(default="", description="Lane that produced it.")
+    authority_level: int = Field(default=constants.AUTHORITY_INDUSTRY, ge=1, le=3)
+    geography: str | None = Field(default=None)
+    country: str | None = Field(default=None)
+    region: str | None = Field(default=None)
+    occupation_code: str | None = Field(default=None)
+    occupation_title: str | None = Field(default=None)
+    reference_year: int | None = Field(default=None)
+    version: str | None = Field(default=None)
+    score: float = Field(default=0.0, description="Relevance/ranking score (higher better).")
+    metadata: dict = Field(default_factory=dict)
+
+    def citation_title(self) -> str:
+        """A specific citation title, e.g. 'BLS OEWS — Data Analysts — US — 2025'."""
+        parts = [self.source_title or self.source_id or "Source"]
+        if self.occupation_title:
+            parts.append(self.occupation_title)
+        label = {
+            "compensation": "Compensation", "forecast": "Forecast",
+            "openings": "Openings", "shortage": "Shortage",
+            "role_task": "Tasks", "skill": "Skills", "knowledge": "Knowledge",
+            "activity": "Activities", "technology": "Technologies",
+            "competency": "Competencies", "behaviour": "Behaviours",
+            "qualification": "Qualifications", "transition": "Transition",
+        }.get(self.evidence_type)
+        if label:
+            parts.append(label)
+        geo = self.country or self.geography
+        if geo and self.evidence_type in ("compensation", "forecast", "openings", "shortage"):
+            parts.append(geo)
+        if self.reference_year:
+            parts.append(str(self.reference_year))
+        return " — ".join(parts)
+
+    def to_citation(self, marker: str) -> "Citation":
+        return Citation(
+            marker=marker,
+            doc_id=self.source_id or self.evidence_id,
+            chunk_id=self.evidence_id,
+            title=self.citation_title(),
+            source=self.source_url or self.source_id,
+            source_url=self.source_url,
+        )
+
+    @classmethod
+    def from_retrieval_result(cls, result: "RetrievalResult", *, index: int) -> "KnowledgeEvidence":
+        meta = result.metadata or {}
+        return cls(
+            evidence_id=result.chunk.chunk_id,
+            text=result.text,
+            source_id=meta.get("manifest_source_id") or meta.get("source_id") or "",
+            source_title=result.title,
+            source_url=meta.get("source_url"),
+            evidence_type="narrative",
+            retrieval_lane="vector",
+            geography=meta.get("geography"),
+            metadata={"page": result.page, "document_type": meta.get("document_type")},
+            score=result.score,
+        )
+
+
 class ChatResponse(_Base):
     """A grounded assistant response with its evidence and instrumentation."""
 
     answer: str = Field(description="The assistant's answer text.")
     citations: list[Citation] = Field(default_factory=list)
     retrieved: list[RetrievalResult] = Field(default_factory=list)
+    evidence: list[KnowledgeEvidence] = Field(
+        default_factory=list,
+        description="Unified evidence (structured + narrative) behind the answer.",
+    )
     tool_calls: list[ToolExecution] = Field(default_factory=list)
     translated_query: TranslatedQuery | None = Field(default=None)
     usage: UsageRecord | None = Field(default=None)

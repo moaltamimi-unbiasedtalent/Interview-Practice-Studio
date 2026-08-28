@@ -126,8 +126,9 @@ datasets are committed. See `docs/source_licensing.md`.
   illustrative; real datasets require manual acquisition + licence confirmation.
 - Offline/local embedder is lexical; semantic vector quality needs an OpenAI key.
 - Deterministic injection defence is best-effort, not a guarantee.
-- Structured/compensation lanes are surfaced + evaluated; the baseline chat still
-  runs vector RAG (direct lane wiring is on the post-sprint roadmap).
+- Structured lanes (role/competency/compensation/labour-market) now participate
+  in the production chat answer via the StructuredRetrievalCoordinator, merged with
+  vector RAG and cited; occupation resolution + geographic source precedence apply.
 - Live LLM/Speech/Gemini paths need credentials and are not exercised in CI.
 
 ## Manual checks remaining

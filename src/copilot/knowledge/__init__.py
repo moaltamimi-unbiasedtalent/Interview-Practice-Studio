@@ -22,6 +22,11 @@ from src.copilot.knowledge.router import (
     source_priority,
     detect_country,
 )
+from src.copilot.knowledge.resolver import resolve_occupation
+from src.copilot.knowledge.retrieval import (
+    StructuredRetrievalCoordinator,
+    build_default_coordinator,
+)
 from src.copilot.knowledge.status import SourceStatus, compute_status, summary
 
 __all__ = [
@@ -34,4 +39,7 @@ __all__ = [
     "SourceStatus",
     "compute_status",
     "summary",
+    "resolve_occupation",
+    "StructuredRetrievalCoordinator",
+    "build_default_coordinator",
 ]

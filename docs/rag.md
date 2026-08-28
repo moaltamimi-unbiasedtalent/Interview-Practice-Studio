@@ -5,11 +5,14 @@ first working evidence-grounded chatbot. Hybrid (keyword + vector) search,
 query translation and reranking are **not** part of this phase — they come later
 behind the same interfaces.
 
-> **Beyond vectors.** This is the *vector* lane only. A deterministic router
-> (`src/copilot/knowledge/router.py`) sends structured questions (role, skill,
-> competency, compensation, forecast, shortage, openings, transition, seniority)
-> to SQLite stores instead of the vector index, with geographic source
-> precedence. See [knowledge_architecture.md](knowledge_architecture.md).
+> **Beyond vectors.** This is the *vector* lane only. In production the
+> deterministic router (`src/copilot/knowledge/router.py`) also drives **real
+> structured retrieval**: a `StructuredRetrievalCoordinator` queries the SQLite
+> stores (role, competency, compensation, labour-market) for the chosen lane,
+> resolves the occupation, applies geographic source precedence, and returns
+> typed `KnowledgeEvidence` that is merged with these vector results, synthesised
+> into separated sections and cited. See
+> [knowledge_architecture.md](knowledge_architecture.md).
 
 ## Pipeline
 

@@ -54,7 +54,8 @@ _TRANSITION = re.compile(
 _SHORTAGE = re.compile(r"\b(shortage|shortages|hard[- ]to[- ]fill|talent gap|skills gap|bottleneck occupation)\b", re.I)
 _OPENINGS = re.compile(r"\b(job openings|openings|vacancies|replacement demand|how many (?:jobs|roles|positions))\b", re.I)
 _CYBER = re.compile(
-    r"\b(cyber ?security|cyber|information security|infosec)\b.*\b(responsibilit|task|duties|work role|incident|framework|nice)",
+    r"\b(cyber ?security|cyber|information security|infosec)\b.*\b(responsibilit|task|duties|work role|incident|framework|nice)"
+    r"|\bincident respon(?:se|der|ders|ding)\b",
     re.I,
 )
 _DIGITAL = re.compile(r"\b(digital)\b.*\b(competenc|capabilit|literac|skill)", re.I)

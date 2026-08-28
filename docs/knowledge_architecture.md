@@ -73,8 +73,15 @@ country-specific official statistics outrank generic international material (e.g
 Germany → KldB/BERUFENET/Entgeltatlas before ESCO). Defined in
 `constants.COUNTRY_SOURCE_PRIORITY`.
 
-The chosen lane is shown in the **RAG Inspector**. (The baseline chat still runs
-vector RAG; structured lanes are surfaced as capabilities and via the router.)
+The chosen lane **drives real retrieval in the production chat answer**: a
+`StructuredRetrievalCoordinator` (`src/copilot/knowledge/retrieval.py`) dispatches
+the router's lane to the appropriate structured store (roles / compensation /
+competency / labour-market), resolves the occupation, applies geographic source
+precedence, and returns typed :class:`KnowledgeEvidence`. That structured
+evidence is merged with vector/BM25 narrative evidence, synthesised into
+trust-separated sections, and cited alongside narrative sources. The RAG Inspector
+shows the selected lane(s), occupation resolution, detected country, source
+precedence, structured queries run, records returned, and citations.
 
 ## Source lifecycle & status
 

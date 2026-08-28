@@ -109,10 +109,50 @@ class CompetencyRepository:
         return [dict(r) for r in self._conn.execute(
             "SELECT area, name, description FROM competencies WHERE framework=?", (framework,))]
 
+    def frameworks(self) -> list[str]:
+        return [r[0] for r in self._conn.execute(
+            "SELECT DISTINCT framework FROM competencies") if r[0]]
+
+    def search_competencies(self, *, text: str | None = None, framework: str | None = None,
+                            limit: int = 20) -> list[dict]:
+        """Competencies filtered by framework (LIKE) and/or free text (LIKE)."""
+        clauses, params = [], []
+        if framework:
+            clauses.append("lower(framework) LIKE ?"); params.append(f"%{framework.lower()}%")
+        if text:
+            like = f"%{text.lower()}%"
+            clauses.append("(lower(name) LIKE ? OR lower(area) LIKE ? OR lower(description) LIKE ?)")
+            params.extend([like, like, like])
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return [dict(r) for r in self._conn.execute(
+            f"SELECT source_id, framework, area, name, description FROM competencies{where} LIMIT ?",
+            (*params, limit))]
+
     def behaviours_for_level(self, framework: str, level: str) -> list[dict]:
         return [dict(r) for r in self._conn.execute(
             "SELECT behaviour, expectation FROM role_behaviours WHERE framework=? AND level=?",
             (framework, level))]
+
+    def behaviours(self, *, framework: str | None = None, level: str | None = None,
+                   limit: int = 30) -> list[dict]:
+        clauses, params = [], []
+        if framework:
+            clauses.append("lower(framework) LIKE ?"); params.append(f"%{framework.lower()}%")
+        if level:
+            clauses.append("lower(level) LIKE ?"); params.append(f"%{level.lower()}%")
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return [dict(r) for r in self._conn.execute(
+            f"SELECT source_id, framework, level, behaviour, expectation FROM role_behaviours{where} LIMIT ?",
+            (*params, limit))]
+
+    def qualifications(self, *, reference: str | None = None, limit: int = 20) -> list[dict]:
+        clauses, params = [], []
+        if reference:
+            clauses.append("lower(reference) LIKE ?"); params.append(f"%{reference.lower()}%")
+        where = (" WHERE " + " AND ".join(clauses)) if clauses else ""
+        return [dict(r) for r in self._conn.execute(
+            f"SELECT source_id, reference, requirement_type, requirement FROM qualification_requirements{where} LIMIT ?",
+            (*params, limit))]
 
     def counts(self) -> dict[str, int]:
         return {t: self._conn.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0] for t in _COMP_TABLES}

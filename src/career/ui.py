@@ -223,11 +223,16 @@ def _page_chat() -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    from src.copilot.knowledge.retrieval import build_default_coordinator
     from src.copilot.service import CareerIntelligenceService
 
     mode = st.session_state.get("retrieval_mode", config.retrieval_mode)
     retriever = build_retriever(config, mode=mode, store=store)
-    service = CareerIntelligenceService(config=config, retriever=retriever)
+    # Production: wire the real structured stores into the chat answer.
+    coordinator = build_default_coordinator(config)
+    service = CareerIntelligenceService(
+        config=config, retriever=retriever, knowledge_coordinator=coordinator
+    )
 
     with st.chat_message("assistant"):
         with st.status("Understanding request…", expanded=False) as status:
@@ -473,6 +478,29 @@ def _page_rag_inspector() -> None:
         cols[1].write(f"RAG used: {'✅' if trace.rag_used else '❌'}")
         cols[2].write(f"Tools planned: {trace.tools_planned or '—'}")
         st.write(f"Tool decision (invoked): {trace.tools_invoked or '—'}")
+
+        # Structured multi-lane retrieval transparency.
+        if (getattr(trace, "structured_queries", None)
+                or getattr(trace, "resolved_occupation", "")
+                or getattr(trace, "detected_country", None)):
+            st.markdown("**Structured retrieval**")
+            scols = st.columns(3)
+            scols[0].write(f"Country detected: `{trace.detected_country or '—'}`")
+            scols[1].write(f"Occupation: `{trace.resolved_occupation or '—'}`")
+            scols[2].metric("Structured records", trace.structured_record_count)
+            if trace.occupation_candidates:
+                st.caption("Candidates considered: " + ", ".join(trace.occupation_candidates[:6]))
+            if trace.source_precedence:
+                st.caption("Source precedence: " + " → ".join(trace.source_precedence))
+            if trace.sources_considered:
+                st.caption("Sources returned: " + ", ".join(trace.sources_considered))
+            if trace.structured_queries:
+                st.write("Structured queries:")
+                for q in trace.structured_queries:
+                    st.code(q, language="text")
+            if trace.coverage_notes:
+                for note in trace.coverage_notes:
+                    st.caption(f"⚠ {note}")
         st.markdown("**Retrieval metrics**")
         mcols = st.columns(4)
         mcols[0].metric("Strategy", trace.retrieval_strategy or "—")

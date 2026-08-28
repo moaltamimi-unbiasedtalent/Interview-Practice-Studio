@@ -13,6 +13,7 @@ not every rating row) to keep the derived SQLite stores compact and explainable.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 from src.copilot.knowledge.compensation import CompensationRecord
@@ -22,11 +23,26 @@ from src.copilot.knowledge.roles import (
     Relationship,
     Skill,
 )
+from src.copilot.knowledge.structured_ext import (
+    Competency,
+    LabourForecast,
+    LabourOpenings,
+)
 
 __all__ = [
     "read_onet", "read_esco", "read_isco", "read_kldb",
-    "read_oews", "read_ashe",
+    "read_oews", "read_ashe", "read_ooh", "read_nice_structured",
+    "read_bls_projections",
 ]
+
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _strip_html(text: str | None) -> str:
+    if not text:
+        return ""
+    text = _TAG_RE.sub(" ", str(text))
+    return re.sub(r"\s+", " ", text).strip()
 
 # O*NET importance scale id; keep elements at/above this importance so rows stay
 # meaningful without storing the full rating matrix.
@@ -323,3 +339,136 @@ def read_ashe(path: str = ("data/raw/ashetable142025provisional/"
             source_url="https://www.ons.gov.uk/",
         ))
     return out
+
+
+# --- BLS Occupational Outlook Handbook (structured XML) ----------------------
+
+
+def read_ooh(path: str = "data/raw/OOH xml-compilation.xml", *, source_id: str = "bls_ooh"):
+    """Read the BLS OOH XML compilation into NormalisedOccupations.
+
+    Each ``<occupation>`` carries HTML summary blocks; we keep a plain-text
+    'what they do' description plus a short list of duties parsed from list items.
+    """
+    if not os.path.isfile(path):
+        return []
+    import xml.etree.ElementTree as ET
+
+    try:
+        root = ET.parse(path).getroot()
+    except ET.ParseError:
+        return []
+
+    out: list[NormalisedOccupation] = []
+    for occ in root.findall(".//occupation"):
+        title = (occ.findtext("title") or "").strip()
+        if not title:
+            continue
+        code = (occ.findtext("occupation_code") or occ.findtext("soc_coverage") or "").strip()
+        what = occ.findtext("summary_what_they_do") or ""
+        # Duties: list items inside the HTML, if any.
+        duties = [_strip_html(li) for li in re.findall(r"<li>(.*?)</li>", what, re.S)]
+        duties = [d for d in duties if d][:15]
+        out.append(NormalisedOccupation(
+            occupation_code=code or title,
+            title=title,
+            source_id=source_id,
+            description=_strip_html(what)[:800] or None,
+            tasks=duties,
+        ))
+    return out
+
+
+# --- NICE Framework Components v2.2.0 (structured competencies) ---------------
+
+
+def read_nice_structured(path: str = "data/raw/NICE Framework Components v2.2.0.xlsx",
+                         *, source_id: str = "nice_framework"):
+    """Read NICE work roles + TKS statements into Competency records.
+
+    Returns a list of :class:`Competency` (framework 'NICE'): work roles become
+    competencies in an 'Work Role' area; TKS statements become competencies typed
+    by their id prefix (T=Task, K=Knowledge, S=Skill).
+    """
+    if not os.path.isfile(path):
+        return []
+    import pandas as pd
+
+    comps: list[Competency] = []
+    xl = pd.ExcelFile(path)
+
+    # Work roles.
+    if "v2.2.0 Work Roles + Categories" in xl.sheet_names:
+        wr = pd.read_excel(xl, "v2.2.0 Work Roles + Categories")
+        for _, row in wr.iterrows():
+            name = str(row.get("Work Role") or "").strip()
+            wid = row.get("Work Role ID")
+            if not name or pd.isna(wid):  # skip category header rows (no id)
+                continue
+            comps.append(Competency(source_id=source_id, framework="NICE",
+                                    area="Work Role", name=name[:200],
+                                    description=_strip_html(row.get("Work Role Description")) or None))
+
+    # TKS statements (Task/Knowledge/Skill).
+    if "v2.2.0 TKS Statements" in xl.sheet_names:
+        tks = pd.read_excel(xl, "v2.2.0 TKS Statements")
+        kind = {"T": "Task", "K": "Knowledge", "S": "Skill"}
+        for _, row in tks.iterrows():
+            tid = str(row.get("TKS ID") or "").strip()
+            desc = str(row.get("TKS Description") or "").strip()
+            if not tid or not desc:
+                continue
+            area = kind.get(tid[:1].upper(), "TKS")
+            comps.append(Competency(source_id=source_id, framework="NICE",
+                                    area=area, name=desc[:250], description=None))
+    return comps
+
+
+# --- BLS Employment Projections (structured labour-market) --------------------
+
+
+def read_bls_projections(path: str = "data/raw/occupation.xlsx",
+                         *, source_id: str = "bls_projections", year: int = 2025):
+    """Read BLS Employment Projections Table 1.10 into forecasts + openings (US)."""
+    if not os.path.isfile(path):
+        return [], []
+    import pandas as pd
+
+    xl = pd.ExcelFile(path)
+    if "Table 1.10" not in xl.sheet_names:
+        return [], []
+    df = pd.read_excel(xl, "Table 1.10", header=1)
+    cols = {c: c for c in df.columns}
+    title_c = next((c for c in cols if "title" in str(c).lower()), None)
+    code_c = next((c for c in cols if "code" in str(c).lower()), None)
+    type_c = next((c for c in cols if "occupation type" in str(c).lower()), None)
+    pct_c = next((c for c in cols if "percent" in str(c).lower()), None)
+    open_c = next((c for c in cols if "openings" in str(c).lower()), None)
+
+    def _num(v):
+        try:
+            f = float(v)
+            return f if f == f else None
+        except (TypeError, ValueError):
+            return None
+
+    forecasts: list[LabourForecast] = []
+    openings: list[LabourOpenings] = []
+    for _, row in df.iterrows():
+        title = str(row.get(title_c) or "").strip()
+        if not title or title.lower().startswith("total"):
+            continue
+        # Only detailed line items, not summary aggregates.
+        if type_c and str(row.get(type_c) or "").strip().lower() != "line item":
+            continue
+        pct = _num(row.get(pct_c)) if pct_c else None
+        if pct is not None:
+            forecasts.append(LabourForecast(
+                source_id=source_id, occupation=title, country="US",
+                employment_change=pct / 100.0, horizon="2025-2035", reference_year=year))
+        openings_val = _num(row.get(open_c)) if open_c else None
+        if openings_val is not None:
+            openings.append(LabourOpenings(
+                source_id=source_id, occupation=title, geography="US",
+                period="2025-2035 annual avg", total_openings=openings_val))
+    return forecasts, openings

@@ -781,6 +781,36 @@
       "storage_target": "vector",
       "ingestion_method": "narrative",
       "refresh_frequency": "biennial"
+    },
+    {
+      "authority_level": 1,
+      "language": "en",
+      "version": "2024-2034/2025-2035",
+      "version_policy": "detect-at-acquisition",
+      "redistribution_allowed": true,
+      "manual_acquisition_required": false,
+      "licence_review_required": false,
+      "manual_review_required": false,
+      "coverage_areas": [
+        "employment_projection",
+        "occupational_openings",
+        "separations",
+        "growth"
+      ],
+      "source_id": "bls_projections",
+      "title": "BLS Employment Projections",
+      "publisher": "U.S. Bureau of Labor Statistics",
+      "authority": "official",
+      "country": "US",
+      "source_type": "labour_market_forecast",
+      "group": "labour_market",
+      "licence": "Public domain (U.S. Government work)",
+      "licence_notes": "U.S. Government work \u2014 public domain.",
+      "source_url": "https://www.bls.gov/emp/",
+      "download_url": "https://www.bls.gov/emp/tables/occupational-projections-and-characteristics.htm",
+      "storage_target": "structured",
+      "ingestion_method": "local_or_download",
+      "refresh_frequency": "annual"
     }
   ]
 }
