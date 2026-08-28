@@ -21,11 +21,17 @@ from dataclasses import dataclass, field
 
 from src.copilot import constants
 from src.copilot.config import CopilotConfig
-from src.copilot.models import ChatResponse, RetrievalResult, ToolExecution, TranslatedQuery
-from src.copilot.rag.context import build_context
+from src.copilot.models import (
+    ChatResponse,
+    Citation,
+    KnowledgeEvidence,
+    RetrievalResult,
+    ToolExecution,
+    TranslatedQuery,
+)
 from src.copilot.rag.responder import Responder
 from src.copilot.rag.routing import route_for_intent
-from src.copilot.rag.synthesis import build_synthesis_messages
+from src.copilot.rag.synthesis import build_evidence_messages
 from src.copilot.rag.translation import QueryTranslator
 from src.copilot.retrieval.fusion import reciprocal_rank_fusion
 from src.copilot.retrieval.hybrid import HybridRetriever
@@ -60,8 +66,17 @@ class PipelineTrace:
     keyword_results: list[RetrievalResult] = field(default_factory=list)
     fused_results: list[RetrievalResult] = field(default_factory=list)
     evidence_sources: list[str] = field(default_factory=list)
-    # Retrieval lane chosen by the knowledge router (classification only).
+    # Retrieval lane chosen by the knowledge router (drives structured retrieval).
     retrieval_lane: str = ""
+    # Structured multi-lane retrieval (inspector).
+    detected_country: str | None = None
+    resolved_occupation: str = ""
+    occupation_candidates: list[str] = field(default_factory=list)
+    sources_considered: list[str] = field(default_factory=list)
+    source_precedence: list[str] = field(default_factory=list)
+    structured_queries: list[str] = field(default_factory=list)
+    structured_record_count: int = 0
+    coverage_notes: list[str] = field(default_factory=list)
     # RAG metrics (safe; counts + latency only).
     retrieval_strategy: str = ""
     translated_query_count: int = 0
@@ -110,6 +125,7 @@ class CareerIntelligenceService:
         translator: QueryTranslator | None = None,
         tool_invoker: ToolInvoker | None = None,
         synthesis_responder: Responder | None = None,
+        knowledge_coordinator=None,
         top_k: int = constants.DEFAULT_TOP_K,
         max_context_chars: int = constants.MAX_CONTEXT_CHARS,
     ) -> None:
@@ -118,6 +134,10 @@ class CareerIntelligenceService:
         self.translator = translator or QueryTranslator(config=config)
         self.tool_invoker = tool_invoker or ToolInvoker(build_tool_registry(config=config))
         self._synthesis_responder = synthesis_responder
+        # Structured retrieval is injected: production (UI/new tests) provides a
+        # coordinator over the real/fixture stores; when absent the service runs
+        # the existing vector-only path unchanged (keeps prior tests hermetic).
+        self.knowledge_coordinator = knowledge_coordinator
         self.top_k = top_k
         self.max_context_chars = max_context_chars
 
@@ -174,12 +194,14 @@ class CareerIntelligenceService:
             candidate_background, "candidate_background", "Candidate background", trace
         )
 
-        # Knowledge-router lane classification (recorded for the inspector; the
-        # baseline chat flow still uses vector RAG — structured lanes are a
-        # capability surfaced separately in OS-4A).
-        from src.copilot.knowledge.router import route_question
+        # Knowledge-router lane classification — this now drives real structured
+        # retrieval (roles/compensation/competency/labour-market) alongside vector
+        # RAG, not just inspector classification.
+        from src.copilot.knowledge.router import detect_country, route_question
 
-        trace.retrieval_lane = route_question(query).lane
+        route_decision = route_question(query)
+        trace.retrieval_lane = route_decision.lane
+        trace.detected_country = detect_country(query)
 
         # 2) Intent understanding + 3) query translation (fallback built in).
         _step("Translating query")
@@ -214,8 +236,21 @@ class CareerIntelligenceService:
                 trace.rag_used = False
 
         trace.context_count = len(results)
-        bundle = build_context(results, max_chars=self.max_context_chars)
-        trace.evidence_sources = [c.label for c in bundle.citations]
+
+        # 5b) Structured multi-lane retrieval (injected coordinator). Runs the
+        # real stores for the router's lane; empty when no coordinator (prior
+        # tests) or lane VECTOR.
+        structured_evidence, coverage_notes = self._structured_retrieval(
+            route_decision, query, trace
+        )
+
+        # If the occupation is genuinely ambiguous, ask to clarify rather than
+        # guessing — but only for a pure structured question (no vector evidence,
+        # no tools planned) so we never suppress an otherwise-answerable turn.
+        clarify_msg = getattr(self, "_clarify_message", None)
+        self._clarify_message = None
+        if clarify_msg and not results and not route.tools:
+            return self._plain_result(clarify_msg, trace)
 
         # 6) Tool requirement + 7) tool execution (controlled).
         if route.tools:
@@ -231,36 +266,44 @@ class CareerIntelligenceService:
             results=results,
         )
 
-        # 8) Bounded, trust-separated context + 9) OpenRouter synthesis.
+        # 8) Assemble unified, numbered evidence (structured first, then narrative)
+        # into trust-separated sections; build matching citations.
+        evidence, sections, citations = self._assemble_evidence(structured_evidence, results)
+        trace.evidence_sources = [c.label for c in citations]
+
+        # 9) OpenRouter synthesis over the multi-section evidence.
         _step("Preparing response")
-        messages = build_synthesis_messages(
+        messages = build_evidence_messages(
             query=query,
-            evidence_context=bundle.context_text,
+            sections=sections,
             tool_summaries=tool_summaries,
             job_description=job_description,
             candidate_background=candidate_background,
+            coverage_notes=coverage_notes,
         )
         answer_text, usage = self._synthesize(
             messages, trace, rag_required=rag_required,
             results=results, tool_summaries=tool_summaries, model=model,
+            structured_evidence=structured_evidence, coverage_notes=coverage_notes,
         )
 
         # Output guard: redact secret-like strings, flag leakage / bad citations.
-        allowed_markers = {c.marker for c in bundle.citations}
+        allowed_markers = {c.marker for c in citations}
         guarded = guard_output(answer_text, allowed_markers=allowed_markers)
         answer_text = guarded.safe_answer
         if guarded.findings:
             trace.output_findings = guarded.findings
             trace.notes.extend(guarded.findings)
 
-        # 10) Citations map to referenced, real retrieved chunks.
+        # 10) Citations map to referenced, real evidence (structured or narrative).
         referenced = {f"[{n}]" for n in _MARKER_RE.findall(answer_text)}
-        citations = [c for c in bundle.citations if c.marker in referenced]
+        cited = [c for c in citations if c.marker in referenced]
 
         response = ChatResponse(
             answer=answer_text,
-            citations=citations,
+            citations=cited,
             retrieved=results,
+            evidence=evidence,
             tool_calls=[te.execution for te in tool_execs],
             translated_query=translated,
             usage=usage,
@@ -462,6 +505,90 @@ class CareerIntelligenceService:
 
         return executions, summaries
 
+    # -- structured retrieval + evidence assembly --------------------------
+
+    def _structured_retrieval(self, route_decision, query, trace):
+        """Run the injected structured coordinator; record trace + coverage notes."""
+        self._clarify_message = None
+        coord = self.knowledge_coordinator
+        if coord is None:
+            return [], []
+        try:
+            outcome = coord.retrieve(route_decision, query, country=trace.detected_country)
+        except Exception as exc:  # noqa: BLE001 - structured retrieval never crashes
+            trace.notes.append(f"Structured retrieval error: {type(exc).__name__}")
+            return [], []
+
+        trace.sources_considered = list(outcome.sources_considered)
+        trace.source_precedence = list(outcome.source_precedence)
+        trace.structured_queries = list(outcome.structured_queries)
+        trace.structured_record_count = len(outcome.evidence)
+        trace.coverage_notes = list(outcome.notes)
+        if outcome.resolved:
+            trace.resolved_occupation = outcome.resolved.phrase
+            trace.occupation_candidates = [c.title for c in outcome.resolved.candidates]
+
+        if outcome.clarify and outcome.resolved:
+            names = ", ".join(c.title for c in outcome.resolved.candidates[:4])
+            self._clarify_message = (
+                f"Your question could refer to more than one occupation "
+                f"({names}). Which one did you mean?"
+            )
+        return outcome.evidence, list(outcome.notes)
+
+    # Which evidence types belong to which synthesis section.
+    _SECTION_OF = {
+        "role_task": "structured_role", "skill": "structured_role",
+        "knowledge": "structured_role", "activity": "structured_role",
+        "technology": "structured_role", "transition": "structured_role",
+        "compensation": "compensation",
+        "forecast": "labour_market", "openings": "labour_market", "shortage": "labour_market",
+        "competency": "competency", "behaviour": "competency", "qualification": "competency",
+        "narrative": "narrative",
+    }
+
+    def _assemble_evidence(self, structured_evidence, results):
+        """Merge structured + narrative evidence into numbered, sectioned context.
+
+        Structured, higher-authority evidence is ranked ahead of narrative chunks;
+        equivalent items are de-duplicated; the whole set is bounded by the context
+        budget. Returns ``(evidence, sections, citations)`` with markers [1..N].
+        """
+        combined: list[KnowledgeEvidence] = list(structured_evidence)
+        for i, r in enumerate(results):
+            combined.append(KnowledgeEvidence.from_retrieval_result(r, index=i))
+
+        # Rank: structured before narrative, then by score; narrative keeps order.
+        def _key(item):
+            is_narrative = item.retrieval_lane == "vector"
+            return (1 if is_narrative else 0, -item.score)
+
+        combined.sort(key=_key)
+
+        # De-duplicate equivalent evidence (same source + text).
+        seen, deduped = set(), []
+        for e in combined:
+            key = (e.source_id, e.evidence_type, e.text[:120])
+            if key in seen:
+                continue
+            seen.add(key); deduped.append(e)
+
+        # Bound by the context budget.
+        evidence, used = [], 0
+        for e in deduped:
+            if evidence and used + len(e.text) > self.max_context_chars:
+                break
+            evidence.append(e); used += len(e.text) + 40
+
+        sections: dict[str, list[str]] = {}
+        citations: list[Citation] = []
+        for idx, e in enumerate(evidence, start=1):
+            marker = f"[{idx}]"
+            section = self._SECTION_OF.get(e.evidence_type, "narrative")
+            sections.setdefault(section, []).append(f"{marker} {e.text}")
+            citations.append(e.to_citation(marker))
+        return evidence, sections, citations
+
     def _get_synthesis_responder(self, model: str | None) -> Responder:
         if self._synthesis_responder is not None:
             return self._synthesis_responder
@@ -477,8 +604,11 @@ class CareerIntelligenceService:
         )
 
     def _synthesize(
-        self, messages, trace, *, rag_required, results, tool_summaries, model
+        self, messages, trace, *, rag_required, results, tool_summaries, model,
+        structured_evidence=None, coverage_notes=None,
     ):
+        structured_evidence = structured_evidence or []
+        coverage_notes = coverage_notes or []
         try:
             responder = self._get_synthesis_responder(model)
             reply = responder(messages)
@@ -492,22 +622,31 @@ class CareerIntelligenceService:
                     "The model returned no answer text (likely truncated by the "
                     "output-token limit); returned a limited summary instead."
                 )
-                return self._fallback_answer(rag_required, results, tool_summaries), reply.usage
+                return self._fallback_answer(
+                    rag_required, results, tool_summaries, structured_evidence, coverage_notes
+                ), reply.usage
             return content, reply.usage
         except Exception:  # noqa: BLE001 - model/config failure must not crash
             trace.degraded.append("model")
             trace.notes.append("The model was unavailable; returned a limited summary.")
-            return self._fallback_answer(rag_required, results, tool_summaries), None
+            return self._fallback_answer(
+                rag_required, results, tool_summaries, structured_evidence, coverage_notes
+            ), None
 
     @staticmethod
-    def _fallback_answer(rag_required, results, tool_summaries) -> str:
+    def _fallback_answer(rag_required, results, tool_summaries,
+                         structured_evidence=None, coverage_notes=None) -> str:
         parts = ["The assistant model is currently unavailable, so this is a limited summary."]
         if tool_summaries:
             parts.append("Tool results (calculated): " + " ".join(tool_summaries))
+        for i, e in enumerate(structured_evidence or [], start=1):
+            parts.append(f"[{i}] {e.text}")
         if results:
-            parts.append(f"Retrieved {len(results)} evidence passage(s) — see sources.")
-        elif rag_required:
+            parts.append(f"Retrieved {len(results)} narrative passage(s) — see sources.")
+        elif rag_required and not structured_evidence:
             parts.append(constants.INSUFFICIENT_EVIDENCE_MESSAGE)
+        for note in coverage_notes or []:
+            parts.append(note)
         return " ".join(parts)
 
     def _plain_result(self, message: str, trace: PipelineTrace) -> OrchestrationResult:

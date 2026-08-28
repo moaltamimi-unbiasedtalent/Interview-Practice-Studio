@@ -48,11 +48,24 @@ models, so the code stays provider-neutral and keys live in one place.
 
 **How does the tool router work?** A deterministic classifier picks the retrieval
 lane from the question; the LLM is only consulted when the rules are ambiguous.
-Lanes: role, skill, compensation, forecast, mixed, plus the KB-2 additions —
-competency (DigComp), cybersecurity (NICE work roles), shortage, openings,
-transition, and seniority. It also detects the country and prefers national
-official sources for country-specific questions (e.g. Germany → KldB/Entgeltatlas
-before ESCO).
+Lanes: role, skill, compensation, forecast, mixed, plus competency (DigComp),
+cybersecurity (NICE work roles), shortage, openings, transition, and seniority.
+It also detects the country and prefers national official sources for
+country-specific questions (e.g. Germany → KldB/Entgeltatlas before ESCO).
+
+**Do the structured stores actually answer the chat?** Yes. The router's lane
+drives a *retrieval coordinator* that queries the right SQLite store (roles,
+compensation, competency, labour-market), resolves the occupation from the
+question (handling aliases like HRBP → HR Business Partner), applies the country
+precedence, and returns typed evidence. That evidence is merged with the vector
+(RAG) results into separated sections the model must cite — so a salary answer
+comes from the compensation store and is cited to, say, "BLS OEWS — … — US —
+2025", not from the model's memory.
+
+**What if the data isn't there?** For a factual question with no matching record
+(e.g. a salary for a country we don't hold), the app says so plainly and may offer
+clearly-labelled evidence from another geography — it does not fall back to guessed
+numbers.
 
 **How do you know a source is really loaded?** Each source has a *measured*
 lifecycle in `data/source_status.json` derived from what is on disk — a source in
