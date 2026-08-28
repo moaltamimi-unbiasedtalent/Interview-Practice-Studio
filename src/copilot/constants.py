@@ -39,6 +39,13 @@ DEFAULT_MAX_OUTPUT_TOKENS = 1024
 # fields/items, so they need a larger budget than a chat reply — too small a cap
 # truncates the JSON and raises LengthFinishReasonError.
 STRUCTURED_MAX_OUTPUT_TOKENS = 4096
+# The chat/synthesis answer is a multi-section reply (Evidence / Tool results /
+# Recommendation). On reasoning models (gpt-5*), reasoning tokens count against
+# max_tokens, so a 1024 cap can be fully consumed by reasoning — the model then
+# returns EMPTY content (finish_reason=length) and the chat shows nothing,
+# especially on tool-heavy turns where the prompt is larger. Give synthesis its
+# own headroom so a real answer always fits.
+SYNTHESIS_MAX_OUTPUT_TOKENS = 4096
 
 # Explicit timeouts (seconds). Fail fast on connect; tolerate slower generation.
 CONNECT_TIMEOUT_SECONDS = 10.0

@@ -467,7 +467,14 @@ class CareerIntelligenceService:
             return self._synthesis_responder
         from src.copilot.rag.responder import build_openrouter_responder
 
-        return build_openrouter_responder(self.config, model=model)
+        # Reasoning models (gpt-5*) spend tokens on reasoning before emitting the
+        # answer; the default 1024 cap can be exhausted before any content is
+        # produced (empty reply → blank chat). Give synthesis explicit headroom.
+        return build_openrouter_responder(
+            self.config,
+            model=model,
+            max_tokens=constants.SYNTHESIS_MAX_OUTPUT_TOKENS,
+        )
 
     def _synthesize(
         self, messages, trace, *, rag_required, results, tool_summaries, model
@@ -475,7 +482,18 @@ class CareerIntelligenceService:
         try:
             responder = self._get_synthesis_responder(model)
             reply = responder(messages)
-            return reply.content, reply.usage
+            content = (reply.content or "").strip()
+            if not content:
+                # A reasoning model can hit the token cap during reasoning and
+                # return empty content (finish_reason=length). Never show a blank
+                # chat bubble — fall back to a visible summary of what we have.
+                trace.degraded.append("model")
+                trace.notes.append(
+                    "The model returned no answer text (likely truncated by the "
+                    "output-token limit); returned a limited summary instead."
+                )
+                return self._fallback_answer(rag_required, results, tool_summaries), reply.usage
+            return content, reply.usage
         except Exception:  # noqa: BLE001 - model/config failure must not crash
             trace.degraded.append("model")
             trace.notes.append("The model was unavailable; returned a limited summary.")

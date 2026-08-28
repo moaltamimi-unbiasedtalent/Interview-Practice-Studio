@@ -171,6 +171,23 @@ class TestOrchestration:
         assert constants.TOOL_GAP_ANALYZER in names
         assert constants.TOOL_PREP_PLANNER in names
 
+    def test_B_pure_tool_empty_model_reply_falls_back(self) -> None:
+        # A reasoning model can consume its whole token budget on reasoning and
+        # return EMPTY content. The chat must never show a blank answer: fall back
+        # to a visible summary that still surfaces the tool results.
+        service = _service(
+            translator=_translator("job_description_analysis", retrieval_required=True),
+            synth_text="",  # model returned no answer text
+        )
+        result = service.answer(
+            "Analyse this job description.",
+            job_description="Senior Data Engineer needing Python, SQL and AWS.",
+        )
+        assert result.answer.strip()  # never blank
+        assert "tool results" in result.answer.lower()  # tool summary is surfaced
+        assert result.tool_calls[0].status == "ok"
+        assert "model" in result.trace.degraded
+
     def test_E_insufficient_evidence(self) -> None:
         service = _service(
             store=_empty_store(),
