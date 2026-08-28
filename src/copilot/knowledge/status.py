@@ -24,6 +24,7 @@ AVAILABLE = "AVAILABLE"
 INDEXED = "INDEXED"
 NORMALISED = "NORMALISED"
 ACQUIRED = "ACQUIRED"
+LOCAL_FILE_FOUND = "LOCAL FILE FOUND"
 MANUAL = "MANUAL ACQUISITION"
 LICENCE_REVIEW = "LICENCE REVIEW"
 AUTO_AVAILABLE = "AUTO DOWNLOAD AVAILABLE"
@@ -42,6 +43,8 @@ class SourceStatus(BaseModel):
     chunk_count: int = 0
     detected_version: str | None = None
     detected_reference_year: int | None = None
+    local_files: int = 0
+    local_file_found: bool = False
     last_refresh: str | None = None
     last_error: str | None = None
     freshness: str = "UNKNOWN"  # CURRENT | REFRESH DUE | UNKNOWN
@@ -84,48 +87,86 @@ def _structured_counts() -> dict[str, int]:
     return counts
 
 
-def _vector_indexed_source_ids() -> set[str]:
-    """Source ids that have narrative chunks in the vector manifest, if tracked."""
-    from src.copilot.ingestion import indexer
+def _inventory_files(path: str = "data/source_inventory.json") -> dict[str, dict]:
+    """Per-source local-file summary from the inventory, if it has been generated.
 
-    manifest = indexer.load_manifest()
-    if not manifest:
-        return set()
-    ids: set[str] = set()
-    for doc in manifest.get("per_document", []):
-        sid = doc.get("source_id") or doc.get("source")
-        if sid:
-            ids.add(sid)
-    return ids
+    Returns ``{source_id: {"files": int, "version": str|None, "year": int|None}}``
+    so a configured source with real files on disk reports LOCAL FILE FOUND rather
+    than implying the user still needs to acquire it manually.
+    """
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    out: dict[str, dict] = {}
+    for f in data.get("files", []):
+        sid = f.get("source_id")
+        if not sid or sid == "unresolved":
+            continue
+        rec = out.setdefault(sid, {"files": 0, "version": None, "year": None})
+        rec["files"] += 1
+        rec["version"] = rec["version"] or f.get("detected_version")
+        rec["year"] = rec["year"] or f.get("detected_reference_year")
+    return out
+
+
+def _vector_source_counts(path: str = "data/knowledge/vector_sources.json") -> dict[str, int]:
+    """Measured per-source vector chunk counts written by narrative ingestion.
+
+    Keyed by manifest ``source_id`` so a narrative source that has actually been
+    indexed reports its real chunk count (rather than relying on the content-hash
+    ids in the processed manifest, which do not map to manifest sources).
+    """
+    if not os.path.isfile(path):
+        return {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return {k: int(v) for k, v in data.get("chunks_by_source", {}).items()}
 
 
 def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[SourceStatus]:
     entries = km.load_manifest(manifest_path)
     structured = _structured_counts()
-    vector_ids = _vector_indexed_source_ids()
+    vector_counts = _vector_source_counts()
+    inventory = _inventory_files()
     downloads = "data/knowledge/downloads"
 
     out: list[SourceStatus] = []
     for e in entries:
         record_count = structured.get(e.source_id, 0)
-        chunk_count = 0  # per-source vector chunk counts are not tracked precisely
+        chunk_count = vector_counts.get(e.source_id, 0)
+        local = inventory.get(e.source_id)
+        local_files = local["files"] if local else 0
+        local_file_found = local_files > 0
         acquired_file = os.path.isfile(os.path.join(downloads, f"{e.source_id}.bin"))
-        is_narrative = e.storage_target == "vector"
-        indexed = (record_count > 0) or (is_narrative and e.source_id in vector_ids)
-        acquired = acquired_file or indexed
-        acquisition_available = bool(
-            e.download_url and not e.manual_acquisition_required and not e.licence_review_required
-        )
+        # Indexed if it has structured records OR narrative chunks in the vector
+        # store — a source can contribute to more than its primary lane.
+        indexed = (record_count > 0) or (chunk_count > 0)
+        # A raw file on disk (inventory) counts as acquired even if not yet loaded.
+        acquired = acquired_file or indexed or local_file_found
 
         status = SourceStatus(
             source_id=e.source_id,
-            acquisition_available=acquisition_available,
+            acquisition_available=bool(
+                e.download_url and not e.manual_acquisition_required
+                and not e.licence_review_required
+            ),
             acquired=acquired,
             normalised=record_count > 0,
             indexed=indexed,
             available_for_retrieval=indexed,
             record_count=record_count,
             chunk_count=chunk_count,
+            detected_version=(local.get("version") if local else None),
+            detected_reference_year=(local.get("year") if local else None),
+            local_files=local_files,
+            local_file_found=local_file_found,
             needs_manual_acquisition=e.manual_acquisition_required,
             needs_licence_review=e.licence_review_required,
         )
@@ -137,6 +178,10 @@ def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[
 def _lifecycle(s: SourceStatus, e: km.SourceEntry) -> str:
     if s.available_for_retrieval:
         return AVAILABLE
+    # A local raw file present but not yet normalised/indexed: it is already
+    # acquired, so report that rather than "manual acquisition required".
+    if s.local_file_found:
+        return LOCAL_FILE_FOUND
     if s.acquired:
         return ACQUIRED
     if e.manual_acquisition_required:
@@ -171,8 +216,22 @@ def summary(statuses: list[SourceStatus]) -> dict:
     return {
         "configured": len(statuses),
         "available_locally": sum(1 for s in statuses if s.available_for_retrieval),
+        "local_file_found": sum(1 for s in statuses if s.local_file_found),
         "acquired": sum(1 for s in statuses if s.acquired),
-        "manual_acquisition": sum(1 for s in statuses if s.needs_manual_acquisition),
-        "licence_review": sum(1 for s in statuses if s.needs_licence_review),
+        # Manual acquisition / licence review that is still OUTSTANDING — i.e. the
+        # source is neither already available for retrieval nor present locally
+        # (a local file or loaded records supersede the manifest flag).
+        "manual_acquisition": sum(
+            1 for s in statuses
+            if s.needs_manual_acquisition and not s.local_file_found
+            and not s.available_for_retrieval
+        ),
+        "licence_review": sum(
+            1 for s in statuses
+            if s.needs_licence_review and not s.local_file_found
+            and not s.available_for_retrieval
+        ),
         "structured_records": sum(s.record_count for s in statuses),
+        "vector_chunks": sum(s.chunk_count for s in statuses),
+        "indexed_narrative": sum(1 for s in statuses if s.chunk_count > 0),
     }

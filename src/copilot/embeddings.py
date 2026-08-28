@@ -168,16 +168,19 @@ def build_embedder(
 
     - ``"local"``: always the offline hashing embedder.
     - ``"openai"``: the OpenAI-compatible embedder (raises if no key).
-    - ``"auto"`` (default): OpenAI when an embedding key is available, otherwise
-      the local embedder — so the app runs with or without a key.
+    - ``"auto"`` (default): OpenAI only when a DEDICATED embedding key
+      (``COPILOT_EMBEDDING_API_KEY``) is set, otherwise the local embedder. The
+      chat ``OPENROUTER_API_KEY`` is NOT used as an embedding key: OpenRouter does
+      not serve OpenAI's embeddings endpoint, so falling back to it produces 401s.
+      Set ``COPILOT_EMBEDDING_PROVIDER=openai`` to force the OpenAI provider.
     """
     provider = (config.embedding_provider or "auto").lower()
     if provider == "local":
         return LocalHashEmbedder()
     if provider == "openai":
         return OpenAIEmbedder(config, embeddings_cls=embeddings_cls)
-    # auto
-    key = config.embedding_key
+    # auto: only use OpenAI embeddings with a purpose-set embedding key.
+    key = config.embedding_api_key
     if key is not None and key.get_secret_value().strip():
         return OpenAIEmbedder(config, embeddings_cls=embeddings_cls)
     return LocalHashEmbedder()

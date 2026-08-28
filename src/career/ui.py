@@ -313,18 +313,25 @@ def _render_source_sections() -> None:
 
     # --- Knowledge Health dashboard (measured, honest) ---
     st.markdown("### Knowledge Health")
-    cols = st.columns(3)
+    cols = st.columns(4)
     cols[0].metric("Configured sources", health["configured"])
-    cols[1].metric("Available for retrieval", health["available_locally"])
-    cols[2].metric("Structured records", health["structured_records"])
-    cols = st.columns(3)
+    cols[1].metric("Local files found", health["local_file_found"])
+    cols[2].metric("Available for retrieval", health["available_locally"])
+    cols[3].metric("Structured records", f"{health['structured_records']:,}")
+    cols = st.columns(4)
     cols[0].metric("Acquired (on disk)", health["acquired"])
-    cols[1].metric("Manual acquisition", health["manual_acquisition"])
+    cols[1].metric("Manual acq. outstanding", health["manual_acquisition"])
     cols[2].metric("Licence review", health["licence_review"])
+    cols[3].metric("Sources found locally", len({s.source_id for s in statuses.values() if s.local_file_found}))
     st.caption(
-        "Lifecycle is measured from local stores, not the manifest: a configured "
-        "source is only 'AVAILABLE' once its records are actually loaded."
+        "Lifecycle is measured from what is actually on disk, not the manifest. "
+        "A source with raw files present shows LOCAL FILE FOUND; it only becomes "
+        "AVAILABLE once its records are normalised/indexed. Manual-acquisition and "
+        "licence-review counts exclude sources already present locally."
     )
+
+    def _tick(v):
+        return "✓" if v else "✗"
 
     def _row(e):
         s = statuses.get(e.source_id)
@@ -332,8 +339,11 @@ def _render_source_sections() -> None:
             "Source": e.title,
             "Auth": e.authority_level,
             "Region": e.region or e.country or "—",
-            "Version/Year": e.version or e.reference_year or "—",
+            "Local file": _tick(s.local_file_found) if s else "✗",
+            "Normalised": _tick(s.normalised) if s else "✗",
+            "Indexed": _tick(s.indexed) if s else "✗",
             "Records": s.record_count if s else 0,
+            "Version": (s.detected_version if s and s.detected_version else (e.version or e.reference_year or "—")),
             "Lifecycle": s.lifecycle if s else "CONFIGURED",
             "Licence": "review" if e.licence_review_required else (e.licence or "—"),
             "Source link": e.source_url or "",

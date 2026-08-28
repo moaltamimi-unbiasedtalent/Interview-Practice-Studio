@@ -121,6 +121,8 @@ CHROMA_COLLECTION_NAME = "career_knowledge_base"
 # nested values). Everything else is dropped when indexing.
 VECTOR_METADATA_KEYS = (
     "source_id",
+    "manifest_source_id",  # manifest catalogue id (for citation link resolution)
+    "source_url",          # public URL of the source (clickable citation)
     "chunk_index",
     "filename",
     "title",

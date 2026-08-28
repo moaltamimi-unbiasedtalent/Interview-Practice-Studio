@@ -2,7 +2,38 @@
 
 How to reproduce Career Intelligence's knowledge locally. No datasets are
 committed; you acquire and build them here. All generated stores
-(`data/knowledge/*.db`, `data/chroma/*`, `data/processed/*`) are git-ignored.
+(`data/knowledge/*.db`, `data/chroma/*`, `data/processed/*`) and the raw corpus
+(`data/raw/*`) are git-ignored.
+
+## Local-first (preferred)
+
+If the real source files are already under `data/raw/`, build everything from
+them — no downloads:
+
+```bash
+python scripts/inventory_sources.py       # inventory data/raw → source_inventory.json + docs/local_source_inventory.md
+python scripts/load_local_sources.py      # roles.db (O*NET/ESCO/ISCO/KldB) + compensation.db (OEWS/ASHE) from real files
+python scripts/load_competencies.py       # competency frameworks (DigComp/NICE/e-CF/BA/OPM/Civil Service)
+python scripts/load_labour_market.py      # Cedefop forecast/openings/shortage
+python scripts/ingest_local_narrative.py  # index narrative PDFs (WEF/ESCO handbook/EQF/OPM/Civil Service/NICE/…) into Chroma
+python scripts/source_status.py           # measured lifecycle + source_status.json
+python scripts/knowledge_coverage.py      # docs/knowledge_coverage_report.md
+python scripts/final_source_report.py     # docs/local_source_report.md (exact counts)
+```
+
+The inventory identifies each raw file's source/version/geography and maps it to
+the manifest; the loaders read those files in place (nothing is moved or renamed).
+`ingest_local_narrative.py` vectorises **only** narrative PDFs — structured tables
+(occupations, salaries, matrices) are never embedded — and tags each chunk with
+its manifest `source_id` + `source_url` so citations link back.
+
+> Embeddings offline: an `OPENROUTER_API_KEY` is a chat key, not an embeddings
+> key. With no dedicated `COPILOT_EMBEDDING_API_KEY`, the app uses the offline
+> local (lexical) embedder for both indexing and retrieval, so everything works
+> without an embeddings provider.
+
+The steps below are the generic acquisition path when files are **not** already
+local.
 
 ## 0. Check what is configured
 

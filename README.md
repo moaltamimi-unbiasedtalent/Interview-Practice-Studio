@@ -29,7 +29,13 @@ every record carrying provenance and source authority, with geographic source
 precedence for country-specific questions. **25 authoritative sources** are
 configured (see [docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md)),
 each tracked through a measured lifecycle in `data/source_status.json` — a source
-in the manifest is never assumed loaded. See
+in the manifest is never assumed loaded. The build is **local-first**: real source
+files under `data/raw/` are inventoried and loaded in place (O*NET 31.0, ESCO
+v1.2.1, ISCO-08, KldB, BLS OEWS, ONS ASHE as structured data; WEF, ESCO handbook,
+EQF, Cedefop/Eurostat, OPM, Civil Service, NICE as narrative), giving **22/25
+sources retrieval-ready** with **~8,800 structured records** and **~3,000 vector
+chunks** measured (see [docs/local_source_report.md](docs/local_source_report.md)
+and [docs/knowledge_coverage_report.md](docs/knowledge_coverage_report.md)). See
 [docs/knowledge_architecture.md](docs/knowledge_architecture.md). No datasets are
 committed; reproduce with the `scripts/*` loaders (`source_status`,
 `download_sources`, `normalise_roles`, `load_competencies`, `load_labour_market`,
