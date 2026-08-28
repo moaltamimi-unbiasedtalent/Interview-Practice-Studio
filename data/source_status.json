@@ -20,6 +20,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -41,6 +44,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -62,6 +68,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -83,6 +92,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -104,6 +116,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -125,6 +140,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": null,
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "MANUAL ACQUISITION"
     },
     {
@@ -146,6 +164,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -167,6 +188,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -188,6 +212,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "synthetic_fixture",
+      "fixture_only": true,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -209,6 +236,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -230,6 +260,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "synthetic_fixture",
+      "fixture_only": true,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -251,6 +284,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -272,6 +308,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -293,6 +332,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "synthetic_fixture",
+      "fixture_only": true,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -314,6 +356,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": false,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -335,6 +380,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": false,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -356,6 +404,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -377,6 +428,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -398,6 +452,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -419,6 +476,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": null,
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "MANUAL ACQUISITION"
     },
     {
@@ -440,6 +500,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -461,6 +524,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "synthetic_fixture",
+      "fixture_only": true,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -482,6 +548,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "synthetic_fixture",
+      "fixture_only": true,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -503,6 +572,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -524,6 +596,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": true,
       "needs_licence_review": true,
+      "data_origin": "authorised_manual",
+      "fixture_only": false,
+      "production_ready": false,
       "lifecycle": "AVAILABLE"
     },
     {
@@ -545,6 +620,9 @@
       "freshness": "UNKNOWN",
       "needs_manual_acquisition": false,
       "needs_licence_review": false,
+      "data_origin": "official_local",
+      "fixture_only": false,
+      "production_ready": true,
       "lifecycle": "AVAILABLE"
     }
   ]

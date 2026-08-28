@@ -78,10 +78,18 @@ def main() -> int:
     entries = {e.source_id: e for e in km.load_manifest(constants.SOURCE_MANIFEST_PATH)}
     statuses = {s.source_id: s for s in kstatus.compute_status(constants.SOURCE_MANIFEST_PATH)}
 
+    health = kstatus.summary(list(statuses.values()))
     lines = ["# Knowledge Coverage Report\n"]
     lines.append("Measured from the loaded structured stores — every number is a real "
                  "row count, never an estimate. Only sources with data actually loaded "
                  "are listed as active coverage.\n")
+    lines.append("## Headline counts\n")
+    lines.append(f"- Retrieval-ready total: **{health['available_locally']}** "
+                 "(anything loaded locally, real or fixture)")
+    lines.append(f"- Production-ready real-data total: **{health['production_ready']}** "
+                 "(real official data with a clear licence)")
+    lines.append(f"- Real-data sources: **{health['real_data_sources']}** · "
+                 f"Fixture-only: **{health['fixture_only']}**\n")
 
     lines.append("## Coverage by area (measured)\n")
     for area, db, sql in _AREAS:
@@ -92,7 +100,9 @@ def main() -> int:
             continue
         for sid, n in sorted(counts.items(), key=lambda kv: -kv[1]):
             title = entries[sid].title if sid in entries else sid
-            lines.append(f"- {title} (`{sid}`) — {n:,} records")
+            s = statuses.get(sid)
+            tag = " — 🧪 FIXTURE" if (s and s.fixture_only) else ""
+            lines.append(f"- {title} (`{sid}`) — {n:,} records{tag}")
         lines.append("")
 
     # Four acquisition lists.

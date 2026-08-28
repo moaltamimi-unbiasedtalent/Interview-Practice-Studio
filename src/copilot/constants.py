@@ -301,6 +301,32 @@ LABOUR_MARKET_DB_PATH = "data/knowledge/labour_market.db"
 SOURCE_MANIFEST_PATH = "data/source_manifest.json"
 # Generated runtime lifecycle status (derived; not hand-maintained).
 SOURCE_STATUS_PATH = "data/source_status.json"
+# Per-source data-origin ledger written by the loaders (git-ignored, derived).
+DATA_ORIGINS_PATH = "data/knowledge/data_origins.json"
+
+# --- Data origin -------------------------------------------------------------
+# Where a source's loaded records actually came from. This is the axis that keeps
+# real official data from being confused with synthetic test fixtures.
+ORIGIN_OFFICIAL_LOCAL = "official_local"        # real file already under data/raw
+ORIGIN_OFFICIAL_DOWNLOAD = "official_download"  # fetched from the official source
+ORIGIN_AUTHORISED_MANUAL = "authorised_manual"  # manually acquired under licence
+ORIGIN_API_SNAPSHOT = "api_snapshot"            # captured from an official API
+ORIGIN_SYNTHETIC_FIXTURE = "synthetic_fixture"  # hand-authored demo/test sample
+ORIGIN_MIXED = "mixed"                           # more than one real origin
+DATA_ORIGINS = (
+    ORIGIN_OFFICIAL_LOCAL,
+    ORIGIN_OFFICIAL_DOWNLOAD,
+    ORIGIN_AUTHORISED_MANUAL,
+    ORIGIN_API_SNAPSHOT,
+    ORIGIN_SYNTHETIC_FIXTURE,
+)
+# Origins that count as real (non-fixture) official data.
+REAL_ORIGINS = (
+    ORIGIN_OFFICIAL_LOCAL,
+    ORIGIN_OFFICIAL_DOWNLOAD,
+    ORIGIN_AUTHORISED_MANUAL,
+    ORIGIN_API_SNAPSHOT,
+)
 
 # --- Cost currency -----------------------------------------------------------
 

@@ -46,13 +46,27 @@ def _coerce(row: dict) -> dict:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.copilot.knowledge import origins as korigins
+    from src.copilot.knowledge.loader_cli import FIXTURES_DIR
+
     parser = argparse.ArgumentParser(description="Load compensation CSV into the compensation DB.")
-    parser.add_argument("--csv", default=_DEFAULT_CSV)
+    parser.add_argument("--csv", default=None, help="Path to a REAL compensation CSV.")
+    parser.add_argument("--fixtures", action="store_true",
+                        help="Deliberately use the committed synthetic sample CSV.")
     parser.add_argument("--db", default=constants.COMPENSATION_DB_PATH)
     args = parser.parse_args(argv)
 
-    if not os.path.isfile(args.csv):
-        print(f"No CSV at {args.csv}. See data/source_manifest.json for sources.")
+    # Never silently default to the sample corpus.
+    if args.csv:
+        csv_path, origin = args.csv, constants.ORIGIN_OFFICIAL_LOCAL
+    elif args.fixtures:
+        csv_path, origin = f"{FIXTURES_DIR}/compensation.csv", constants.ORIGIN_SYNTHETIC_FIXTURE
+    else:
+        raise SystemExit(
+            "Refusing to guess a data source. Pass --csv <real path> or --fixtures.")
+
+    if not os.path.isfile(csv_path):
+        print(f"No CSV at {csv_path}. See data/source_manifest.json for sources.")
         return 0
 
     # Rebuild the derived store for an idempotent load.
@@ -62,16 +76,22 @@ def main(argv: list[str] | None = None) -> int:
     repo = CompensationRepository(args.db)
 
     loaded = 0
-    with open(args.csv, newline="", encoding="utf-8") as handle:
+    origin_map: dict[str, str] = {}
+    with open(csv_path, newline="", encoding="utf-8") as handle:
         for row in csv.DictReader(handle):
             try:
-                repo.add(CompensationRecord(**_coerce(row)))
+                rec = CompensationRecord(**_coerce(row))
+                repo.add(rec)
                 loaded += 1
+                if rec.source_id:
+                    origin_map[rec.source_id] = origin
             except Exception as exc:  # noqa: BLE001 - skip bad rows, keep going
                 print(f"  ✗ skipped a row: {type(exc).__name__}")
     countries = repo.countries()
     repo.close()
+    korigins.record_origins(origin_map)
     print(f"Compensation DB {args.db}: {loaded} records across {countries}.")
+    print(f"Recorded data origins: {origin_map}")
     print("Figures preserve currency/period/statistic/year — never compared across contexts.")
     return 0
 

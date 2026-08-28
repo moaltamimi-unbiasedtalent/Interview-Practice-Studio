@@ -27,6 +27,7 @@ from src.copilot.knowledge.retrieval import (
     StructuredRetrievalCoordinator,
     build_default_coordinator,
 )
+from src.copilot.knowledge.origins import load_origins, record_origins
 from src.copilot.knowledge.status import SourceStatus, compute_status, summary
 
 __all__ = [
@@ -42,4 +43,6 @@ __all__ = [
     "resolve_occupation",
     "StructuredRetrievalCoordinator",
     "build_default_coordinator",
+    "record_origins",
+    "load_origins",
 ]

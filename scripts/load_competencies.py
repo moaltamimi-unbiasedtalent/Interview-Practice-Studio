@@ -67,19 +67,20 @@ _PREFIXES = ("digcomp", "nice", "ecf", "ba_kompetenzkatalog",
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.copilot.knowledge import origins as korigins
+    from src.copilot.knowledge.loader_cli import add_source_args, resolve_source
+
     parser = argparse.ArgumentParser(description="Load competency frameworks into the competency DB.")
-    parser.add_argument("--source", default=_DEFAULT_SOURCE)
+    add_source_args(parser)
     parser.add_argument("--db", default=constants.COMPETENCY_DB_PATH)
     args = parser.parse_args(argv)
+    source_dir, json_origin = resolve_source(args)
 
-    if not os.path.isdir(args.source):
-        print(f"No source directory at {args.source}. See data/source_manifest.json.")
+    if not os.path.isdir(source_dir):
+        print(f"No source directory at {source_dir}. See data/source_manifest.json.")
         return 0
-    files = [p for p in sorted(Path(args.source).glob("*.json"))
+    files = [p for p in sorted(Path(source_dir).glob("*.json"))
              if p.name.lower().startswith(_PREFIXES)]
-    if not files:
-        print(f"No competency source files found under {args.source}.")
-        return 0
 
     # Prefer the real structured NICE workbook over the tiny NICE sample.
     from src.copilot.knowledge import local_readers as lr
@@ -88,26 +89,38 @@ def main(argv: list[str] | None = None) -> int:
     if nice_real:
         files = [p for p in files if not p.name.lower().startswith("nice")]
 
+    # filename prefix → manifest source_id, to record data origin per source.
+    _SRC = {"digcomp": "digcomp", "ecf": "ecf", "ba_kompetenzkatalog": "ba_kompetenzkatalog",
+            "civil_service_success_profiles": "uk_civil_service_success_profiles",
+            "opm_qualification_standards": "opm_qualification_standards"}
+
     os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)
     if os.path.isfile(args.db):
         os.remove(args.db)
     repo = CompetencyRepository(args.db)
     total = 0
+    origin_map: dict[str, str] = {}
     for path in files:
         try:
             added = _dispatch(str(path), repo)
             total += added
             print(f"  ✓ {path.name}: {added} record(s)")
+            for pref, sid in _SRC.items():
+                if path.name.lower().startswith(pref):
+                    origin_map[sid] = json_origin
         except Exception as exc:  # noqa: BLE001 - fail safely, keep going
             print(f"  ✗ {path.name}: {type(exc).__name__}")
     if nice_real:
         for c in nice_real:
             repo.add_competency(c)
         total += len(nice_real)
+        origin_map["nice_framework"] = constants.ORIGIN_OFFICIAL_LOCAL
         print(f"  ✓ NICE Framework Components (local): {len(nice_real)} record(s)")
     counts = repo.counts()
     repo.close()
+    korigins.record_origins(origin_map)
     print(f"\nCompetency DB {args.db}: {counts}")
+    print(f"Recorded data origins: {origin_map}")
     return 0
 
 

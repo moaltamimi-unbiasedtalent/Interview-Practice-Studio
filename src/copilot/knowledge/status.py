@@ -50,6 +50,10 @@ class SourceStatus(BaseModel):
     freshness: str = "UNKNOWN"  # CURRENT | REFRESH DUE | UNKNOWN
     needs_manual_acquisition: bool = False
     needs_licence_review: bool = False
+    # Data-origin integrity: real official data vs synthetic test fixtures.
+    data_origin: str | None = None  # official_local | … | synthetic_fixture | mixed
+    fixture_only: bool = False
+    production_ready: bool = False
     lifecycle: str = CONFIGURED
 
     def as_dict(self) -> dict:
@@ -131,10 +135,13 @@ def _vector_source_counts(path: str = "data/knowledge/vector_sources.json") -> d
 
 
 def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[SourceStatus]:
+    from src.copilot.knowledge import origins as korigins
+
     entries = km.load_manifest(manifest_path)
     structured = _structured_counts()
     vector_counts = _vector_source_counts()
     inventory = _inventory_files()
+    ledger = korigins.load_origins()
     downloads = "data/knowledge/downloads"
 
     out: list[SourceStatus] = []
@@ -171,8 +178,38 @@ def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[
             needs_licence_review=e.licence_review_required,
         )
         status.lifecycle = _lifecycle(status, e)
+        _apply_origin(status, e, ledger.get(e.source_id), korigins)
         out.append(status)
     return out
+
+
+def _apply_origin(s: SourceStatus, e: km.SourceEntry, ledger_origins, korigins) -> None:
+    """Set data_origin / fixture_only / production_ready.
+
+    Prefers the loader-recorded origin ledger; falls back to the inventory (a
+    source with data but no real local file is treated as a synthetic fixture, so
+    a fresh checkout without the ledger is still safe).
+    """
+    if ledger_origins:
+        s.data_origin = korigins.resolve_origin(ledger_origins)
+        s.fixture_only = korigins.is_fixture_only(ledger_origins)
+    elif s.record_count > 0 or s.chunk_count > 0:
+        if s.local_file_found:
+            s.data_origin = (constants.ORIGIN_AUTHORISED_MANUAL if e.manual_acquisition_required
+                             else constants.ORIGIN_OFFICIAL_LOCAL)
+            s.fixture_only = False
+        else:
+            s.data_origin = constants.ORIGIN_SYNTHETIC_FIXTURE
+            s.fixture_only = True
+    else:
+        s.data_origin = None
+        s.fixture_only = False
+
+    has_real = s.data_origin in constants.REAL_ORIGINS or s.data_origin == constants.ORIGIN_MIXED
+    blocking_licence = e.licence_review_required or e.manual_review_required
+    s.production_ready = bool(
+        s.available_for_retrieval and has_real and not s.fixture_only and not blocking_licence
+    )
 
 
 def _lifecycle(s: SourceStatus, e: km.SourceEntry) -> str:
@@ -234,4 +271,11 @@ def summary(statuses: list[SourceStatus]) -> dict:
         "structured_records": sum(s.record_count for s in statuses),
         "vector_chunks": sum(s.chunk_count for s in statuses),
         "indexed_narrative": sum(1 for s in statuses if s.chunk_count > 0),
+        # Data-origin integrity.
+        "production_ready": sum(1 for s in statuses if s.production_ready),
+        "fixture_only": sum(1 for s in statuses if s.fixture_only),
+        "real_data_sources": sum(
+            1 for s in statuses
+            if s.data_origin in constants.REAL_ORIGINS or s.data_origin == constants.ORIGIN_MIXED
+        ),
     }

@@ -55,18 +55,21 @@ def _dispatch(path: str, repo: RoleRepository) -> int:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from src.copilot.knowledge.loader_cli import add_source_args, resolve_source
+
     parser = argparse.ArgumentParser(description="Normalise role sources into the role DB.")
-    parser.add_argument("--source", default=_DEFAULT_SOURCE)
+    add_source_args(parser)
     parser.add_argument("--db", default=constants.ROLE_DB_PATH)
     args = parser.parse_args(argv)
+    source_dir, _origin = resolve_source(args)
 
-    if not os.path.isdir(args.source):
-        print(f"No source directory at {args.source}. See data/source_manifest.json.")
+    if not os.path.isdir(source_dir):
+        print(f"No source directory at {source_dir}. See data/source_manifest.json.")
         return 0
-    files = [p for p in sorted(Path(args.source).glob("*.json"))]
+    files = [p for p in sorted(Path(source_dir).glob("*.json"))]
     role_files = [p for p in files if p.name.lower().startswith(("roles_", "isco", "kldb", "bls_ooh"))]
     if not role_files:
-        print(f"No role source files found under {args.source}.")
+        print(f"No role source files found under {source_dir}.")
         return 0
 
     os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)

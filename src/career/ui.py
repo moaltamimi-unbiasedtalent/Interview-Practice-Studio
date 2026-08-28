@@ -324,19 +324,32 @@ def _render_source_sections() -> None:
     cols[2].metric("Available for retrieval", health["available_locally"])
     cols[3].metric("Structured records", f"{health['structured_records']:,}")
     cols = st.columns(4)
-    cols[0].metric("Acquired (on disk)", health["acquired"])
-    cols[1].metric("Manual acq. outstanding", health["manual_acquisition"])
-    cols[2].metric("Licence review", health["licence_review"])
-    cols[3].metric("Sources found locally", len({s.source_id for s in statuses.values() if s.local_file_found}))
+    cols[0].metric("Real-data sources", health["real_data_sources"])
+    cols[1].metric("Production-ready (real)", health["production_ready"])
+    cols[2].metric("Fixture-only", health["fixture_only"])
+    cols[3].metric("Structured records", f"{health['structured_records']:,}")
     st.caption(
-        "Lifecycle is measured from what is actually on disk, not the manifest. "
-        "A source with raw files present shows LOCAL FILE FOUND; it only becomes "
-        "AVAILABLE once its records are normalised/indexed. Manual-acquisition and "
-        "licence-review counts exclude sources already present locally."
+        "Two different counts: **available for retrieval** ({avail}) is anything "
+        "loaded locally; **production-ready (real)** ({prod}) is real official data "
+        "with a clear licence — synthetic test fixtures are never production-ready. "
+        "Lifecycle is measured from disk, not the manifest.".format(
+            avail=health["available_locally"], prod=health["production_ready"])
     )
 
     def _tick(v):
         return "✓" if v else "✗"
+
+    def _origin_badge(s) -> str:
+        if not s or not s.data_origin:
+            return "—"
+        if s.fixture_only:
+            return "🧪 FIXTURE DATA"
+        return "🟢 REAL DATA"
+
+    def _prod_badge(s) -> str:
+        if not s or not s.available_for_retrieval:
+            return "—"
+        return "✅ PRODUCTION READY" if s.production_ready else "⛔ NOT PRODUCTION READY"
 
     def _row(e):
         s = statuses.get(e.source_id)
@@ -345,10 +358,10 @@ def _render_source_sections() -> None:
             "Auth": e.authority_level,
             "Region": e.region or e.country or "—",
             "Local file": _tick(s.local_file_found) if s else "✗",
-            "Normalised": _tick(s.normalised) if s else "✗",
-            "Indexed": _tick(s.indexed) if s else "✗",
             "Records": s.record_count if s else 0,
-            "Version": (s.detected_version if s and s.detected_version else (e.version or e.reference_year or "—")),
+            "Origin": (s.data_origin or "—") if s else "—",
+            "Data": _origin_badge(s),
+            "Production": _prod_badge(s),
             "Lifecycle": s.lifecycle if s else "CONFIGURED",
             "Licence": "review" if e.licence_review_required else (e.licence or "—"),
             "Source link": e.source_url or "",

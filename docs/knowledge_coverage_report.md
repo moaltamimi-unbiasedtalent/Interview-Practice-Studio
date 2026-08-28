@@ -2,6 +2,12 @@
 
 Measured from the loaded structured stores — every number is a real row count, never an estimate. Only sources with data actually loaded are listed as active coverage.
 
+## Headline counts
+
+- Retrieval-ready total: **24** (anything loaded locally, real or fixture)
+- Production-ready real-data total: **10** (real official data with a clear licence)
+- Real-data sources: **19** · Fixture-only: **5**
+
 ## Coverage by area (measured)
 
 ### Occupations
@@ -35,15 +41,15 @@ Measured from the loaded structured stores — every number is a real row count,
 
 ### Competencies
 - NICE Workforce Framework for Cybersecurity (`nice_framework`) — 2,252 records
-- BA Kompetenzkatalog (`ba_kompetenzkatalog`) — 3 records
+- BA Kompetenzkatalog (`ba_kompetenzkatalog`) — 3 records — 🧪 FIXTURE
 - DigComp — European Digital Competence Framework (`digcomp`) — 3 records
-- European e-Competence Framework (e-CF) (`ecf`) — 3 records
+- European e-Competence Framework (e-CF) (`ecf`) — 3 records — 🧪 FIXTURE
 
 ### Seniority / interview behaviours
 - UK Civil Service Success Profiles (`uk_civil_service_success_profiles`) — 5 records
 
 ### Qualification requirements
-- OPM General Schedule Qualification Standards (`opm_qualification_standards`) — 3 records
+- OPM General Schedule Qualification Standards (`opm_qualification_standards`) — 3 records — 🧪 FIXTURE
 
 ### Compensation
 - Occupational Employment and Wage Statistics (OEWS) (`bls_oews`) — 1,393 records
@@ -55,10 +61,10 @@ Measured from the loaded structured stores — every number is a real row count,
 
 ### Future job openings
 - BLS Employment Projections (`bls_projections`) — 831 records
-- Cedefop Future Job Openings (`cedefop_future_job_openings`) — 2 records
+- Cedefop Future Job Openings (`cedefop_future_job_openings`) — 2 records — 🧪 FIXTURE
 
 ### Shortages
-- Cedefop Labour & Skills Shortage Index (`cedefop_shortage_index`) — 3 records
+- Cedefop Labour & Skills Shortage Index (`cedefop_shortage_index`) — 3 records — 🧪 FIXTURE
 
 ## Acquisition lists
 

@@ -205,3 +205,10 @@ boundaries of the tool.
 - **Coverage is breadth-of-source, not depth.** The loaded datasets cover many
   occupations, but some lanes (competency/labour-market) still rely on small
   offline samples until the real framework extracts are added.
+- **Real vs fixture is tracked explicitly.** Each source carries a `data_origin`
+  and `production_ready` flag; fixture-only sources (currently e-CF, BA
+  Kompetenzkatalog, OPM qualification standards, Cedefop openings/shortage) are
+  never reported as production-ready. See `docs/local_source_report.md` for the
+  measured real-vs-fixture breakdown. `production_ready` is conservative: a real
+  source whose licence is still under review (e.g. ESCO/ISCO/KldB) is available
+  for retrieval but not marked production-ready until its reuse terms are confirmed.
