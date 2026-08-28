@@ -162,6 +162,31 @@ class TestContextAndCitations:
         c = Citation(marker="[1]", doc_id="d", chunk_id="c", title="WEF report", page=14)
         assert c.label == "[1] WEF report — page 14"
 
+    def test_citation_label_links_to_source_url(self) -> None:
+        c = Citation(
+            marker="[1]", doc_id="d", chunk_id="c", title="WEF report",
+            source_url="https://example.org/report", page=14,
+        )
+        assert c.label == "[1] [WEF report](https://example.org/report) — page 14"
+
+    def test_context_populates_source_url_from_metadata(self) -> None:
+        results = [
+            RetrievalResult(
+                chunk=_chunk("a", "Alpha", title="A", source_url="https://ex.org/a"),
+                score=0.9,
+            )
+        ]
+        bundle = build_context(results)
+        assert bundle.citations[0].source_url == "https://ex.org/a"
+
+    def test_context_resolves_source_url_from_manifest_source_id(self) -> None:
+        # A chunk tagged with a manifest source_id resolves to that source's URL.
+        results = [
+            RetrievalResult(chunk=_chunk("a", "Alpha", title="O*NET", source_id="onet"), score=0.9)
+        ]
+        bundle = build_context(results)
+        assert bundle.citations[0].source_url  # resolved from data/source_manifest.json
+
 
 # --- Grounding prompt --------------------------------------------------------
 

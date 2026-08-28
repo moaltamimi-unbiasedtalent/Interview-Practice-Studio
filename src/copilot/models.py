@@ -167,12 +167,21 @@ class Citation(_Base):
     chunk_id: str = Field(description="Cited chunk id.")
     title: str | None = Field(default=None, description="Source title for display.")
     source: str | None = Field(default=None, description="Source path/URL for display.")
+    source_url: str | None = Field(
+        default=None, description="Public URL of the source, if known (clickable)."
+    )
     page: int | None = Field(default=None, description="Page number, if known.")
 
     @property
     def label(self) -> str:
-        """Human-readable citation line, e.g. ``[1] WEF report — page 14``."""
+        """Human-readable citation line, e.g. ``[1] WEF report — page 14``.
+
+        When a public ``source_url`` is known, the title is rendered as a
+        Markdown link so the reader can open the source directly.
+        """
         title = self.title or self.source or "Untitled source"
+        if self.source_url:
+            title = f"[{title}]({self.source_url})"
         if self.page is not None:
             return f"{self.marker} {title} — page {self.page}"
         return f"{self.marker} {title}"

@@ -33,7 +33,10 @@ computed by the application's tools.
 
 Rules:
 1. Ground factual/knowledge claims in [RETRIEVED EVIDENCE] and cite them with \
-markers like [1], [2]. Never invent a citation or cite unsupported claims.
+markers like [1], [2]. ALWAYS attach a citation marker to every sentence that \
+draws on the evidence — if [RETRIEVED EVIDENCE] contains any passages, your \
+"Evidence (from sources):" section must reference them with [n]. Never invent a \
+citation or cite unsupported claims.
 2. If the evidence is insufficient for a knowledge question, say so plainly: \
 "{insufficient}"
 3. Clearly separate three things in your answer:

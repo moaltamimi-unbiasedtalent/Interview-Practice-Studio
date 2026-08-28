@@ -37,6 +37,25 @@ def _passage_header(marker: str, result: RetrievalResult) -> str:
     return f"{marker} {title}"
 
 
+def _source_url(result: RetrievalResult) -> str | None:
+    """Resolve a public source URL for a retrieved chunk, if known.
+
+    Prefers an explicit ``source_url`` on the chunk metadata (set via ingestion
+    sidecar); otherwise resolves a manifest ``source_id`` to its catalogue URL so
+    citations link back to the authoritative source.
+    """
+    meta = result.metadata or {}
+    url = meta.get("source_url")
+    if url:
+        return url
+    try:
+        from src.copilot.knowledge.manifest import url_for_source
+
+        return url_for_source(meta.get("manifest_source_id") or meta.get("source_id"))
+    except Exception:  # pragma: no cover - manifest optional
+        return None
+
+
 def build_context(
     results: list[RetrievalResult],
     *,
@@ -70,6 +89,7 @@ def build_context(
                 chunk_id=result.chunk.chunk_id,
                 title=result.title,
                 source=result.source,
+                source_url=_source_url(result),
                 page=result.page,
             )
         )

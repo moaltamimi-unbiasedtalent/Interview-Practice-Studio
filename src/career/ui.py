@@ -99,11 +99,38 @@ def _results_table(results) -> None:
     )
 
 
+def _result_source_url(result) -> str | None:
+    """Public URL for a retrieved chunk (explicit metadata or manifest lookup)."""
+    meta = result.metadata or {}
+    url = meta.get("source_url")
+    if url:
+        return url
+    try:
+        from src.copilot.knowledge.manifest import url_for_source
+
+        return url_for_source(meta.get("manifest_source_id") or meta.get("source_id"))
+    except Exception:  # pragma: no cover - manifest optional
+        return None
+
+
 def _render_sources(results, citations) -> None:
+    # Always surface the sources behind an answer. Prefer the model's inline
+    # citations; if the model grounded its answer on retrieved evidence but did
+    # not emit [n] markers, still list the passages it was given so the source is
+    # never hidden.
     if citations:
         st.markdown("**Sources**")
         for citation in citations:
             st.markdown(citation.label)
+    elif results:
+        st.markdown("**Sources consulted**")
+        for index, result in enumerate(results, start=1):
+            title = result.title or result.source or "Untitled source"
+            url = _result_source_url(result)
+            linked = f"[{title}]({url})" if url else title
+            locator = f" — page {result.page}" if result.page is not None else ""
+            st.markdown(f"[{index}] {linked}{locator}")
+
     if results:
         with st.expander(f"Source passages ({len(results)})"):
             for index, result in enumerate(results, start=1):
@@ -111,6 +138,7 @@ def _render_sources(results, citations) -> None:
                 source_type = meta.get("document_type") or "source"
                 section = meta.get("section")
                 locator = f"page {result.page}" if result.page is not None else section
+                url = _result_source_url(result)
                 # Source card: title, page/section, source type, short extract.
                 shared.source_card(
                     title=f"[{index}] {result.title or 'Untitled source'}",
@@ -118,6 +146,8 @@ def _render_sources(results, citations) -> None:
                     page=None,
                     snippet=result.text,
                 )
+                if url:
+                    st.markdown(f"[Open source ↗]({url})")
 
 
 def _render_tool_executions(executions) -> None:
@@ -306,14 +336,28 @@ def _render_source_sections() -> None:
             "Records": s.record_count if s else 0,
             "Lifecycle": s.lifecycle if s else "CONFIGURED",
             "Licence": "review" if e.licence_review_required else (e.licence or "—"),
+            "Source link": e.source_url or "",
         }
+
+    # Render the source URL as a clickable link (falls back to plain text on
+    # older Streamlit versions that lack LinkColumn).
+    try:
+        link_col = st.column_config.LinkColumn("Source link", display_text="Open ↗")
+        column_config = {"Source link": link_col}
+    except Exception:  # pragma: no cover - column_config unavailable
+        column_config = None
 
     for group_id, group_label in km.GROUPS:
         rows = km.by_group(entries, group_id)
         if not rows:
             continue
         st.markdown(f"### {group_label}")
-        st.dataframe([_row(e) for e in rows], use_container_width=True, hide_index=True)
+        st.dataframe(
+            [_row(e) for e in rows],
+            use_container_width=True,
+            hide_index=True,
+            column_config=column_config,
+        )
 
     st.caption(
         "Authority level is retrieval metadata (1 official · 2 public framework · "

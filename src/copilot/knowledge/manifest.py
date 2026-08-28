@@ -16,7 +16,7 @@ from src.copilot import constants
 
 __all__ = [
     "SourceEntry", "load_manifest", "by_type", "by_group", "auto_downloadable",
-    "manual_sources", "GROUPS",
+    "manual_sources", "url_for_source", "GROUPS",
 ]
 
 # UI grouping order for the Knowledge Base page.
@@ -91,3 +91,26 @@ def auto_downloadable(entries: list[SourceEntry]) -> list[SourceEntry]:
 
 def manual_sources(entries: list[SourceEntry]) -> list[SourceEntry]:
     return [e for e in entries if e.manual_acquisition_required]
+
+
+# Cache the id → URL map so per-citation lookups don't reload the manifest.
+_URL_BY_SOURCE: dict[str, str] | None = None
+
+
+def url_for_source(source_id: str | None,
+                   path: str = constants.SOURCE_MANIFEST_PATH) -> str | None:
+    """Return the public source URL for a manifest ``source_id`` (or None).
+
+    Used to turn a retrieved chunk's provenance into a clickable citation link.
+    """
+    global _URL_BY_SOURCE
+    if not source_id:
+        return None
+    if _URL_BY_SOURCE is None:
+        try:
+            _URL_BY_SOURCE = {
+                e.source_id: e.source_url for e in load_manifest(path) if e.source_url
+            }
+        except Exception:  # pragma: no cover - manifest optional/malformed
+            _URL_BY_SOURCE = {}
+    return _URL_BY_SOURCE.get(source_id)
