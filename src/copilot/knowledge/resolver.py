@@ -62,19 +62,26 @@ _PATTERNS = [
     re.compile(rf"(?:how much (?:does|do))\s+{_ART}(.+?)\s+(?:earn|make|get paid)", re.I),
     re.compile(rf"(?:what is|what's) {_ART}(.+?)\s+(?:salary|pay)", re.I),
     re.compile(rf"(?:is|are)\s+{_ART}(.+?)\s+(?:in shortage|expected to|forecast)", re.I),
+    re.compile(rf"shortage of\s+{_ART}(.+?)(?:\s+in\b|[\?\.]?$)", re.I),
+    re.compile(rf"demand for\s+{_ART}(.+?)(?:\s+(?:expected|is|are|grow|in)\b|[\?\.]?$)", re.I),
     re.compile(rf"(?:openings?|vacancies|demand|shortage|forecast|outlook)\b.*?\bfor\s+{_ART}(.+?)[\?\.]?$", re.I),
     # Credential / entry questions: "... to work/practise as a X", "... for a X".
     re.compile(rf"(?:to\s+(?:work|practi[sc]e|become)\s+(?:as\s+)?){_ART}(.+?)[\?\.]?$", re.I),
     re.compile(rf"(?:licen[cs]e|certif\w*|training|degree|education)\b.*?\bfor\s+{_ART}(.+?)[\?\.]?$", re.I),
-    re.compile(rf"\bdoes\s+{_ART}(.+?)\s+(?:need|require)\b", re.I),
+    re.compile(rf"\bdoes\s+{_ART}(.+?)\s+(?:need|require|use|do|perform|earn|make)\b", re.I),
 ]
 
-# Country/qualifier words to trim off a captured phrase tail.
+# Country/qualifier/clause words to trim off a captured phrase tail. These are
+# only ever applied to an already-extracted phrase, and are matched from the
+# first occurrence onward — kept to words that do not begin a real occupation.
 _TRAILING = re.compile(
-    r"\b(in|the|us|usa|u\.s\.|uk|united states|united kingdom|germany|europe|eu|"
-    r"typically|usually|role|position|job|occupation)\b.*$",
+    r"\s\b(in|the|us|usa|u\.s\.|uk|united states|united kingdom|germany|europe|eu|"
+    r"typically|usually|role|position|job|occupation|"
+    r"expected|grow|growing|forecast)\b.*$",
     re.I,
 )
+# Lead-ins that wrap the occupation in labour-market questions.
+_LEADIN = re.compile(r"^(?:the\s+)?demand\s+for\s+", re.I)
 
 
 class OccupationCandidate(BaseModel):
@@ -105,12 +112,12 @@ def extract_occupation_phrase(query: str) -> str:
     for pat in _PATTERNS:
         m = pat.search(q)
         if m:
-            phrase = _TRAILING.sub("", m.group(1)).strip()
+            phrase = _TRAILING.sub("", _LEADIN.sub("", m.group(1).strip())).strip()
             if phrase:
                 return _clean(phrase)
     # Fallback: strip common lead-ins and trailing qualifiers.
     q = re.sub(r"^(what|which|how|tell me about|describe|explain)\b.*?\b(a|an|the)\b", "", q, flags=re.I)
-    q = _TRAILING.sub("", q)
+    q = _TRAILING.sub("", _LEADIN.sub("", q)).strip()
     return _clean(q)
 
 

@@ -121,7 +121,8 @@ _INTENT_KEYWORDS = [
     ("interview_preparation", ("interview", "behavioural", "behavioral", "star method")),
     ("job_description_analysis", ("job description", "this jd", "job posting", "this posting")),
     ("candidate_comparison", ("compare", " vs ", "versus", "candidate")),
-    ("preparation_planning", ("prepare", "study plan", "roadmap", "learning plan")),
+    ("preparation_planning", ("prepare", "preparation plan", "prep plan", "study plan",
+                              "roadmap", "learning plan", "30-day", "30 day")),
     ("skill_research", ("skill", "skills", "competenc", "learn", "capabilit")),
     ("role_research", ("role", "responsibilities", "occupation", "what does a", "duties")),
 ]

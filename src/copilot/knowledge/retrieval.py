@@ -74,7 +74,8 @@ class StructuredRetrievalCoordinator:
                 "authority": e.authority_level, "region": e.region, "country": e.country}
 
     def _evidence(self, *, eid, text, source_id, lane, etype, occ_title=None, occ_code=None,
-                  country=None, year=None, version=None, score=1.0, geography=None) -> KnowledgeEvidence:
+                  country=None, year=None, version=None, score=1.0, geography=None,
+                  metadata=None) -> KnowledgeEvidence:
         m = self._src(source_id)
         return KnowledgeEvidence(
             evidence_id=eid, text=text, source_id=source_id, source_title=m["title"],
@@ -82,7 +83,7 @@ class StructuredRetrievalCoordinator:
             retrieval_lane=lane, authority_level=m["authority"],
             geography=geography or m["region"], country=country or m["country"],
             region=m["region"], occupation_code=occ_code, occupation_title=occ_title,
-            reference_year=year, version=version, score=score,
+            reference_year=year, version=version, score=score, metadata=metadata or {},
         )
 
     # -- public API --------------------------------------------------------
@@ -256,7 +257,9 @@ class StructuredRetrievalCoordinator:
                 source_id=sid, lane=RetrievalLane.COMPENSATION, etype="compensation",
                 occ_title=r.occupation_title, occ_code=r.occupation_code,
                 country=r.country, year=r.year, geography=r.geography,
-                score=3.0 if not note else 1.5, text=text))
+                score=3.0 if not note else 1.5, text=text,
+                metadata={"currency": r.currency, "pay_period": r.pay_period,
+                          "statistic": r.statistic_type, "sample_quality": r.sample_quality}))
 
     def _cyber(self, query, country, out) -> None:
         # Prefer NICE structured evidence; supplement with role data for cyber roles.

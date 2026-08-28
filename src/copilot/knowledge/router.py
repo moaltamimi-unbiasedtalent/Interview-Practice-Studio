@@ -66,13 +66,17 @@ _CYBER = re.compile(
 )
 _DIGITAL = re.compile(r"\b(digital)\b.*\b(competenc|capabilit|literac|skill)", re.I)
 _SENIORITY = re.compile(
-    r"\b(behaviours?|leadership expectation|seniority|success profile|grade|career level|what makes a (?:senior|junior|lead|principal))\b",
+    r"\b(behaviours?|leadership expectation|seniority|success profile|grade|career level"
+    r"|what makes a (?:senior|junior|lead|principal)"
+    r"|expected at (?:a |an )?(?:senior|junior|lead|principal|entry)"
+    r"|at (?:a |an )?(?:senior|junior|lead|principal) \w+ level)\b",
     re.I,
 )
+_TECH = re.compile(r"\b(software|tools?|technolog|tech stack|applications? (?:used|for)|systems? (?:used|for))\b", re.I)
 _LICENCE = re.compile(r"\b(licen[cs]|licensure|registration to practi[sc]e)", re.I)
 _CERT = re.compile(r"\b(certif|credential|accreditation)", re.I)
 _EDUCATION = re.compile(r"\b(degree|education|qualification needed|what (?:degree|education)|do i need a degree|study to become|major)\b", re.I)
-_TRAINING = re.compile(r"\b(training|apprenticeship|on[- ]the[- ]job|work experience needed|how much experience)\b", re.I)
+_TRAINING = re.compile(r"\b(training|apprenticeship|on[- ]the[- ]job|work experience|how much experience|prior experience)\b", re.I)
 _CURRENT_VACANCY = re.compile(r"\b(right now|currently hiring|current (?:demand|vacanc)|hiring now|job postings?|in demand right now|demand like)\b", re.I)
 _SHORT_OUTLOOK = re.compile(r"\b(short[- ]term outlook|short[- ]term demand|near[- ]term|next (?:year|few years))\b", re.I)
 
@@ -142,6 +146,7 @@ def route_question(query: str, llm_classifier=None) -> RouteDecision:
     comp = bool(_COMP.search(text))
     role = bool(_ROLE.search(text))
     skill = bool(_SKILL.search(text))
+    tech = bool(_TECH.search(text))
     trend = bool(_TREND.search(text))
     seniority = bool(_SENIORITY.search(text))
 
@@ -158,6 +163,8 @@ def route_question(query: str, llm_classifier=None) -> RouteDecision:
         return RouteDecision(RetrievalLane.STRUCTURED_ROLE, "role/responsibility terms", 0.9)
     if skill:
         return RouteDecision(RetrievalLane.STRUCTURED_ROLE, "skill terms (structured + vector context)", 0.7)
+    if tech:
+        return RouteDecision(RetrievalLane.STRUCTURED_ROLE, "technology/tools terms (structured)", 0.7)
 
     # Ambiguous: consult the LLM classifier if provided, else default to vector.
     if llm_classifier is not None:

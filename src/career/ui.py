@@ -853,6 +853,83 @@ def _render_expanded_report() -> None:
     st.divider()
 
 
+def _render_product_coverage() -> None:
+    """CI-PH4 product-coverage benchmark (reviewer/developer view)."""
+    import csv
+    import os
+    from collections import Counter, defaultdict
+
+    results = "evaluations/product_coverage/results.csv"
+    if not os.path.isfile(results):
+        st.caption(
+            "No product-coverage run found. Generate cases with "
+            "`python scripts/gen_product_coverage_cases.py` then run "
+            "`python scripts/eval_product_coverage.py`."
+        )
+        st.divider()
+        return
+
+    rows = list(csv.DictReader(open(results, encoding="utf-8")))
+
+    def _rate(rs, key):
+        vals = [r[key] for r in rs if r[key] not in ("", "None")]
+        return (sum(1 for v in vals if v == "True") / len(vals)) if vals else None
+
+    st.caption(f"{len(rows)} labelled candidate questions over production-ready real "
+               "sources. Deterministic; offline/lexical unless a dedicated embedding "
+               "key is configured. Acceptance gates, not pre-existing claims.")
+
+    gates = {"routing_ok": ("Routing", 0.95), "geo_ok": ("Geo source", 0.95),
+             "hit@5_ok": ("Evidence Hit@5", 0.90), "citation_ok": ("Citation validity", 1.0),
+             "salary_ok": ("Salary context", 1.0), "tool_ok": ("Tool selection", 0.95),
+             "insufficient_ok": ("Insufficient-evidence", 0.95)}
+    metric_rows = []
+    for key, (label, gate) in gates.items():
+        r = _rate(rows, key)
+        metric_rows.append({"Metric": label, "Score": f"{r:.0%}" if r is not None else "n/a",
+                            "Gate": f"{gate:.0%}", "Pass": "✅" if (r is not None and r >= gate) else "❌"})
+    st.dataframe(metric_rows, use_container_width=True, hide_index=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("**Coverage by question family**")
+        byfam = defaultdict(list)
+        for r in rows:
+            byfam[r["question_family"]].append(r)
+        fam_rows = []
+        for fam in sorted(byfam):
+            hv = [x["hit@5_ok"] for x in byfam[fam] if x["hit@5_ok"] not in ("", "None")]
+            cov = (sum(1 for v in hv if v == "True") / len(hv)) if hv else None
+            fam_rows.append({"Family": fam, "Cases": len(byfam[fam]),
+                             "Covered": f"{cov:.0%}" if cov is not None else "n/a"})
+        st.dataframe(fam_rows, use_container_width=True, hide_index=True, height=280)
+    with c2:
+        st.markdown("**Coverage by geography**")
+        bygeo = defaultdict(list)
+        for r in rows:
+            if r["geography"]:
+                bygeo[r["geography"]].append(r)
+        geo_rows = []
+        for g in sorted(bygeo):
+            geo_rows.append({"Geo": g, "Cases": len(bygeo[g]),
+                             "Geo-source": f"{_rate(bygeo[g], 'geo_ok'):.0%}"})
+        st.dataframe(geo_rows, use_container_width=True, hide_index=True)
+        st.markdown("**Source routing**")
+        src = Counter()
+        for r in rows:
+            for s in filter(None, r["sources"].split("|")):
+                src[s] += 1
+        st.dataframe([{"Source": s, "Cases": n} for s, n in src.most_common()],
+                     use_container_width=True, hide_index=True, height=180)
+
+    fails = sum(1 for r in rows if any(
+        r[k] == "False" for k in ("routing_ok", "geo_ok", "hit@5_ok", "citation_ok",
+                                  "salary_ok", "tool_ok", "insufficient_ok")))
+    st.caption(f"{fails} case(s) with at least one failed check — see "
+               "`evaluations/product_coverage/failures.md` for the ranked remediation list.")
+    st.divider()
+
+
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
@@ -870,6 +947,8 @@ def _page_evaluation() -> None:
             "security.md. Inspect any query live in the RAG Inspector."
         )
 
+    st.markdown("#### Product Coverage (CI-PH4)")
+    _render_product_coverage()
     st.markdown("#### Baseline RAG (11R)")
     _render_rag_evaluation_report()
     st.markdown("#### Expanded architecture (11R-A)")
