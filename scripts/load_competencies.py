@@ -81,6 +81,13 @@ def main(argv: list[str] | None = None) -> int:
         print(f"No competency source files found under {args.source}.")
         return 0
 
+    # Prefer the real structured NICE workbook over the tiny NICE sample.
+    from src.copilot.knowledge import local_readers as lr
+
+    nice_real = lr.read_nice_structured()
+    if nice_real:
+        files = [p for p in files if not p.name.lower().startswith("nice")]
+
     os.makedirs(os.path.dirname(args.db) or ".", exist_ok=True)
     if os.path.isfile(args.db):
         os.remove(args.db)
@@ -93,6 +100,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ✓ {path.name}: {added} record(s)")
         except Exception as exc:  # noqa: BLE001 - fail safely, keep going
             print(f"  ✗ {path.name}: {type(exc).__name__}")
+    if nice_real:
+        for c in nice_real:
+            repo.add_competency(c)
+        total += len(nice_real)
+        print(f"  ✓ NICE Framework Components (local): {len(nice_real)} record(s)")
     counts = repo.counts()
     repo.close()
     print(f"\nCompetency DB {args.db}: {counts}")

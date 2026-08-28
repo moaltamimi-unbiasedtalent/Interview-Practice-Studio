@@ -61,7 +61,13 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     files = [p for p in sorted(Path(args.source).glob("*.json"))
              if p.name.lower().startswith(_PREFIXES)]
-    if not files:
+
+    # Real BLS Employment Projections (US), if present locally.
+    from src.copilot.knowledge import local_readers as lr
+
+    bls_fc, bls_open = lr.read_bls_projections()
+
+    if not files and not (bls_fc or bls_open):
         print(f"No labour-market source files found under {args.source}.")
         return 0
 
@@ -77,6 +83,14 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  ✓ {path.name}: {added} record(s)")
         except Exception as exc:  # noqa: BLE001 - fail safely, keep going
             print(f"  ✗ {path.name}: {type(exc).__name__}")
+    if bls_fc or bls_open:
+        for f in bls_fc:
+            repo.add_forecast(f)
+        for o in bls_open:
+            repo.add_openings(o)
+        total += len(bls_fc) + len(bls_open)
+        print(f"  ✓ BLS Employment Projections (local): "
+              f"{len(bls_fc)} forecast(s), {len(bls_open)} openings")
     counts = repo.counts()
     repo.close()
     print(f"\nLabour-market DB {args.db}: {counts}")

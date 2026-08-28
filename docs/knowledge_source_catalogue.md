@@ -7,12 +7,12 @@ not necessarily loaded. Raw datasets are acquired locally and are not committed.
 
 ## Summary
 
-- Configured sources: **25**
-- Available for retrieval (loaded locally): **22**
-- Local files found: **16**
-- Manual acquisition outstanding: **7**
-- Licence review outstanding: **7**
-- Structured records: **8,821** · Vector chunks: **3,066**
+- Configured sources: **26**
+- Available for retrieval (loaded locally): **24**
+- Local files found: **19**
+- Manual acquisition outstanding: **2**
+- Licence review outstanding: **2**
+- Structured records: **13,068** · Vector chunks: **3,528**
 
 Authority level is retrieval metadata (1 official · 2 public framework · 3 industry), **not** a truth score.
 
@@ -25,14 +25,14 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 | ISCO-08 Classification of Occupations | International Labour Organization (ILO) | global | 1 | ISCO-08 | review required | AVAILABLE | 613 | 0 |
 | Klassifikation der Berufe (KldB) | Bundesagentur für Arbeit | DE | 1 | 2010 (Fassung 2020) | review required | AVAILABLE | 2,193 | 0 |
 | BERUFENET occupation information | Bundesagentur für Arbeit | DE | 1 | current release | review required | MANUAL ACQUISITION | 0 | 0 |
-| Occupational Outlook Handbook (OOH) | U.S. Bureau of Labor Statistics | US | 1 | current release | Public domain (U.S. Government work) | AUTO DOWNLOAD AVAILABLE | 0 | 0 |
+| Occupational Outlook Handbook (OOH) | U.S. Bureau of Labor Statistics | US | 1 | 2025 | Public domain (U.S. Government work) | AVAILABLE | 343 | 0 |
 
 ## Skills & Competencies
 
 | Source | Publisher | Region | Auth | Version | Licence | Lifecycle | Records | Chunks |
 |---|---|---|---|---|---|---|---|---|
 | ESCO Skills–Occupations Matrix | European Commission | EU | 1 | v1.2.1 | review required | AVAILABLE | 0 | 33 |
-| DigComp — European Digital Competence Framework | European Commission (JRC) | EU | 2 | current release | review required | AVAILABLE | 9 | 0 |
+| DigComp — European Digital Competence Framework | European Commission (JRC) | EU | 2 | 3.0 | review required | AVAILABLE | 9 | 462 |
 | BA Kompetenzkatalog | Bundesagentur für Arbeit | DE | 1 | current release | review required | AVAILABLE | 3 | 0 |
 | European e-Competence Framework (e-CF) | CEN | EU | 2 | current release | review required | AVAILABLE | 3 | 0 |
 
@@ -61,6 +61,7 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 | Cedefop Skills Forecast | Cedefop | EU | 1 | 2026 | review required | AVAILABLE | 2 | 71 |
 | Cedefop Future Job Openings | Cedefop | EU | 1 | current release | review required | AVAILABLE | 2 | 0 |
 | Cedefop Labour & Skills Shortage Index | Cedefop | EU | 1 | current release | review required | AVAILABLE | 3 | 0 |
+| BLS Employment Projections | U.S. Bureau of Labor Statistics | US | 1 | 2025-2035 | Public domain (U.S. Government work) | AVAILABLE | 1,662 | 0 |
 
 ## Narrative / Methodology
 
@@ -73,16 +74,13 @@ Authority level is retrieval metadata (1 official · 2 public framework · 3 ind
 
 | Source | Publisher | Region | Auth | Version | Licence | Lifecycle | Records | Chunks |
 |---|---|---|---|---|---|---|---|---|
-| NICE Workforce Framework for Cybersecurity | NIST / NICE | US | 1 | SP 800-181r1 | Public domain (U.S. Government work) | AVAILABLE | 10 | 99 |
+| NICE Workforce Framework for Cybersecurity | NIST / NICE | US | 1 | v2.2.0 | Public domain (U.S. Government work) | AVAILABLE | 2,252 | 99 |
 | UK HR Success Profile Guides | UK Government HR | UK | 2 | v0e | Open Government Licence v3.0 | AVAILABLE | 0 | 101 |
 
 ## Storage routing
 
-- **Structured stores (SQLite)** — occupations/skills/tasks (`roles.db`),
-  competencies/behaviours/qualifications (`competencies.db`), pay statistics
-  (`compensation.db`), labour-market forecasts/openings/shortages (`labour_market.db`).
-- **Vector store (Chroma)** — narrative/methodology PDFs only (WEF, ESCO handbook,
-  EQF, Cedefop/Eurostat reports, OPM handbooks, Civil Service/HR, NICE).
+- **Structured stores (SQLite)** — roles.db, competencies.db, compensation.db, labour_market.db.
+- **Vector store (Chroma)** — narrative/methodology PDFs only.
 - Structured tables are never vectorised; narrative is never forced into tables.
 
 See `docs/source_licensing.md` and `docs/local_source_inventory.md`.

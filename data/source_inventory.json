@@ -1,12 +1,15 @@
 {
   "generated": "on-demand",
   "raw_dir": "data/raw",
-  "file_count": 190,
-  "total_bytes": 475116076,
-  "unresolved_count": 0,
+  "file_count": 195,
+  "total_bytes": 492723982,
+  "unresolved_count": 1,
   "source_ids_found": [
     "bls_oews",
+    "bls_ooh",
+    "bls_projections",
     "cedefop_skills_forecast",
+    "digcomp",
     "eqf",
     "esco",
     "esco_handbook",
@@ -40,8 +43,17 @@
       "oesm25nat/oesm25nat/national_M2025_dl.xlsx",
       "oesm25st/oesm25st/state_M2025_dl.xlsx"
     ],
+    "bls_ooh": [
+      "OOH xml-compilation.xml"
+    ],
+    "bls_projections": [
+      "occupation.xlsx"
+    ],
     "cedefop_skills_forecast": [
       "skills_forecast_2026_technical_report.pdf"
+    ],
+    "digcomp": [
+      "JRC144121_01.pdf"
     ],
     "eqf": [
       "EQF Brochure-EN.pdf"
@@ -94,6 +106,7 @@
       "Systematisches-Verzeichnis-KldB-2020.xlsx"
     ],
     "nice_framework": [
+      "NICE Framework Components v2.2.0.xlsx",
       "NIST.SP.800-181r1.pdf"
     ],
     "onet": [
@@ -241,6 +254,9 @@
       "Guidance-Application_of_Success_Profiles_during_HR_Deputy_Director_recruitment_v0e.pdf",
       "Guidance-Application_of_Success_Profiles_during_HR_Director_recruitment_v0e.pdf",
       "Success_Profile-HR_Director_Collection_v0e.pdf"
+    ],
+    "unresolved": [
+      "stas_dataset_release_jan_2026.xlsx"
     ],
     "wef_future_of_jobs": [
       "WEF_Future_of_Jobs_Report_2025.pdf"
@@ -968,6 +984,26 @@
       "notes": "ISCO-08 classification"
     },
     {
+      "relative_path": "JRC144121_01.pdf",
+      "filename": "JRC144121_01.pdf",
+      "extension": ".pdf",
+      "size_bytes": 2824377,
+      "sha256": "203896c478b72ebb86446c017be78d313be75b03eb9ca1139d061299dfdec84d",
+      "source_id": "digcomp",
+      "likely_publisher": "European Commission (JRC)",
+      "likely_geography": "EU",
+      "likely_source_type": "competency_framework",
+      "detected_version": "3.0",
+      "detected_reference_year": 2025,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "vector",
+      "licensing_status": "review required",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "DigComp 3.0 framework (JRC 2025)"
+    },
+    {
       "relative_path": "Job Titles.xlsx",
       "filename": "Job Titles.xlsx",
       "extension": ".xlsx",
@@ -1088,6 +1124,26 @@
       "notes": "O*NET 31.0 loose workbook (top level)"
     },
     {
+      "relative_path": "NICE Framework Components v2.2.0.xlsx",
+      "filename": "NICE Framework Components v2.2.0.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 270411,
+      "sha256": "d33f76d262c039afbfb7b4b861204326a32c1e388b5c7bc9d15a43205125199d",
+      "source_id": "nice_framework",
+      "likely_publisher": "NIST / NICE",
+      "likely_geography": "US",
+      "likely_source_type": "competency_framework",
+      "detected_version": "v2.2.0",
+      "detected_reference_year": 2024,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "structured",
+      "licensing_status": "Public domain (U.S. Government work)",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "NICE structured components (work roles + TKS)"
+    },
+    {
       "relative_path": "NIST.SP.800-181r1.pdf",
       "filename": "NIST.SP.800-181r1.pdf",
       "extension": ".pdf",
@@ -1106,6 +1162,26 @@
       "ingestion_readiness": "ready",
       "identification_confidence": "high",
       "notes": "NICE Workforce Framework (NIST SP 800-181r1)"
+    },
+    {
+      "relative_path": "OOH xml-compilation.xml",
+      "filename": "OOH xml-compilation.xml",
+      "extension": ".xml",
+      "size_bytes": 13867897,
+      "sha256": "6d661f1ac13c819b1170b48a18d4b0d4a16cf2687912c6c1ead56d50d414b894",
+      "source_id": "bls_ooh",
+      "likely_publisher": "U.S. Bureau of Labor Statistics",
+      "likely_geography": "US",
+      "likely_source_type": "occupation_taxonomy",
+      "detected_version": "2025",
+      "detected_reference_year": 2025,
+      "acquisition_method": "local_existing",
+      "parseable": false,
+      "intended_storage_target": "structured",
+      "licensing_status": "Public domain (U.S. Government work)",
+      "ingestion_readiness": "review",
+      "identification_confidence": "high",
+      "notes": "BLS OOH XML compilation"
     },
     {
       "relative_path": "Occupation Data.xlsx",
@@ -3688,6 +3764,26 @@
       "notes": "ESCO matrix technical report (narrative)"
     },
     {
+      "relative_path": "occupation.xlsx",
+      "filename": "occupation.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 413398,
+      "sha256": "a7d060f0576f7d4f5b829b9a0bb4a6c11a12766d159ebb0e07aab5bd2e7583c5",
+      "source_id": "bls_projections",
+      "likely_publisher": "U.S. Bureau of Labor Statistics",
+      "likely_geography": "US",
+      "likely_source_type": "labour_market_forecast",
+      "detected_version": "2025-2035",
+      "detected_reference_year": 2025,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": "structured",
+      "licensing_status": "Public domain (U.S. Government work)",
+      "ingestion_readiness": "ready",
+      "identification_confidence": "high",
+      "notes": "BLS Employment Projections occupation tables"
+    },
+    {
       "relative_path": "occupation_definitions_m2025.xlsx",
       "filename": "occupation_definitions_m2025.xlsx",
       "extension": ".xlsx",
@@ -4046,6 +4142,26 @@
       "ingestion_readiness": "ready",
       "identification_confidence": "high",
       "notes": "Cedefop skills forecast 2026 technical report"
+    },
+    {
+      "relative_path": "stas_dataset_release_jan_2026.xlsx",
+      "filename": "stas_dataset_release_jan_2026.xlsx",
+      "extension": ".xlsx",
+      "size_bytes": 231823,
+      "sha256": "ff60da07082a7706832a306d8833562564bd52ce5afdb8431144cadb665f61dc",
+      "source_id": "unresolved",
+      "likely_publisher": null,
+      "likely_geography": null,
+      "likely_source_type": null,
+      "detected_version": null,
+      "detected_reference_year": 2026,
+      "acquisition_method": "local_existing",
+      "parseable": true,
+      "intended_storage_target": null,
+      "licensing_status": "unknown",
+      "ingestion_readiness": "review",
+      "identification_confidence": "none",
+      "notes": "source identity not confirmed"
     }
   ]
 }

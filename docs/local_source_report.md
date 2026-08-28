@@ -6,37 +6,36 @@ Measured values only — every number is a real count from the loaded stores or 
 
 | Metric | Value |
 |---|---|
-| Files discovered in data/raw | 190 |
-| Files mapped to known sources | 190 |
-| Unresolved files | 0 |
-| Configured sources | 25 |
-| Sources found locally | 16 |
-| Sources normalised (records>0) | 15 |
-| Sources indexed (vector chunks>0) | 10 |
-| Sources retrieval-ready | 22 |
-| Structured occupation records | 6,861 |
+| Files discovered in data/raw | 195 |
+| Files mapped to known sources | 194 |
+| Unresolved files | 1 |
+| Configured sources | 26 |
+| Sources found locally | 19 |
+| Sources normalised (records>0) | 17 |
+| Sources indexed (vector chunks>0) | 11 |
+| Sources retrieval-ready | 24 |
+| Structured occupation records | 7,204 |
 | Task records | 22,339 |
 | Skill relationships | 111,455 |
 | Technology relationships | 11,572 |
 | Knowledge records | 6,968 |
 | Activity records | 20,141 |
 | Occupation relationships | 12,016 |
-| Competency records | 14 |
+| Competency records | 2,261 |
 | Role-behaviour records | 5 |
 | Qualification records | 3 |
 | Compensation records | 1,920 |
-| Labour-market records | 7 |
-| Vector documents (narrative files indexed) | 15 |
-| Vector chunks | 3,066 |
+| Labour-market records | 1,669 |
+| Vector documents (narrative files indexed) | 16 |
+| Vector chunks | 3,528 |
 | Manual acquisition still outstanding | 2 |
 | Licence review still outstanding | 2 |
-| Configured but not found locally | 3 |
+| Configured but not found locally | 2 |
 
 ## Configured but not found locally
 
 - `ba_entgeltatlas` — Entgeltatlas (acquisition: manual)
 - `berufenet` — BERUFENET occupation information (acquisition: manual)
-- `bls_ooh` — Occupational Outlook Handbook (OOH) (acquisition: auto-download)
 
 ## Recommended sources still missing
 

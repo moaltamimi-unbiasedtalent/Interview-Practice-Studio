@@ -66,6 +66,7 @@ def load_roles(db: str = constants.ROLE_DB_PATH) -> dict:
         ("esco", lr.read_esco),
         ("isco08", lr.read_isco),
         ("kldb", lr.read_kldb),
+        ("bls_ooh", lr.read_ooh),
     ]:
         t = time.time()
         occs = reader()

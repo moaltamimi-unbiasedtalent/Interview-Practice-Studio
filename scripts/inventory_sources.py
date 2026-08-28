@@ -86,6 +86,14 @@ def _rules():
         (P("ks-01-25-044"), "eurostat_earnings", "SES 2022", 2022, _VECTOR, "high", "Eurostat SES 2022 wage-determinants report (narrative, not raw table)"),
         # ESCO Handbook Sept 2017 (narrative).
         (P("handbook.pdf"), "esco_handbook", "Sept 2017", 2017, _VECTOR, "high", "ESCO Handbook (narrative)"),
+        # DigComp 3.0 framework (JRC 2025) — narrative.
+        (P("jrc144121"), "digcomp", "3.0", 2025, _VECTOR, "high", "DigComp 3.0 framework (JRC 2025)"),
+        # NICE Framework Components v2.2.0 — structured (work roles + TKS).
+        (P("nice framework components"), "nice_framework", "v2.2.0", 2024, _STRUCTURED, "high", "NICE structured components (work roles + TKS)"),
+        # BLS Occupational Outlook Handbook (structured XML compilation).
+        (P("ooh xml-compilation"), "bls_ooh", "2025", 2025, _STRUCTURED, "high", "BLS OOH XML compilation"),
+        # BLS Employment Projections occupation tables (2025–2035).
+        (P("occupation.xlsx"), "bls_projections", "2025-2035", 2025, _STRUCTURED, "high", "BLS Employment Projections occupation tables"),
     ]
 
 
