@@ -1,0 +1,140 @@
+{
+  "generated": "on-demand",
+  "sources": {
+    "configured": 29,
+    "retrieval_ready": 26,
+    "production_ready": 11,
+    "real_data_sources": 21,
+    "fixture_only": 5,
+    "manual_acquisition_outstanding": 2,
+    "licence_review_outstanding": 2
+  },
+  "records": {
+    "structured_total": 15211,
+    "vector_chunks": 3528,
+    "occupations": 8035,
+    "occupation_tasks": 22339,
+    "occupation_skills": 111455,
+    "competencies": 2275,
+    "compensation": 1920,
+    "labour_market": 2973,
+    "credentials": 5
+  },
+  "inventory": {
+    "files": 198,
+    "unresolved": 0,
+    "sources_found_local": 22
+  },
+  "coverage_benchmark": {
+    "cases": 412,
+    "routing": 0.9951,
+    "geo_source": 0.9531,
+    "evidence_hit@5": 0.9442,
+    "citation_validity": 1.0,
+    "salary_context": 1.0,
+    "tool_selection": 1.0,
+    "insufficient_evidence": 0.966
+  },
+  "readiness_by_area": [
+    {
+      "area": "roles",
+      "status": "READY",
+      "detail": "O*NET/ESCO/ISCO/KldB/BLS OOH"
+    },
+    {
+      "area": "responsibilities",
+      "status": "READY",
+      "detail": "22,339 task rows"
+    },
+    {
+      "area": "skills",
+      "status": "READY",
+      "detail": "111,455 skill rows"
+    },
+    {
+      "area": "technologies",
+      "status": "READY",
+      "detail": "11,572 technology rows"
+    },
+    {
+      "area": "education",
+      "status": "READY",
+      "detail": "1,173 entry-education rows (BLS)"
+    },
+    {
+      "area": "certifications",
+      "status": "PARTIAL",
+      "detail": "sample only \u2014 CareerOneStop not loaded"
+    },
+    {
+      "area": "licences",
+      "status": "PARTIAL",
+      "detail": "sample only \u2014 CareerOneStop not loaded"
+    },
+    {
+      "area": "seniority",
+      "status": "PARTIAL",
+      "detail": "Civil Service behaviours (sample)"
+    },
+    {
+      "area": "US compensation",
+      "status": "READY",
+      "detail": "BLS OEWS"
+    },
+    {
+      "area": "UK compensation",
+      "status": "READY",
+      "detail": "ONS ASHE"
+    },
+    {
+      "area": "DE compensation",
+      "status": "MISSING",
+      "detail": "Entgeltatlas not loaded"
+    },
+    {
+      "area": "EU compensation",
+      "status": "MISSING",
+      "detail": "no structured EU pay source loaded"
+    },
+    {
+      "area": "long-term outlook",
+      "status": "READY",
+      "detail": "BLS Employment Projections (US)"
+    },
+    {
+      "area": "short-term outlook",
+      "status": "PARTIAL",
+      "detail": "derived from outlook attributes"
+    },
+    {
+      "area": "vacancies",
+      "status": "PARTIAL",
+      "detail": "Eurostat JVS \u2014 country-level (ISCO Total)"
+    },
+    {
+      "area": "shortages",
+      "status": "READY",
+      "detail": "Cedefop CLSSI (group-level)"
+    },
+    {
+      "area": "career transitions",
+      "status": "READY",
+      "detail": "12,016 occupation relationships"
+    },
+    {
+      "area": "digital skills",
+      "status": "READY",
+      "detail": "DigComp 2.2 (ESCO mapping)"
+    },
+    {
+      "area": "cybersecurity",
+      "status": "READY",
+      "detail": "NICE Framework v2.2.0"
+    },
+    {
+      "area": "company context",
+      "status": "READY",
+      "detail": "capability (user-supplied, time-stamped)"
+    }
+  ]
+}

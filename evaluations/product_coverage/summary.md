@@ -21,7 +21,7 @@ Does not modify the 11R / 11R-A / KB-2 architecture benchmarks.
 | insufficient_evidence | 97% | 412 | 95% | ✅ |
 | unsupported_claim | 100% | 8 | — | — |
 
-Latency (structured retrieval): p50 27.79 ms · p95 51.91 ms.
+Latency (structured retrieval): p50 28.92 ms · p95 52.4 ms.
 
 ## Coverage by question family
 

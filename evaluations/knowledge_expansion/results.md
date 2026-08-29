@@ -4,12 +4,12 @@ Offline, deterministic evaluation of the expanded authoritative career knowledge
 
 ## Coverage (measured)
 
-- Configured sources: **25**
-- Available for retrieval (loaded locally): **16**
-- Acquired on disk: **16**
-- Manual acquisition required: **17**
-- Licence review required: **15**
-- Structured records loaded: **53**
+- Configured sources: **29**
+- Available for retrieval (loaded locally): **26**
+- Acquired on disk: **27**
+- Manual acquisition required: **2**
+- Licence review required: **2**
+- Structured records loaded: **15211**
 
 Per-source lifecycle in `coverage.csv`.
 

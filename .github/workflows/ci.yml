@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, "product/**"]
+    branches: [main, "product/**", "feature/**"]
   pull_request:
 
 jobs:
@@ -20,8 +20,36 @@ jobs:
           pip install -e ".[dev,speech,live]"
       - name: Compile
         run: python -m compileall -q app.py src scripts tests
-      - name: Pytest (no live API calls)
+      - name: Import checks (app + key modules)
+        run: |
+          python -c "import app"
+          python -c "import src.career.ui"
+          python -c "from src.copilot.service import CareerIntelligenceService"
+          python -c "from src.copilot.knowledge.retrieval import build_default_coordinator"
+          python -c "from src.copilot.company import build_company_context"
+      - name: Source manifest validation
+        run: |
+          python - <<'PY'
+          from src.copilot.knowledge import manifest as km
+          entries = km.load_manifest()
+          ids = [e.source_id for e in entries]
+          assert len(ids) == len(set(ids)), "duplicate source_id"
+          groups = {g for g, _ in km.GROUPS}
+          for e in entries:
+              assert e.group in groups, f"{e.source_id} bad group {e.group}"
+              # Licence is never guessed: no licence => flagged for review/manual.
+              assert e.licence or e.licence_review_required or e.manual_acquisition_required, \
+                  f"{e.source_id} has no licence and is not flagged"
+          print(f"Manifest OK: {len(entries)} sources")
+          PY
+      - name: Pytest (knowledge fixtures, structured retrieval, security, Streamlit smoke)
         run: python -m pytest -q
+      - name: Knowledge expansion eval smoke
+        run: python scripts/eval_knowledge_expansion.py
+      - name: Product coverage smoke (offline; no live keys)
+        run: |
+          python scripts/gen_product_coverage_cases.py
+          python scripts/eval_product_coverage.py
       - name: Secret scan (fail on real-looking secrets in source)
         run: |
           if grep -rnE "sk-or-[A-Za-z0-9]{12}|AIza[0-9A-Za-z_-]{30}|-----BEGIN [A-Z ]*PRIVATE KEY-----" \

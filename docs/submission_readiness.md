@@ -2,6 +2,14 @@
 
 Final pre-submission audit (Phase 14R). Evidence-based; verdict at the end.
 
+> **Current numbers are generated, not hand-maintained.** Test counts, source
+> counts and coverage figures throughout this document reflect the phase they were
+> written in. For the **current measured state** see
+> [metrics_snapshot.md](metrics_snapshot.md) (regenerate with
+> `python scripts/gen_metrics.py`) and the overall verdict in
+> [career_intelligence_production_readiness.md](career_intelligence_production_readiness.md).
+> Historical 11R / 11R-A / KB-2 figures below are kept as-is on purpose.
+
 ## Current sprint scope
 
 The **Building Applications with AI** sprint deliverable is the **Career
