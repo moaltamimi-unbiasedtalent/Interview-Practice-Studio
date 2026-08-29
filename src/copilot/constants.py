@@ -209,6 +209,10 @@ RERANK_TOP_K = 5                     # kept after reranking
 # falling back to baseline for unstructured text.
 DEFAULT_CHUNKING_STRATEGY = "baseline"
 
+# --- Quality / cost mode (OPT-4) ---------------------------------------------
+# cheap mode caps retrieval breadth to reduce synthesis context (and cost).
+CHEAP_MODE_TOP_K = 3
+
 # --- Domain tool calling -----------------------------------------------------
 
 # Registered tool names (the ONLY functions the model may invoke). Anything else

@@ -379,6 +379,7 @@ def _page_chat() -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    from src.copilot.cache import TTLCache
     from src.copilot.knowledge.retrieval import build_default_coordinator
     from src.copilot.service import CareerIntelligenceService
 
@@ -386,8 +387,15 @@ def _page_chat() -> None:
     retriever = build_retriever(config, mode=mode, store=store)
     # Production: wire the real structured stores into the chat answer.
     coordinator = build_default_coordinator(config)
+    # Persist the translation cache across per-query service instances (OPT-4).
+    if "translation_cache" not in st.session_state:
+        st.session_state["translation_cache"] = TTLCache(
+            ttl_seconds=config.query_cache_ttl_seconds,
+            max_entries=config.query_cache_max_entries,
+        )
     service = CareerIntelligenceService(
-        config=config, retriever=retriever, knowledge_coordinator=coordinator
+        config=config, retriever=retriever, knowledge_coordinator=coordinator,
+        translation_cache=st.session_state["translation_cache"],
     )
 
     with st.chat_message("assistant"):
@@ -714,7 +722,13 @@ def _page_rag_inspector() -> None:
                     f"{getattr(trace, 'reranker_latency_ms', 0)} ms."
                 )
         if getattr(trace, "quality_mode", ""):
-            st.caption(f"Quality mode: `{trace.quality_mode}`")
+            cache_bits = []
+            if getattr(trace, "translation_cache_hit", False):
+                cache_bits.append("translation cache hit")
+            if getattr(trace, "structured_cache_hit", False):
+                cache_bits.append("structured cache hit")
+            cache_note = f" · {', '.join(cache_bits)}" if cache_bits else ""
+            st.caption(f"Quality mode: `{trace.quality_mode}`{cache_note}")
 
         st.markdown("**Security**")
         scols = st.columns(3)

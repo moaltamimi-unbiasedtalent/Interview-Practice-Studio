@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 
 from src.copilot import constants
+from src.copilot.cache import TTLCache
 from src.copilot.config import CopilotConfig
 from src.copilot.models import (
     ChatResponse,
@@ -139,6 +140,7 @@ class CareerIntelligenceService:
         tool_invoker: ToolInvoker | None = None,
         synthesis_responder: Responder | None = None,
         knowledge_coordinator=None,
+        translation_cache: TTLCache | None = None,
         top_k: int = constants.DEFAULT_TOP_K,
         max_context_chars: int = constants.MAX_CONTEXT_CHARS,
     ) -> None:
@@ -151,8 +153,23 @@ class CareerIntelligenceService:
         # coordinator over the real/fixture stores; when absent the service runs
         # the existing vector-only path unchanged (keeps prior tests hermetic).
         self.knowledge_coordinator = knowledge_coordinator
+        # Quality/cost mode: "quality" (freshest, cache bypassed), "balanced"
+        # (default), or "cheap" (smaller top-k, cache on). Unknown -> balanced.
+        mode = (getattr(config, "quality_mode", "balanced") or "balanced").lower()
+        self.quality_mode = mode if mode in ("quality", "balanced", "cheap") else "balanced"
+        if self.quality_mode == "cheap":
+            top_k = max(1, min(top_k, constants.CHEAP_MODE_TOP_K))
         self.top_k = top_k
         self.max_context_chars = max_context_chars
+        # Session-scoped TTL cache for deterministic translation reuse (OPT-4).
+        # A caller (Streamlit) may inject a cache that outlives per-query service
+        # instances; otherwise we build a fresh, instance-local one.
+        if translation_cache is not None:
+            self._translation_cache = translation_cache
+        else:
+            ttl = getattr(config, "query_cache_ttl_seconds", 300) if config else 300
+            cap = getattr(config, "query_cache_max_entries", 256) if config else 256
+            self._translation_cache = TTLCache(ttl_seconds=ttl, max_entries=cap)
 
     # -- public API --------------------------------------------------------
 
@@ -218,8 +235,21 @@ class CareerIntelligenceService:
         trace.detected_country = detect_country(query)
 
         # 2) Intent understanding + 3) query translation (fallback built in).
+        # Session TTL cache: translation is deterministic for a given query, so a
+        # re-ask reuses it (bypassed in "quality" mode for maximum freshness).
         _step("Translating query")
-        translated = self.translator.translate(query)
+        trace.quality_mode = self.quality_mode
+        cache_key = query.strip().lower()
+        translated = None
+        if self.quality_mode != "quality":
+            hit, cached = self._translation_cache.get(cache_key)
+            if hit:
+                translated = cached
+                trace.translation_cache_hit = True
+        if translated is None:
+            translated = self.translator.translate(query)
+            if self.quality_mode != "quality":
+                self._translation_cache.set(cache_key, translated)
         trace.intent = translated.intent
         if translated.strategy in ("heuristic", "fallback"):
             trace.degraded.append("translation")
