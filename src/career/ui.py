@@ -296,6 +296,16 @@ def _render_structured_facts(evidence) -> None:
                   "Source": e.source_title or e.source_id,
                   "Detail": e.text[:70]} for e in labour[:8]],
                 use_container_width=True, hide_index=True)
+        # Answer-level freshness (OPT-8): show the most recent reference year the
+        # answer draws on, so the user can judge how current the figures are.
+        years = [e.reference_year for e in (comp + labour)
+                 if getattr(e, "reference_year", None)]
+        if years:
+            import datetime as _dt
+            newest = max(years)
+            age = _dt.datetime.now(_dt.timezone.utc).year - int(newest)
+            hint = ("current" if age <= 2 else f"{age} years old — verify against the source")
+            st.caption(f"Most recent figure: **{newest}** ({hint}).")
         st.caption("Figures keep their currency/period/statistic/geography/year — "
                    "never compared across contexts.")
 
@@ -533,6 +543,14 @@ def _render_source_sections() -> None:
     cols[1].metric("Structured records", f"{health['structured_records']:,}")
     cols[2].metric("Vector chunks", f"{health['vector_chunks']:,}")
     cols[3].metric("Licence review", health["licence_review"])
+    # Freshness (OPT-8): available sources by refresh status.
+    cols = st.columns(3)
+    cols[0].metric("Current", health["fresh_current"])
+    cols[1].metric("Refresh due", health["refresh_due"])
+    cols[2].metric("Freshness unknown", health["freshness_unknown"])
+    if health["refresh_due"]:
+        st.caption("Some sources are **refresh due** — run "
+                   "`python scripts/check_source_freshness.py` for the list.")
 
     # Last refresh (from the generated status file) + missing critical sources.
     status_path = constants.SOURCE_STATUS_PATH
@@ -571,6 +589,12 @@ def _render_source_sections() -> None:
             return "—"
         return "✅ PRODUCTION READY" if s.production_ready else "⛔ NOT PRODUCTION READY"
 
+    def _fresh_badge(s) -> str:
+        if not s or not s.available_for_retrieval:
+            return "—"
+        return {"CURRENT": "🟢 CURRENT", "REFRESH DUE": "🟠 REFRESH DUE"}.get(
+            s.freshness, "⚪ UNKNOWN")
+
     def _row(e):
         s = statuses.get(e.source_id)
         return {
@@ -582,6 +606,7 @@ def _render_source_sections() -> None:
             "Origin": (s.data_origin or "—") if s else "—",
             "Data": _origin_badge(s),
             "Production": _prod_badge(s),
+            "Freshness": _fresh_badge(s),
             "Lifecycle": s.lifecycle if s else "CONFIGURED",
             "Licence": "review" if e.licence_review_required else (e.licence or "—"),
             "Source link": e.source_url or "",

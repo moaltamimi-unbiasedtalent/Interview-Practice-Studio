@@ -128,6 +128,34 @@ breakdown, per-document rows, errors) — never raw document content.
 - `data/processed/chunks.jsonl` — one `DocumentChunk` per line;
 - `data/processed/manifest.json` — the report, read by the UI.
 
+## Source freshness
+
+Each available source carries a deterministic freshness label derived from its
+detected reference year and its manifest refresh cadence
+(`compute_freshness` in `src/copilot/knowledge/status.py`):
+
+- **CURRENT** — within the cadence's allowance (annual/biennial include a
+  one-year publication-lag tolerance).
+- **REFRESH DUE** — older than the allowance for its cadence.
+- **UNKNOWN** — no reference year, or a cadence with no defined interval
+  (`periodic`, `rare`). We never assert staleness or currency we cannot prove.
+
+The Knowledge Base **Knowledge Health** panel shows current / refresh-due /
+unknown counts and a per-source Freshness column; the chat's structured-facts
+panel surfaces the most recent reference year an answer draws on. Two offline,
+no-download helpers support operations:
+
+```bash
+python scripts/check_source_freshness.py          # advisory report (exit 0)
+python scripts/check_source_freshness.py --strict # non-zero if any REFRESH DUE
+python scripts/refresh_public_sources.py --dry-run # where/how to re-acquire (dry-run only)
+```
+
+Acquisition stays **manual by design**: obtain the latest file from the source,
+place it under `data/raw/`, re-run the loader, then `scripts/source_status.py`.
+This preserves local-source priority and per-source licence review. Freshness is
+**not** part of the CI gate — a stale public dataset must never fail a build.
+
 ## Data files & privacy
 
 - `data/raw/` and `data/processed/` are git-ignored except for structure files

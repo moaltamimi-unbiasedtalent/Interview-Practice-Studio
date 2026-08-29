@@ -17,7 +17,45 @@ from pydantic import BaseModel, Field
 from src.copilot import constants
 from src.copilot.knowledge import manifest as km
 
-__all__ = ["SourceStatus", "compute_status", "write_status", "load_status", "summary"]
+__all__ = [
+    "SourceStatus", "compute_status", "write_status", "load_status", "summary",
+    "compute_freshness", "FRESHNESS_CURRENT", "FRESHNESS_DUE", "FRESHNESS_UNKNOWN",
+]
+
+FRESHNESS_CURRENT = "CURRENT"
+FRESHNESS_DUE = "REFRESH DUE"
+FRESHNESS_UNKNOWN = "UNKNOWN"
+
+# Maximum age (in years) for a source to count as CURRENT, by refresh cadence.
+# The allowance bakes in a one-year publication-lag tolerance (an "annual" 2025
+# dataset is still current in 2026). Cadences without a defined interval
+# ("periodic", "rare") stay UNKNOWN rather than assert staleness we cannot prove.
+_CADENCE_MAX_AGE: dict[str, int] = {
+    "annual": 2,
+    "yearly": 2,
+    "biennial": 3,
+    "quarterly": 2,
+    "monthly": 2,
+}
+
+
+def compute_freshness(reference_year, refresh_frequency, current_year: int) -> str:
+    """Deterministic freshness label from a source's reference year and cadence.
+
+    Returns CURRENT, REFRESH DUE, or UNKNOWN. UNKNOWN when the reference year is
+    missing or the cadence has no defined interval — we never claim staleness or
+    currency we cannot substantiate.
+    """
+    if not reference_year:
+        return FRESHNESS_UNKNOWN
+    cadence = (refresh_frequency or "").strip().lower()
+    max_age = _CADENCE_MAX_AGE.get(cadence)
+    if max_age is None:
+        return FRESHNESS_UNKNOWN
+    age = current_year - int(reference_year)
+    if age < 0:  # a future-dated reference year is treated as current
+        return FRESHNESS_CURRENT
+    return FRESHNESS_CURRENT if age <= max_age else FRESHNESS_DUE
 
 # Lifecycle badge precedence (most-advanced first).
 AVAILABLE = "AVAILABLE"
@@ -136,9 +174,16 @@ def _vector_source_counts(path: str = "data/knowledge/vector_sources.json") -> d
     return {k: int(v) for k, v in data.get("chunks_by_source", {}).items()}
 
 
-def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[SourceStatus]:
+def compute_status(
+    manifest_path: str = constants.SOURCE_MANIFEST_PATH,
+    *,
+    current_year: int | None = None,
+) -> list[SourceStatus]:
     from src.copilot.knowledge import origins as korigins
 
+    if current_year is None:
+        from datetime import datetime, timezone
+        current_year = datetime.now(timezone.utc).year
     entries = km.load_manifest(manifest_path)
     structured = _structured_counts()
     vector_counts = _vector_source_counts()
@@ -181,6 +226,12 @@ def compute_status(manifest_path: str = constants.SOURCE_MANIFEST_PATH) -> list[
         )
         status.lifecycle = _lifecycle(status, e)
         _apply_origin(status, e, ledger.get(e.source_id), korigins)
+        # Freshness only applies to sources that are actually available.
+        ref_year = status.detected_reference_year or e.reference_year
+        status.freshness = (
+            compute_freshness(ref_year, e.refresh_frequency, current_year)
+            if status.available_for_retrieval else FRESHNESS_UNKNOWN
+        )
         out.append(status)
     return out
 
@@ -279,5 +330,12 @@ def summary(statuses: list[SourceStatus]) -> dict:
         "real_data_sources": sum(
             1 for s in statuses
             if s.data_origin in constants.REAL_ORIGINS or s.data_origin == constants.ORIGIN_MIXED
+        ),
+        # Freshness (available sources only).
+        "fresh_current": sum(1 for s in statuses if s.freshness == FRESHNESS_CURRENT),
+        "refresh_due": sum(1 for s in statuses if s.freshness == FRESHNESS_DUE),
+        "freshness_unknown": sum(
+            1 for s in statuses
+            if s.available_for_retrieval and s.freshness == FRESHNESS_UNKNOWN
         ),
     }
