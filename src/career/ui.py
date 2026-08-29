@@ -246,6 +246,45 @@ def _render_product_readiness() -> None:
                    "`data/metrics.json` (scripts/gen_metrics.py).")
 
 
+def _render_structured_facts(evidence) -> None:
+    """OPT-3C: surface key structured facts (currency/period/year/geo) visibly.
+
+    Compensation and labour-market context is shown in a small panel rather than
+    being buried inside a metadata expander.
+    """
+    if not evidence:
+        return
+    comp = [e for e in evidence if getattr(e, "evidence_type", "") == "compensation"]
+    labour = [e for e in evidence
+              if getattr(e, "evidence_type", "") in ("forecast", "openings", "shortage", "vacancy")]
+    if not comp and not labour:
+        return
+    with st.expander("Structured facts (context)", expanded=bool(comp)):
+        if comp:
+            st.markdown("**Compensation**")
+            st.dataframe(
+                [{"Occupation": e.occupation_title or "—",
+                  "Statistic": (e.metadata or {}).get("statistic", "—"),
+                  "Value": e.text.split(":", 1)[-1].strip()[:40] if ":" in e.text else "—",
+                  "Currency": (e.metadata or {}).get("currency", "—"),
+                  "Pay period": (e.metadata or {}).get("pay_period", "—"),
+                  "Geography": e.country or e.geography or "—",
+                  "Year": e.reference_year or "—",
+                  "Source": e.source_title or e.source_id} for e in comp[:8]],
+                use_container_width=True, hide_index=True)
+        if labour:
+            st.markdown("**Labour market**")
+            st.dataframe(
+                [{"Type": e.evidence_type, "Occupation": e.occupation_title or "—",
+                  "Geography": e.country or e.geography or "—",
+                  "Year/Period": e.reference_year or "—",
+                  "Source": e.source_title or e.source_id,
+                  "Detail": e.text[:70]} for e in labour[:8]],
+                use_container_width=True, hide_index=True)
+        st.caption("Figures keep their currency/period/statistic/geography/year — "
+                   "never compared across contexts.")
+
+
 def _render_tool_executions(executions) -> None:
     if not executions:
         return
@@ -309,6 +348,7 @@ def _page_chat() -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message["role"] == "assistant":
+                _render_structured_facts(message.get("evidence", []))
                 _render_sources(message.get("results", []), message.get("citations", []))
                 _render_tool_executions(message.get("tool_calls", []))
 
@@ -363,6 +403,7 @@ def _page_chat() -> None:
             status.update(label="Done", state="complete")
 
         st.markdown(result.answer)
+        _render_structured_facts(result.response.evidence)
         _render_sources(result.retrieved, result.citations)
         _render_tool_executions(result.tool_calls)
 
@@ -373,6 +414,7 @@ def _page_chat() -> None:
             "content": result.answer,
             "citations": result.citations,
             "results": result.retrieved,
+            "evidence": result.response.evidence,
             "tool_calls": result.tool_calls,
         }
     )
