@@ -1,0 +1,103 @@
+{
+  "generated": "2026-08-29T18:41:45Z",
+  "held_out_dataset": "evaluations/quality_v2/held_out_relevance.json",
+  "corpus": "evaluations/corpus",
+  "embedding_mode": "OFFLINE LEXICAL",
+  "top_k": 5,
+  "retrieval": {
+    "hybrid": {
+      "mode": "hybrid",
+      "cases": 12,
+      "hit_rate_at_k": 0.917,
+      "mrr": 0.704,
+      "recall_at_k": 0.917,
+      "term_recall_at_k": 1.0,
+      "avg_latency_ms": 0.526
+    }
+  },
+  "tool_selection_accuracy": 1.0,
+  "tool_selection_detail": [
+    {
+      "id": "tool_01",
+      "intent": "job_description_analysis",
+      "expected": [
+        "job_description_analyzer"
+      ],
+      "got": [
+        "job_description_analyzer"
+      ],
+      "ok": true
+    },
+    {
+      "id": "tool_02",
+      "intent": "candidate_comparison",
+      "expected": [
+        "candidate_gap_analyzer",
+        "job_description_analyzer"
+      ],
+      "got": [
+        "candidate_gap_analyzer",
+        "job_description_analyzer"
+      ],
+      "ok": true
+    },
+    {
+      "id": "tool_03",
+      "intent": "preparation_planning",
+      "expected": [
+        "candidate_gap_analyzer",
+        "job_description_analyzer",
+        "preparation_plan_calculator"
+      ],
+      "got": [
+        "candidate_gap_analyzer",
+        "job_description_analyzer",
+        "preparation_plan_calculator"
+      ],
+      "ok": true
+    },
+    {
+      "id": "tool_04",
+      "intent": "interview_preparation",
+      "expected": [
+        "interview_question_generator"
+      ],
+      "got": [
+        "interview_question_generator"
+      ],
+      "ok": true
+    },
+    {
+      "id": "tool_05",
+      "intent": "role_research",
+      "expected": [],
+      "got": [],
+      "ok": true
+    },
+    {
+      "id": "tool_06",
+      "intent": "smalltalk",
+      "expected": [],
+      "got": [],
+      "ok": true
+    }
+  ],
+  "out_of_domain": {
+    "metric": "query-content lexical overlap with top-k chunks",
+    "in_domain_overlap_mean": 0.669,
+    "ood_overlap_mean": 0.0,
+    "in_domain_overlap_min": 0.167,
+    "ood_leaks_at_in_domain_min": 0,
+    "ood_cases": 3
+  },
+  "faithfulness": {
+    "status": "SEE evaluations/faithfulness_v2/",
+    "present": true
+  },
+  "llm_judge": {
+    "status": "NOT RUN",
+    "reason": "LLM-judge is optional and disabled by default; it requires a chat credential and is never run in CI.",
+    "how_to_run": "Provide COPILOT_API_KEY and re-run with a future --llm-judge flag."
+  },
+  "note": "Held-out, deterministic, offline. Does not modify 11R/11R-A."
+}
