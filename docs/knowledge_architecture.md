@@ -3,6 +3,32 @@
 Career Intelligence is a **multi-source** knowledge system, not a single vector
 store. A router sends each question to the lane that can actually answer it.
 
+## End-to-end workflow
+
+```
+User question
+  → input validation + security scan (injection-guarded; untrusted text)
+  → intent understanding + query translation (rewrite/expand; heuristic fallback)
+  → occupation resolution + geography detection (aliases, crosswalks; ambiguity → clarify)
+  → deterministic lane router (role/skill/compensation/forecast/openings/shortage/
+        current-vacancy/competency/cybersecurity/seniority/education/training/
+        certification/licence/transition/mixed/vector)
+  → retrieval:
+        structured stores (roles / competency / compensation / labour-market / credentials)
+        + vector/BM25 narrative (hybrid)
+        + company/current context (time-sensitive, if supplied)
+  → geographic source precedence (national official data first)
+  → evidence merge (dedup, rank structured ahead of narrative, bounded budget)
+  → tools (job analysis / gap / plan / questions) where the intent needs them
+  → grounded synthesis over trust-separated sections (all evidence is DATA)
+  → citations (every fact cites a real source with a URL) + output guard
+  → PreparationContext (safe, plain-data handoff — incl. summarised company context)
+  → Interview Practice
+```
+
+Each stage has a controlled fallback and is surfaced (without chain-of-thought)
+in the RAG Inspector. A factual gap is stated plainly, never guessed.
+
 ```
                               CAREER INTELLIGENCE
                                      │

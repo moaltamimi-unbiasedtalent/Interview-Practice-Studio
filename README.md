@@ -26,16 +26,19 @@ stores — a **Role DB** (ESCO/O*NET/ISCO/KldB/BLS OOH), a **Competency DB**
 (OEWS/ASHE/Eurostat/Entgeltatlas), a **Labour-Market DB** (Cedefop
 forecast/openings/shortage), and **Vector Knowledge** (narrative docs in Chroma) —
 every record carrying provenance and source authority, with geographic source
-precedence for country-specific questions. **25 authoritative sources** are
-configured (see [docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md)),
+precedence for country-specific questions. Authoritative sources are configured
+(see [docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md)),
 each tracked through a measured lifecycle in `data/source_status.json` — a source
 in the manifest is never assumed loaded. The build is **local-first**: real source
 files under `data/raw/` are inventoried and loaded in place (O*NET 31.0, ESCO
-v1.2.1, ISCO-08, KldB, BLS OEWS, ONS ASHE as structured data; WEF, ESCO handbook,
-EQF, Cedefop/Eurostat, OPM, Civil Service, NICE as narrative), giving **22/25
-sources retrieval-ready** with **~8,800 structured records** and **~3,000 vector
-chunks** measured (see [docs/local_source_report.md](docs/local_source_report.md)
-and [docs/knowledge_coverage_report.md](docs/knowledge_coverage_report.md)). See
+v1.2.1, ISCO-08, KldB, BLS OEWS/OOH/Employment Projections, ONS ASHE, NICE 2.2.0,
+DigComp 2.2, Cedefop CLSSI, Eurostat JVS as structured data; WEF, ESCO handbook,
+EQF, OPM, Civil Service as narrative). **Current measured counts live in one
+generated place — [docs/metrics_snapshot.md](docs/metrics_snapshot.md)**
+(configured / retrieval-ready / production-ready sources, record counts, and
+production readiness by coverage area), refreshed by `python scripts/gen_metrics.py`.
+See [docs/local_source_report.md](docs/local_source_report.md) and
+[docs/knowledge_coverage_report.md](docs/knowledge_coverage_report.md). See
 [docs/knowledge_architecture.md](docs/knowledge_architecture.md). No datasets are
 committed; reproduce with the `scripts/*` loaders (`source_status`,
 `download_sources`, `normalise_roles`, `load_competencies`, `load_labour_market`,
@@ -188,10 +191,11 @@ labour-market data are tabular and context-bound
 
 ## Knowledge sources
 
-**25 authoritative sources** are configured in
+Authoritative sources are configured in
 [data/source_manifest.json](data/source_manifest.json); each has a measured
-lifecycle in `data/source_status.json`. Full list with lifecycle and licence:
-[docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md). **No
+lifecycle in `data/source_status.json` (counts in
+[docs/metrics_snapshot.md](docs/metrics_snapshot.md)). Full list with lifecycle
+and licence: [docs/knowledge_source_catalogue.md](docs/knowledge_source_catalogue.md). **No
 datasets are committed** (see [docs/source_licensing.md](docs/source_licensing.md)).
 A representative subset:
 
@@ -254,12 +258,20 @@ Core vector/keyword/hybrid metrics are **unchanged vs baseline (Δ = 0)** — th
 expansion adds lanes and coverage, it does not change narrative retrieval. No
 improvement is claimed where the numbers do not show one.
 
-**KB-2 knowledge expansion:** lane routing **1.0** and geographic precedence
-**1.0** over labelled cases; coverage of **16/25** sources loaded locally from
-offline samples (53 structured records) — the rest are configured with honest
-MANUAL ACQUISITION / LICENCE REVIEW lifecycle. Reproduce with
+**KB-2 knowledge expansion (historical):** lane routing **1.0** and geographic
+precedence **1.0** over labelled cases; at KB-2, coverage was 16/25 sources with
+53 structured records from offline samples. Reproduce with
 `python scripts/eval_knowledge_expansion.py`; it writes only under
 `evaluations/knowledge_expansion/` and never touches the 11R / 11R-A artifacts.
+
+**Product coverage (current, CI-PH4+):** a 400+ case candidate-question benchmark
+over the production-ready real sources — see
+[docs/metrics_snapshot.md](docs/metrics_snapshot.md) for current routing /
+geo-source / Hit@5 / citation / salary-context / tool-selection /
+insufficient-evidence scores and production readiness by coverage area, and
+[evaluations/product_coverage/summary.md](evaluations/product_coverage/summary.md)
+for the full run. The overall production-readiness verdict is in
+[docs/career_intelligence_production_readiness.md](docs/career_intelligence_production_readiness.md).
 
 ## Security
 

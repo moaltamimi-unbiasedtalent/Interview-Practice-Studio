@@ -67,6 +67,31 @@ comes from the compensation store and is cited to, say, "BLS OEWS — … — US
 clearly-labelled evidence from another geography — it does not fall back to guessed
 numbers.
 
+**Why are the structured stores "now actually used"?** Earlier phases classified
+the lane but the chat still answered from vector RAG only. Now the router's lane
+drives a retrieval coordinator that queries the real SQLite stores and merges that
+typed, cited evidence with vector results — so a role/salary/shortage answer comes
+from the store, not the model's memory.
+
+**How is a salary query answered?** "What does an HR manager earn in the US?" →
+router picks the `compensation` lane → the occupation is resolved (HR manager →
+Human Resources Managers) → the country is detected (US) → the compensation store
+is queried with US preferred → the median/period/currency/year record is returned
+and cited (e.g. "BLS OEWS — Human Resources Managers — US — 2025"). No record for
+the country → it says so and may show another geography, clearly labelled.
+
+**How does geographic source precedence work?** Each country maps to an ordered
+list of preferred sources (e.g. Germany → KldB/BERUFENET/Entgeltatlas before ESCO;
+US → O*NET/BLS; UK → ONS/Civil Service). Country-specific official statistics
+outrank generic international ones for country-specific questions.
+
+**How is current demand different from forecasts?** They are kept as separate
+signals, never blended into one "demand score": long-term **forecast** (Cedefop /
+BLS Employment Projections), structural **shortage** (Cedefop CLSSI), and
+near-real-time **vacancy rate** (Eurostat JVS, country-level, flagged
+experimental). A "right now" question uses vacancy data; a "will it grow" question
+uses the forecast.
+
 **How do you tell real data from test fixtures?** Every source carries a
 `data_origin` (official_local / official_download / authorised_manual /
 api_snapshot / synthetic_fixture) and a `production_ready` flag. A source is

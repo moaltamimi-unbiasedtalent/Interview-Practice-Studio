@@ -220,6 +220,32 @@ def _render_company_context_input():
         return ctx
 
 
+def _render_product_readiness() -> None:
+    """Production readiness by coverage area (READY / PARTIAL / MISSING)."""
+    import json
+    import os
+
+    path = "data/metrics.json"
+    if not os.path.isfile(path):
+        st.caption("Run `python scripts/gen_metrics.py` for production-readiness by area.")
+        return
+    try:
+        areas = json.load(open(path, encoding="utf-8")).get("readiness_by_area", [])
+    except Exception:  # noqa: BLE001
+        return
+    if not areas:
+        return
+    badge = {"READY": "🟢 READY", "PARTIAL": "🟡 PARTIAL", "MISSING": "🔴 MISSING"}
+    with st.expander("Production readiness by coverage area", expanded=False):
+        st.dataframe(
+            [{"Coverage area": a["area"], "Status": badge.get(a["status"], a["status"]),
+              "Detail": a.get("detail", "")} for a in areas],
+            use_container_width=True, hide_index=True, height=340)
+        st.caption("READY = real official data loaded · PARTIAL = present but "
+                   "fixture/coarse/partial-geo · MISSING = no data. From "
+                   "`data/metrics.json` (scripts/gen_metrics.py).")
+
+
 def _render_tool_executions(executions) -> None:
     if not executions:
         return
@@ -393,24 +419,41 @@ def _render_source_sections() -> None:
     health = kstatus.summary(list(statuses.values()))
 
     # --- Knowledge Health dashboard (measured, honest) ---
+    import os as _os
+
     st.markdown("### Knowledge Health")
     cols = st.columns(4)
     cols[0].metric("Configured sources", health["configured"])
-    cols[1].metric("Local files found", health["local_file_found"])
-    cols[2].metric("Available for retrieval", health["available_locally"])
-    cols[3].metric("Structured records", f"{health['structured_records']:,}")
+    cols[1].metric("Real-data sources", health["real_data_sources"])
+    cols[2].metric("Production-ready (real)", health["production_ready"])
+    cols[3].metric("Fixture-only", health["fixture_only"])
     cols = st.columns(4)
-    cols[0].metric("Real-data sources", health["real_data_sources"])
-    cols[1].metric("Production-ready (real)", health["production_ready"])
-    cols[2].metric("Fixture-only", health["fixture_only"])
-    cols[3].metric("Structured records", f"{health['structured_records']:,}")
-    st.caption(
-        "Two different counts: **available for retrieval** ({avail}) is anything "
-        "loaded locally; **production-ready (real)** ({prod}) is real official data "
-        "with a clear licence — synthetic test fixtures are never production-ready. "
-        "Lifecycle is measured from disk, not the manifest.".format(
-            avail=health["available_locally"], prod=health["production_ready"])
-    )
+    cols[0].metric("Local files found", health["local_file_found"])
+    cols[1].metric("Structured records", f"{health['structured_records']:,}")
+    cols[2].metric("Vector chunks", f"{health['vector_chunks']:,}")
+    cols[3].metric("Licence review", health["licence_review"])
+
+    # Last refresh (from the generated status file) + missing critical sources.
+    status_path = constants.SOURCE_STATUS_PATH
+    last = None
+    if _os.path.isfile(status_path):
+        import datetime as _dt
+        last = _dt.datetime.fromtimestamp(_os.path.getmtime(status_path)).strftime("%Y-%m-%d %H:%M")
+    missing = [e.title for e in entries
+               if not (statuses.get(e.source_id) and
+                       (statuses[e.source_id].available_for_retrieval
+                        or statuses[e.source_id].local_file_found))]
+    cap = (f"Last refreshed: {last or 'unknown'} · Manual-acquisition outstanding: "
+           f"{health['manual_acquisition']} · Licence-review outstanding: "
+           f"{health['licence_review']}. ")
+    if missing:
+        cap += "Missing (configured, not found locally): " + ", ".join(missing) + ". "
+    cap += ("**Available for retrieval** is anything loaded locally; "
+            "**production-ready** is real official data with a clear licence — "
+            "synthetic fixtures are never production-ready.")
+    st.caption(cap)
+
+    _render_product_readiness()
 
     def _tick(v):
         return "✓" if v else "✗"
