@@ -27,6 +27,17 @@ class TestNavigation:
         assert nav.WORKFLOW_STEPS == ["UNDERSTAND", "PREPARE", "PRACTISE", "REVIEW", "IMPROVE"]
         assert "→" in nav.WORKFLOW
 
+    def test_reviewer_mode_shows_all_routes(self) -> None:
+        assert nav.visible_nav_items(reviewer_mode=True) == nav.NAV_ITEMS
+
+    def test_default_hides_advanced_routes(self) -> None:
+        visible = nav.visible_nav_items(reviewer_mode=False)
+        assert nav.RAG_INSPECTOR not in visible
+        assert nav.EVALUATION not in visible
+        # Candidate journey pages remain.
+        for page in (nav.HOME, nav.CAREER, nav.INTERVIEW, nav.KNOWLEDGE_BASE):
+            assert page in visible
+
 
 class TestSharedDesignSystem:
     def test_exports_are_callable(self) -> None:

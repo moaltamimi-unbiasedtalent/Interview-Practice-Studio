@@ -112,6 +112,28 @@ prompts or hidden reasoning.
 See also [`docs/rag.md`](rag.md), [`docs/query_translation.md`](query_translation.md),
 [`docs/hybrid_search.md`](hybrid_search.md), [`docs/tool_calling.md`](tool_calling.md).
 
+## Module boundaries (canonical)
+
+The distribution is named `interview-os-coach` (`pyproject.toml`). Within it the
+Career Intelligence layer is split into a **backend** and a **UI adapter**:
+
+| Package | Role | Contains |
+|---|---|---|
+| `src/copilot/*` | Domain backend — no Streamlit | `CareerIntelligenceService`, retrieval, embeddings, translation, tools, security guards, knowledge stores, `cache.py` |
+| `src/career/ui.py` | Streamlit UI adapter | Renders chat / Knowledge Base / RAG Inspector / Evaluation by calling the backend; holds no domain logic |
+| `src/integration/*` | The only cross-module surface | `PreparationContext` handoff to Interview Practice |
+| `src/ui/*` | App shell | Home, navigation, shared design system |
+
+`src/career/ui.py` depends on `src/copilot`, never the reverse; the backend has
+no Streamlit import, which keeps it unit-testable without a UI.
+
+### Reviewer mode
+
+`COPILOT_REVIEWER_MODE=true` reveals the Advanced diagnostic pages (RAG Inspector,
+Evaluation) in the top nav (`navigation.visible_nav_items`). The default
+candidate view hides them for a focused Prepare → Practise journey; routing and
+page values are unchanged either way.
+
 ## Tests
 
 [`tests/test_copilot_orchestration.py`](../tests/test_copilot_orchestration.py)

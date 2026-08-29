@@ -41,12 +41,12 @@ All configuration is via environment variables or `.streamlit/secrets.toml`
 ## Docker
 
 ```bash
-docker build -t interview-practice-studio .
+docker build -t interview-os-coach .
 docker run --rm -p 8501:8501 \
   -e OPENROUTER_API_KEY=... \
   -e DATABASE_URL=postgresql+psycopg://user:pass@host:5432/db \
   -e APP_AUTH_REQUIRED=true \
-  interview-practice-studio
+  interview-os-coach
 ```
 
 Secrets are provided at **runtime** (env or mounted file) — never in the image
