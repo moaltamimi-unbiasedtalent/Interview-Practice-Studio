@@ -33,6 +33,7 @@ __all__ = [
     "OpenAIEmbedder",
     "LocalHashEmbedder",
     "build_embedder",
+    "embedding_status",
 ]
 
 
@@ -157,6 +158,31 @@ class OpenAIEmbedder(BaseEmbedder):
 
     def embed_query(self, text: str) -> list[float]:
         return self._client.embed_query(text)
+
+
+def embedding_status(config: CopilotConfig) -> dict:
+    """Non-secret embedding status for display: provider, model, quality mode.
+
+    Quality mode is SEMANTIC only when a real semantic provider will be used; the
+    local hash embedder is reported as OFFLINE LEXICAL — never as "semantic".
+    Never returns key contents.
+    """
+    provider = (config.embedding_provider or "auto").lower()
+    has_dedicated = bool(config.embedding_api_key
+                         and config.embedding_api_key.get_secret_value().strip())
+    if provider == "local":
+        mode, resolved = "OFFLINE LEXICAL", "local"
+    elif provider == "openai" or (provider == "auto" and has_dedicated):
+        mode, resolved = "SEMANTIC", "openai"
+    else:  # auto with no dedicated embedding key
+        mode, resolved = "OFFLINE LEXICAL", "local"
+    return {
+        "provider": resolved,
+        "configured_provider": provider,
+        "model": config.embedding_model if resolved == "openai" else "local-hash-v1",
+        "base_url": config.embedding_base_url if resolved == "openai" else None,
+        "quality_mode": mode,
+    }
 
 
 def build_embedder(

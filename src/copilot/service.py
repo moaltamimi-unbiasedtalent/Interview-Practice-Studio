@@ -82,6 +82,19 @@ class PipelineTrace:
     translated_query_count: int = 0
     context_count: int = 0
     retrieval_latency_ms: float = 0.0
+    # Hybrid calibration + reranker (OPT-1B/OPT-2) — safe labels only.
+    effective_vector_weight: float = 0.0
+    effective_keyword_weight: float = 0.0
+    weight_strategy: str = "default_equal"
+    weight_reason_code: str = "DEFAULT_EQUAL"
+    reranker_used: bool = False
+    reranker_provider: str = "none"
+    reranked_count: int = 0
+    reranker_latency_ms: float = 0.0
+    # Caching + cost mode (OPT-4).
+    translation_cache_hit: bool = False
+    structured_cache_hit: bool = False
+    quality_mode: str = "balanced"
     # Security.
     input_verdict: str = "allow"
     input_indicators: list[str] = field(default_factory=list)
@@ -235,6 +248,11 @@ class CareerIntelligenceService:
             results = screen.kept
             if not results and trace.rag_used:
                 trace.rag_used = False
+            # 5a) Optional reranking (OPT-1B): RRF candidates → reranker → top-k.
+            results = self._maybe_rerank(query, results, trace)
+
+        # Record effective hybrid weights + dominant-signal (OPT-2).
+        self._record_weight_trace(query, trace)
 
         trace.context_count = len(results)
 
@@ -318,6 +336,41 @@ class CareerIntelligenceService:
             usage=usage,
         )
         return OrchestrationResult(response=response, trace=trace)
+
+    # -- retrieval calibration (OPT-1B / OPT-2) ----------------------------
+
+    def _maybe_rerank(self, query, results, trace):
+        """Apply the configured reranker (default NoOp) to the RRF candidates."""
+        provider = (getattr(self.config, "reranker_provider", "none") or "none").lower()
+        top_k = getattr(self.config, "rerank_top_k", self.top_k) or self.top_k
+        if provider == "none" or not results:
+            trace.reranker_provider = "none"
+            return results
+        from src.copilot.retrieval.reranker import build_reranker
+        candidates = results[: getattr(self.config, "rerank_candidates", len(results))]
+        outcome = build_reranker(self.config).rerank(query, candidates, top_k=top_k)
+        trace.reranker_used = outcome.reranker_used
+        trace.reranker_provider = outcome.reranker_provider
+        trace.reranked_count = outcome.reranked_count
+        trace.reranker_latency_ms = outcome.reranker_latency_ms
+        trace.notes.extend(outcome.notes)
+        return outcome.results or results
+
+    def _record_weight_trace(self, query, trace):
+        """Record effective hybrid weights + a deterministic dominant-signal label."""
+        base_v = getattr(self.config, "hybrid_vector_weight", 1.0) if self.config else 1.0
+        base_k = getattr(self.config, "hybrid_keyword_weight", 1.0) if self.config else 1.0
+        adaptive = bool(getattr(self.config, "hybrid_adaptive", False))
+        if adaptive:
+            from src.copilot.retrieval.adaptive import classify_weight_signal
+            reason, v, k = classify_weight_signal(query, base_vector=base_v, base_keyword=base_k)
+            trace.weight_strategy = "adaptive"
+            trace.weight_reason_code = reason
+            trace.effective_vector_weight, trace.effective_keyword_weight = v, k
+        else:
+            trace.weight_strategy = "configured"
+            trace.weight_reason_code = "DEFAULT_EQUAL" if base_v == base_k else "CONFIGURED_WEIGHTS"
+            trace.effective_vector_weight, trace.effective_keyword_weight = base_v, base_k
 
     # -- stages ------------------------------------------------------------
 

@@ -58,13 +58,30 @@ def chunk_units(
     source_id: str,
     chunk_size: int = constants.CHUNK_SIZE,
     chunk_overlap: int = constants.CHUNK_OVERLAP,
+    strategy: str = constants.DEFAULT_CHUNKING_STRATEGY,
 ) -> list[DocumentChunk]:
     """Clean and split loaded units into deduplicated :class:`DocumentChunk`s.
 
     Chunk ids are derived from ``source_id`` + text, so identical content yields
     identical ids; duplicate chunk ids within a document are dropped.
+
+    ``strategy``:
+      * ``baseline`` — recursive character splitter (default; unchanged).
+      * ``section`` — preserve each source-native unit (heading/section/page/row,
+        already produced by the loaders) as a single chunk when it fits within a
+        bounded section cap, splitting only over-long units. Metadata (title,
+        section, page, document_type, source_id, source_url) is preserved either
+        way; unstructured text with no section falls back to baseline splitting.
     """
     splitter = _splitter(chunk_size, chunk_overlap)
+    # Bounded cap so "section" never emits arbitrarily giant chunks.
+    section_cap = chunk_size * 4
+
+    def _pieces(cleaned: str, unit: LoadedUnit) -> list[str]:
+        if strategy == "section" and len(cleaned) <= section_cap:
+            return [cleaned]  # keep the native unit intact
+        return splitter.split_text(cleaned)
+
     chunks: list[DocumentChunk] = []
     seen: set[str] = set()
     position = 0
@@ -72,7 +89,7 @@ def chunk_units(
         cleaned = clean_text(unit.text)
         if not cleaned:
             continue
-        for piece in splitter.split_text(cleaned):
+        for piece in _pieces(cleaned, unit):
             piece = piece.strip()
             if not piece:
                 continue

@@ -67,6 +67,7 @@ def ingest_paths(
     metadata_columns: list[str] | None = None,
     chunk_size: int = constants.CHUNK_SIZE,
     chunk_overlap: int = constants.CHUNK_OVERLAP,
+    chunking_strategy: str = constants.DEFAULT_CHUNKING_STRATEGY,
 ) -> tuple[list[DocumentChunk], IngestionReport]:
     """Ingest specific files. Identical files (same bytes) are ingested once."""
     report = IngestionReport()
@@ -102,6 +103,7 @@ def ingest_paths(
             source_id=source_id,
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap,
+            strategy=chunking_strategy,
         )
         if not chunks:
             # Empty/blank document: recorded but contributes no chunks.

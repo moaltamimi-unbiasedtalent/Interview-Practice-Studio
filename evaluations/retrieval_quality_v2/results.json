@@ -1,0 +1,117 @@
+{
+  "generated": "2026-08-29T10:38:04Z",
+  "corpus": "evaluations/corpus",
+  "corpus_fingerprint": "39c76496afba8b1f",
+  "dataset": "evaluations/rag_dataset.json",
+  "semantic_available": false,
+  "embedding_status": {
+    "provider": "local",
+    "configured_provider": "auto",
+    "model": "local-hash-v1",
+    "base_url": null,
+    "quality_mode": "OFFLINE LEXICAL"
+  },
+  "runs": [
+    {
+      "name": "1_localhash_baseline",
+      "embedding": "local",
+      "chunking": "baseline",
+      "modes": [
+        "vector",
+        "keyword",
+        "hybrid"
+      ],
+      "embedding_model": "local-hash-v1",
+      "hybrid_weights": [
+        1.0,
+        1.0
+      ],
+      "reranker": "none",
+      "metrics": {
+        "vector": {
+          "mode": "vector",
+          "cases": 33,
+          "hit_rate_at_k": 0.97,
+          "mrr": 0.842,
+          "recall_at_k": 0.955,
+          "term_recall_at_k": 0.97,
+          "avg_latency_ms": 0.382,
+          "chunks": 14
+        },
+        "keyword": {
+          "mode": "keyword",
+          "cases": 33,
+          "hit_rate_at_k": 0.97,
+          "mrr": 0.904,
+          "recall_at_k": 0.97,
+          "term_recall_at_k": 0.97,
+          "avg_latency_ms": 0.023,
+          "chunks": 14
+        },
+        "hybrid": {
+          "mode": "hybrid",
+          "cases": 33,
+          "hit_rate_at_k": 0.939,
+          "mrr": 0.871,
+          "recall_at_k": 0.924,
+          "term_recall_at_k": 0.939,
+          "avg_latency_ms": 0.428,
+          "chunks": 14
+        }
+      },
+      "top_k": 5,
+      "latency_ms": 27.77,
+      "chunks": 14
+    },
+    {
+      "name": "3b_localhash_section",
+      "embedding": "local",
+      "chunking": "section",
+      "modes": [
+        "hybrid"
+      ],
+      "embedding_model": "local-hash-v1",
+      "hybrid_weights": [
+        1.0,
+        1.0
+      ],
+      "reranker": "none",
+      "metrics": {
+        "hybrid": {
+          "mode": "hybrid",
+          "cases": 33,
+          "hit_rate_at_k": 0.939,
+          "mrr": 0.871,
+          "recall_at_k": 0.924,
+          "term_recall_at_k": 0.939,
+          "avg_latency_ms": 0.431,
+          "chunks": 14
+        }
+      },
+      "top_k": 5,
+      "latency_ms": 14.33,
+      "chunks": 14
+    },
+    {
+      "name": "2_semantic_baseline",
+      "status": "NOT_RUN",
+      "reason": "no dedicated embedding credential"
+    },
+    {
+      "name": "3_semantic_section",
+      "status": "NOT_RUN",
+      "reason": "no dedicated embedding credential"
+    },
+    {
+      "name": "4_semantic_hybrid",
+      "status": "NOT_RUN",
+      "reason": "no dedicated embedding credential"
+    },
+    {
+      "name": "5_semantic_hybrid_reranker",
+      "status": "NOT_RUN",
+      "reason": "no dedicated embedding credential"
+    }
+  ],
+  "semantic_note": "SEMANTIC EVALUATION NOT RUN \u2014 CREDENTIAL NOT CONFIGURED. Set COPILOT_EMBEDDING_API_KEY (and COPILOT_EMBEDDING_PROVIDER=openai) then re-run: python scripts/eval_retrieval_quality_v2.py"
+}

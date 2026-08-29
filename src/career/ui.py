@@ -12,7 +12,9 @@ import streamlit as st
 
 from src.copilot import constants
 from src.copilot.config import CopilotConfig, load_config
+from src.copilot.embeddings import embedding_status
 from src.copilot.logging_utils import configure_logging
+from src.copilot.retrieval.adaptive import dominant_signal
 from src.copilot.rag import build_context
 from src.copilot.retrieval import build_retriever
 from src.ui import shared
@@ -72,6 +74,19 @@ def _render_status(config: CopilotConfig) -> None:
     except Exception:  # pragma: no cover - defensive UI guard
         st.sidebar.write("Indexed chunks: unavailable")
     st.sidebar.caption(f"Vector store: `{config.chroma_persist_dir}`")
+
+    # Embedding quality mode — honest about semantic vs lexical retrieval.
+    status = embedding_status(config)
+    if status["quality_mode"] == "SEMANTIC":
+        st.sidebar.write(f"Embeddings: ✅ SEMANTIC (`{status['model']}`)")
+    else:
+        st.sidebar.write("Embeddings: ⚠ OFFLINE LEXICAL")
+        st.sidebar.caption(
+            "No semantic embedding credential configured — retrieval uses a "
+            "local lexical (hash) embedder. Answers are grounded in real "
+            "sources, but semantic similarity is approximate. Set "
+            "`COPILOT_EMBEDDING_API_KEY` for semantic retrieval."
+        )
 
 
 # --- Chat --------------------------------------------------------------------
@@ -681,6 +696,26 @@ def _page_rag_inspector() -> None:
         mcols[1].metric("Queries", trace.translated_query_count)
         mcols[2].metric("Context", trace.context_count)
         mcols[3].metric("Latency (ms)", trace.retrieval_latency_ms)
+
+        # Hybrid calibration (OPT-2): effective weights + dominant signal.
+        if (trace.retrieval_strategy or "").lower() == "hybrid":
+            st.markdown("**Hybrid calibration**")
+            wcols = st.columns(4)
+            wcols[0].metric("Vector weight", getattr(trace, "effective_vector_weight", "—"))
+            wcols[1].metric("Keyword weight", getattr(trace, "effective_keyword_weight", "—"))
+            wcols[2].metric("Weighting", getattr(trace, "weight_strategy", "—") or "—")
+            wcols[3].metric("Reranker", getattr(trace, "reranker_provider", "none") or "none")
+            reason = getattr(trace, "weight_reason_code", "")
+            if reason:
+                st.caption(f"Weight signal: `{reason}`")
+            if getattr(trace, "reranker_used", False):
+                st.caption(
+                    f"Reranked {getattr(trace, 'reranked_count', 0)} candidate(s) in "
+                    f"{getattr(trace, 'reranker_latency_ms', 0)} ms."
+                )
+        if getattr(trace, "quality_mode", ""):
+            st.caption(f"Quality mode: `{trace.quality_mode}`")
+
         st.markdown("**Security**")
         scols = st.columns(3)
         scols[0].write(f"Input verdict: `{trace.input_verdict}`")
@@ -710,6 +745,12 @@ def _page_rag_inspector() -> None:
             _results_table(trace.keyword_results)
         st.write(f"Fused ranking ({len(trace.fused_results)})")
         _results_table(trace.fused_results)
+        if trace.vector_results or trace.keyword_results:
+            st.caption(
+                "Dominant signal: "
+                + dominant_signal(trace.vector_results, trace.keyword_results,
+                                  trace.fused_results)
+            )
         if trace.evidence_sources:
             st.write("Final evidence sources:")
             for src in trace.evidence_sources:
