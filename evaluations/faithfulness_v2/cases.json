@@ -1,0 +1,35 @@
+[
+  {
+    "query": "What does a Data Analyst do?",
+    "expect_evidence": true
+  },
+  {
+    "query": "What does an HR Manager earn in the US?",
+    "expect_evidence": true,
+    "salary": true
+  },
+  {
+    "query": "What does an HR Manager earn in Germany?",
+    "expect_evidence": false
+  },
+  {
+    "query": "What digital competencies does a manager need?",
+    "expect_evidence": true
+  },
+  {
+    "query": "What are cybersecurity incident response responsibilities?",
+    "expect_evidence": true
+  },
+  {
+    "query": "Is there a shortage of software developers in Germany?",
+    "expect_evidence": true
+  },
+  {
+    "query": "How many job openings are expected for nurses in the US?",
+    "expect_evidence": true
+  },
+  {
+    "query": "What is the meaning of life?",
+    "expect_evidence": false
+  }
+]

@@ -38,15 +38,27 @@ def main() -> None:
     if "_pending_nav" in st.session_state:
         st.session_state["os_nav"] = st.session_state.pop("_pending_nav")
 
+    # Reviewer mode reveals the Advanced diagnostic pages (RAG Inspector,
+    # Evaluation); the default candidate view keeps the nav focused.
+    from src.copilot.config import load_config
+
+    reviewer_mode = load_config().reviewer_mode
+    nav_items = nav.visible_nav_items(reviewer_mode)
+    # If a hidden page was queued/remembered, fall back to Home.
+    if st.session_state.get("os_nav") not in nav_items:
+        st.session_state.pop("os_nav", None)
+
     st.sidebar.markdown(f"### {nav.APP_TITLE}")
     # Grouped display (Prepare / Practise / Resources / Advanced) via format_func;
     # the underlying page values are unchanged so routing stays stable.
     page = st.sidebar.radio(
         "Navigate",
-        nav.NAV_ITEMS,
+        nav_items,
         key="os_nav",
         format_func=nav.display_label,
     )
+    if reviewer_mode:
+        st.sidebar.caption("Reviewer mode: Advanced diagnostics visible.")
     st.sidebar.caption(nav.WORKFLOW)
     st.sidebar.divider()
 

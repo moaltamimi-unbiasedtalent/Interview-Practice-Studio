@@ -191,6 +191,27 @@ HYBRID_KEYWORD_WEIGHT = 1.0
 # Candidate pool each channel contributes before fusion (>= final top_k so a
 # result strong in only one channel can still surface).
 HYBRID_CANDIDATE_K = 10
+# Adaptive hybrid weighting is EXPERIMENTAL and OFF by default — enabling it never
+# happens without evaluation evidence (see docs/hybrid_search.md).
+HYBRID_ADAPTIVE_DEFAULT = False
+
+# --- Optional reranker (OPT-1B) ----------------------------------------------
+# vector/BM25 → RRF candidates → optional reranker → final top_k.
+# Default 'none' (NoOpReranker); CI always uses none. A reranker failure returns
+# the original RRF order.
+DEFAULT_RERANKER_PROVIDER = "none"   # none | llm
+RERANK_CANDIDATES = 10               # candidates fed to the reranker
+RERANK_TOP_K = 5                     # kept after reranking
+
+# --- Chunking strategy (OPT-1C) ----------------------------------------------
+# baseline = recursive character splitter (unchanged default);
+# section = preserve source-native units (heading/section/page) where present,
+# falling back to baseline for unstructured text.
+DEFAULT_CHUNKING_STRATEGY = "baseline"
+
+# --- Quality / cost mode (OPT-4) ---------------------------------------------
+# cheap mode caps retrieval breadth to reduce synthesis context (and cost).
+CHEAP_MODE_TOP_K = 3
 
 # --- Domain tool calling -----------------------------------------------------
 

@@ -1,0 +1,31 @@
+{
+  "description": "Held-out evaluation set for OPT-7. These queries were authored AFTER the system was built and are deliberately distinct from evaluations/rag_dataset.json (different phrasings and angles over the same corpus). They are NOT used to tune retrieval, weights, or prompts. Out-of-domain (OOD) cases carry expected_sources=[] and must NOT be answered confidently.",
+  "top_k": 5,
+  "relevance": [
+    {"id": "ho_01", "question": "Which coding language should I focus on to break into analytics work?", "expected_sources": ["python.md"], "expected_terms": ["Python"]},
+    {"id": "ho_02", "question": "How can I reframe my background when moving industries?", "expected_sources": ["career_change.md"], "expected_terms": ["transferable"]},
+    {"id": "ho_03", "question": "What interpersonal qualities do employers look for regardless of field?", "expected_sources": ["soft_skills.md"], "expected_terms": ["communication"]},
+    {"id": "ho_04", "question": "How should I structure a behavioural interview answer?", "expected_sources": ["star_method.md"], "expected_terms": ["situation"]},
+    {"id": "ho_05", "question": "What are the core duties of someone analysing data day to day?", "expected_sources": ["data_analyst.md"], "expected_terms": ["data"]},
+    {"id": "ho_06", "question": "What does a nurse actually do at work?", "expected_sources": ["nurse.md"], "expected_terms": ["patient"]},
+    {"id": "ho_07", "question": "How is automation expected to reshape jobs?", "expected_sources": ["automation.md"], "expected_terms": ["automation"]},
+    {"id": "ho_08", "question": "Is demand for artificial intelligence skills rising?", "expected_sources": ["ai_demand.md"], "expected_terms": ["demand"]},
+    {"id": "ho_09", "question": "What cloud knowledge is useful for modern engineering roles?", "expected_sources": ["cloud.md"], "expected_terms": ["cloud"]},
+    {"id": "ho_10", "question": "Which certifications matter for people operations professionals?", "expected_sources": ["hr_credentials.md"], "expected_terms": ["certification"]},
+    {"id": "ho_11", "question": "What are the responsibilities of a devops engineer?", "expected_sources": ["devops_engineer.md"], "expected_terms": ["deployment"]},
+    {"id": "ho_12", "question": "What security skills protect an organisation's systems?", "expected_sources": ["security.md"], "expected_terms": ["security"]}
+  ],
+  "out_of_domain": [
+    {"id": "ood_01", "question": "What is a good recipe for margherita pizza?", "expected_sources": []},
+    {"id": "ood_02", "question": "What will the weather be tomorrow in Paris?", "expected_sources": []},
+    {"id": "ood_03", "question": "Who won the football match last night?", "expected_sources": []}
+  ],
+  "tool_selection": [
+    {"id": "tool_01", "intent": "job_description_analysis", "expected_tools": ["job_description_analyzer"]},
+    {"id": "tool_02", "intent": "candidate_comparison", "expected_tools": ["job_description_analyzer", "candidate_gap_analyzer"]},
+    {"id": "tool_03", "intent": "preparation_planning", "expected_tools": ["job_description_analyzer", "candidate_gap_analyzer", "preparation_plan_calculator"]},
+    {"id": "tool_04", "intent": "interview_preparation", "expected_tools": ["interview_question_generator"]},
+    {"id": "tool_05", "intent": "role_research", "expected_tools": []},
+    {"id": "tool_06", "intent": "smalltalk", "expected_tools": []}
+  ]
+}

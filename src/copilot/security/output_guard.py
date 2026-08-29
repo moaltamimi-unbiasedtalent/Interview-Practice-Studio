@@ -72,7 +72,19 @@ def guard_output(answer: str, allowed_markers: set[str] | None = None) -> Output
             if marker not in allowed_markers:
                 invalid.append(marker)
         if invalid:
-            findings.append(f"Invalid citation reference(s): {invalid}.")
+            findings.append(f"Removed invalid citation reference(s): {invalid}.")
+            # Strip unsupported markers from the user-visible answer so a citation
+            # never points at evidence that does not exist. Valid markers are left
+            # exactly as written (no renumbering — that would break the mapping).
+            invalid_set = set(invalid)
+
+            def _strip(match: "re.Match") -> str:
+                return "" if match.group(0) in invalid_set else match.group(0)
+
+            safe = _CITATION_RE.sub(_strip, safe)
+            # Tidy any double spaces / space-before-punctuation left behind.
+            safe = re.sub(r"[ \t]{2,}", " ", safe)
+            safe = re.sub(r"\s+([.,;:!?])", r"\1", safe)
 
     return OutputGuardResult(
         safe_answer=safe,

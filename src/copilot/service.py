@@ -20,6 +20,7 @@ import time
 from dataclasses import dataclass, field
 
 from src.copilot import constants
+from src.copilot.cache import TTLCache
 from src.copilot.config import CopilotConfig
 from src.copilot.models import (
     ChatResponse,
@@ -82,12 +83,47 @@ class PipelineTrace:
     translated_query_count: int = 0
     context_count: int = 0
     retrieval_latency_ms: float = 0.0
+    # Hybrid calibration + reranker (OPT-1B/OPT-2) — safe labels only.
+    effective_vector_weight: float = 0.0
+    effective_keyword_weight: float = 0.0
+    weight_strategy: str = "default_equal"
+    weight_reason_code: str = "DEFAULT_EQUAL"
+    reranker_used: bool = False
+    reranker_provider: str = "none"
+    reranked_count: int = 0
+    reranker_latency_ms: float = 0.0
+    # Caching + cost mode (OPT-4).
+    translation_cache_hit: bool = False
+    structured_cache_hit: bool = False
+    quality_mode: str = "balanced"
     # Security.
     input_verdict: str = "allow"
     input_indicators: list[str] = field(default_factory=list)
     blocked: bool = False
     excluded_chunks: int = 0
     output_findings: list[str] = field(default_factory=list)
+
+
+@dataclass
+class PipelinePlan:
+    """A dry-run description of what a query *would* trigger — no LLM, no cost.
+
+    Built entirely from deterministic heuristics (heuristic translation, the
+    regex router, the fixed intent→route table) so the user can preview the
+    intended steps before spending a synthesis call.
+    """
+
+    query: str
+    intent: str
+    retrieval_lane: str
+    lane_reason: str
+    detected_country: str | None
+    rag_required: bool
+    tools_planned: list[str] = field(default_factory=list)
+    tools_expected_to_run: list[str] = field(default_factory=list)
+    tools_skipped_no_input: list[str] = field(default_factory=list)
+    steps: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -126,6 +162,7 @@ class CareerIntelligenceService:
         tool_invoker: ToolInvoker | None = None,
         synthesis_responder: Responder | None = None,
         knowledge_coordinator=None,
+        translation_cache: TTLCache | None = None,
         top_k: int = constants.DEFAULT_TOP_K,
         max_context_chars: int = constants.MAX_CONTEXT_CHARS,
     ) -> None:
@@ -138,8 +175,23 @@ class CareerIntelligenceService:
         # coordinator over the real/fixture stores; when absent the service runs
         # the existing vector-only path unchanged (keeps prior tests hermetic).
         self.knowledge_coordinator = knowledge_coordinator
+        # Quality/cost mode: "quality" (freshest, cache bypassed), "balanced"
+        # (default), or "cheap" (smaller top-k, cache on). Unknown -> balanced.
+        mode = (getattr(config, "quality_mode", "balanced") or "balanced").lower()
+        self.quality_mode = mode if mode in ("quality", "balanced", "cheap") else "balanced"
+        if self.quality_mode == "cheap":
+            top_k = max(1, min(top_k, constants.CHEAP_MODE_TOP_K))
         self.top_k = top_k
         self.max_context_chars = max_context_chars
+        # Session-scoped TTL cache for deterministic translation reuse (OPT-4).
+        # A caller (Streamlit) may inject a cache that outlives per-query service
+        # instances; otherwise we build a fresh, instance-local one.
+        if translation_cache is not None:
+            self._translation_cache = translation_cache
+        else:
+            ttl = getattr(config, "query_cache_ttl_seconds", 300) if config else 300
+            cap = getattr(config, "query_cache_max_entries", 256) if config else 256
+            self._translation_cache = TTLCache(ttl_seconds=ttl, max_entries=cap)
 
     # -- public API --------------------------------------------------------
 
@@ -205,8 +257,21 @@ class CareerIntelligenceService:
         trace.detected_country = detect_country(query)
 
         # 2) Intent understanding + 3) query translation (fallback built in).
+        # Session TTL cache: translation is deterministic for a given query, so a
+        # re-ask reuses it (bypassed in "quality" mode for maximum freshness).
         _step("Translating query")
-        translated = self.translator.translate(query)
+        trace.quality_mode = self.quality_mode
+        cache_key = query.strip().lower()
+        translated = None
+        if self.quality_mode != "quality":
+            hit, cached = self._translation_cache.get(cache_key)
+            if hit:
+                translated = cached
+                trace.translation_cache_hit = True
+        if translated is None:
+            translated = self.translator.translate(query)
+            if self.quality_mode != "quality":
+                self._translation_cache.set(cache_key, translated)
         trace.intent = translated.intent
         if translated.strategy in ("heuristic", "fallback"):
             trace.degraded.append("translation")
@@ -235,6 +300,11 @@ class CareerIntelligenceService:
             results = screen.kept
             if not results and trace.rag_used:
                 trace.rag_used = False
+            # 5a) Optional reranking (OPT-1B): RRF candidates → reranker → top-k.
+            results = self._maybe_rerank(query, results, trace)
+
+        # Record effective hybrid weights + dominant-signal (OPT-2).
+        self._record_weight_trace(query, trace)
 
         trace.context_count = len(results)
 
@@ -318,6 +388,108 @@ class CareerIntelligenceService:
             usage=usage,
         )
         return OrchestrationResult(response=response, trace=trace)
+
+    # -- dry-run planning (OPT-5) ------------------------------------------
+
+    def plan(
+        self,
+        query: str,
+        *,
+        job_description: str | None = None,
+        candidate_background: str | None = None,
+        days_until_interview: int | None = None,
+        hours_per_week: float | None = None,
+    ) -> PipelinePlan:
+        """Preview what ``query`` would trigger, using only deterministic
+        heuristics — no query-translation LLM call, no retrieval, no synthesis,
+        no tool execution. Safe to call for free before running ``answer``.
+        """
+        from src.copilot.knowledge.router import detect_country, route_question
+        from src.copilot.rag.translation import heuristic_translation
+
+        cleaned = validate_input(query or "", "query").cleaned
+        translated = heuristic_translation(cleaned)
+        route_decision = route_question(cleaned)
+        route = route_for_intent(translated.intent)
+        rag_required = route.rag_required and translated.retrieval_required
+
+        # Predict tool execution from the same input-gating rules as _run_tools,
+        # without invoking anything.
+        planned = list(route.tools)
+        expected: list[str] = []
+        skipped: list[str] = []
+        have_jd = bool(job_description)
+        have_bg = bool(candidate_background)
+        for tool in planned:
+            if tool == constants.TOOL_JOB_ANALYZER:
+                (expected if have_jd else skipped).append(tool)
+            elif tool == constants.TOOL_GAP_ANALYZER:
+                (expected if (have_jd and have_bg) else skipped).append(tool)
+            elif tool == constants.TOOL_PREP_PLANNER:
+                ready = have_jd and have_bg and days_until_interview and hours_per_week
+                (expected if ready else skipped).append(tool)
+            elif tool == constants.TOOL_QUESTION_GENERATOR:
+                expected.append(tool)  # runs from retrieved context
+            else:
+                expected.append(tool)
+
+        steps = ["Validate + injection-scan the question"]
+        if rag_required:
+            steps.append("Hybrid retrieval over the knowledge base")
+        if route_decision.lane and route_decision.lane != "vector":
+            steps.append(f"Structured retrieval (lane: {route_decision.lane})")
+        if expected:
+            steps.append("Run tools: " + ", ".join(expected))
+        steps.append("Synthesise a grounded, cited answer")
+
+        notes: list[str] = []
+        if skipped:
+            notes.append("Provide more inputs to enable: " + ", ".join(skipped))
+        notes.append("Preview only — heuristic routing; the live run may refine "
+                     "the intent with the translation model.")
+
+        return PipelinePlan(
+            query=cleaned, intent=translated.intent,
+            retrieval_lane=route_decision.lane, lane_reason=route_decision.reason,
+            detected_country=detect_country(cleaned), rag_required=rag_required,
+            tools_planned=planned, tools_expected_to_run=expected,
+            tools_skipped_no_input=skipped, steps=steps, notes=notes,
+        )
+
+    # -- retrieval calibration (OPT-1B / OPT-2) ----------------------------
+
+    def _maybe_rerank(self, query, results, trace):
+        """Apply the configured reranker (default NoOp) to the RRF candidates."""
+        provider = (getattr(self.config, "reranker_provider", "none") or "none").lower()
+        top_k = getattr(self.config, "rerank_top_k", self.top_k) or self.top_k
+        if provider == "none" or not results:
+            trace.reranker_provider = "none"
+            return results
+        from src.copilot.retrieval.reranker import build_reranker
+        candidates = results[: getattr(self.config, "rerank_candidates", len(results))]
+        outcome = build_reranker(self.config).rerank(query, candidates, top_k=top_k)
+        trace.reranker_used = outcome.reranker_used
+        trace.reranker_provider = outcome.reranker_provider
+        trace.reranked_count = outcome.reranked_count
+        trace.reranker_latency_ms = outcome.reranker_latency_ms
+        trace.notes.extend(outcome.notes)
+        return outcome.results or results
+
+    def _record_weight_trace(self, query, trace):
+        """Record effective hybrid weights + a deterministic dominant-signal label."""
+        base_v = getattr(self.config, "hybrid_vector_weight", 1.0) if self.config else 1.0
+        base_k = getattr(self.config, "hybrid_keyword_weight", 1.0) if self.config else 1.0
+        adaptive = bool(getattr(self.config, "hybrid_adaptive", False))
+        if adaptive:
+            from src.copilot.retrieval.adaptive import classify_weight_signal
+            reason, v, k = classify_weight_signal(query, base_vector=base_v, base_keyword=base_k)
+            trace.weight_strategy = "adaptive"
+            trace.weight_reason_code = reason
+            trace.effective_vector_weight, trace.effective_keyword_weight = v, k
+        else:
+            trace.weight_strategy = "configured"
+            trace.weight_reason_code = "DEFAULT_EQUAL" if base_v == base_k else "CONFIGURED_WEIGHTS"
+            trace.effective_vector_weight, trace.effective_keyword_weight = base_v, base_k
 
     # -- stages ------------------------------------------------------------
 

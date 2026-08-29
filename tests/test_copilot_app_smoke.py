@@ -18,8 +18,23 @@ def test_shell_boots_and_exposes_career_routes() -> None:
     at.run()
     assert not at.exception
     options = [opt for radio in at.radio for opt in radio.options]
-    # Grouped display labels (Prepare/Resources/Advanced) for the career routes.
-    for section in ("Career Intelligence", "Knowledge Base", "RAG Inspector", "Evaluation"):
+    # Default (candidate) view: the everyday routes are present...
+    for section in ("Career Intelligence", "Knowledge Base"):
+        assert nav.display_label(section) in options
+    # ...and the Advanced diagnostics are hidden until reviewer mode.
+    for section in ("RAG Inspector", "Evaluation"):
+        assert nav.display_label(section) not in options
+
+
+def test_reviewer_mode_reveals_advanced_routes(monkeypatch) -> None:
+    from src.ui import navigation as nav
+
+    monkeypatch.setenv("COPILOT_REVIEWER_MODE", "true")
+    at = AppTest.from_file(APP_PATH, default_timeout=30)
+    at.run()
+    assert not at.exception
+    options = [opt for radio in at.radio for opt in radio.options]
+    for section in ("RAG Inspector", "Evaluation"):
         assert nav.display_label(section) in options
 
 

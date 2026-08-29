@@ -12,7 +12,9 @@ import streamlit as st
 
 from src.copilot import constants
 from src.copilot.config import CopilotConfig, load_config
+from src.copilot.embeddings import embedding_status
 from src.copilot.logging_utils import configure_logging
+from src.copilot.retrieval.adaptive import dominant_signal
 from src.copilot.rag import build_context
 from src.copilot.retrieval import build_retriever
 from src.ui import shared
@@ -72,6 +74,19 @@ def _render_status(config: CopilotConfig) -> None:
     except Exception:  # pragma: no cover - defensive UI guard
         st.sidebar.write("Indexed chunks: unavailable")
     st.sidebar.caption(f"Vector store: `{config.chroma_persist_dir}`")
+
+    # Embedding quality mode — honest about semantic vs lexical retrieval.
+    status = embedding_status(config)
+    if status["quality_mode"] == "SEMANTIC":
+        st.sidebar.write(f"Embeddings: ✅ SEMANTIC (`{status['model']}`)")
+    else:
+        st.sidebar.write("Embeddings: ⚠ OFFLINE LEXICAL")
+        st.sidebar.caption(
+            "No semantic embedding credential configured — retrieval uses a "
+            "local lexical (hash) embedder. Answers are grounded in real "
+            "sources, but semantic similarity is approximate. Set "
+            "`COPILOT_EMBEDDING_API_KEY` for semantic retrieval."
+        )
 
 
 # --- Chat --------------------------------------------------------------------
@@ -246,6 +261,55 @@ def _render_product_readiness() -> None:
                    "`data/metrics.json` (scripts/gen_metrics.py).")
 
 
+def _render_structured_facts(evidence) -> None:
+    """OPT-3C: surface key structured facts (currency/period/year/geo) visibly.
+
+    Compensation and labour-market context is shown in a small panel rather than
+    being buried inside a metadata expander.
+    """
+    if not evidence:
+        return
+    comp = [e for e in evidence if getattr(e, "evidence_type", "") == "compensation"]
+    labour = [e for e in evidence
+              if getattr(e, "evidence_type", "") in ("forecast", "openings", "shortage", "vacancy")]
+    if not comp and not labour:
+        return
+    with st.expander("Structured facts (context)", expanded=bool(comp)):
+        if comp:
+            st.markdown("**Compensation**")
+            st.dataframe(
+                [{"Occupation": e.occupation_title or "—",
+                  "Statistic": (e.metadata or {}).get("statistic", "—"),
+                  "Value": e.text.split(":", 1)[-1].strip()[:40] if ":" in e.text else "—",
+                  "Currency": (e.metadata or {}).get("currency", "—"),
+                  "Pay period": (e.metadata or {}).get("pay_period", "—"),
+                  "Geography": e.country or e.geography or "—",
+                  "Year": e.reference_year or "—",
+                  "Source": e.source_title or e.source_id} for e in comp[:8]],
+                use_container_width=True, hide_index=True)
+        if labour:
+            st.markdown("**Labour market**")
+            st.dataframe(
+                [{"Type": e.evidence_type, "Occupation": e.occupation_title or "—",
+                  "Geography": e.country or e.geography or "—",
+                  "Year/Period": e.reference_year or "—",
+                  "Source": e.source_title or e.source_id,
+                  "Detail": e.text[:70]} for e in labour[:8]],
+                use_container_width=True, hide_index=True)
+        # Answer-level freshness (OPT-8): show the most recent reference year the
+        # answer draws on, so the user can judge how current the figures are.
+        years = [e.reference_year for e in (comp + labour)
+                 if getattr(e, "reference_year", None)]
+        if years:
+            import datetime as _dt
+            newest = max(years)
+            age = _dt.datetime.now(_dt.timezone.utc).year - int(newest)
+            hint = ("current" if age <= 2 else f"{age} years old — verify against the source")
+            st.caption(f"Most recent figure: **{newest}** ({hint}).")
+        st.caption("Figures keep their currency/period/statistic/geography/year — "
+                   "never compared across contexts.")
+
+
 def _render_tool_executions(executions) -> None:
     if not executions:
         return
@@ -257,6 +321,40 @@ def _render_tool_executions(executions) -> None:
                 st.caption(ex.safe_result_summary)
             if ex.error:
                 st.caption(f"error: {ex.error}")
+
+
+def _render_dry_run(config, job_description, candidate_background, days, hpw) -> None:
+    """Free 'what would this do?' preview — deterministic, no LLM/retrieval/tools."""
+    with st.expander("Preview plan (dry run — no cost)", expanded=False):
+        st.caption(
+            "See which retrieval lanes and tools a question would trigger before "
+            "spending a model call. Uses heuristic routing only."
+        )
+        q = st.text_input("Question to preview", key="dry_run_query")
+        if not st.button("Preview plan", key="dry_run_btn") or not q.strip():
+            return
+        from src.copilot.service import CareerIntelligenceService
+
+        plan = CareerIntelligenceService(config=config).plan(
+            q, job_description=job_description.strip() or None,
+            candidate_background=candidate_background.strip() or None,
+            days_until_interview=int(days) or None,
+            hours_per_week=float(hpw) or None,
+        )
+        pcols = st.columns(3)
+        pcols[0].metric("Intent", plan.intent)
+        pcols[1].metric("Lane", plan.retrieval_lane)
+        pcols[2].metric("Country", plan.detected_country or "—")
+        st.write("**Planned steps**")
+        for i, step in enumerate(plan.steps, start=1):
+            st.markdown(f"{i}. {step}")
+        if plan.tools_expected_to_run:
+            st.caption("Tools that would run: " + ", ".join(plan.tools_expected_to_run))
+        if plan.tools_skipped_no_input:
+            st.warning("Would be skipped (missing inputs): "
+                       + ", ".join(plan.tools_skipped_no_input))
+        for note in plan.notes:
+            st.caption(f"• {note}")
 
 
 def _page_chat() -> None:
@@ -294,6 +392,8 @@ def _page_chat() -> None:
         # Carry a safe summary for the interview handoff (never raw files).
         st.session_state["company_context_summary"] = company_context.safe_summary()
 
+    _render_dry_run(config, job_description, candidate_background, days, hpw)
+
     st.session_state.setdefault("chat_history", [])
 
     # Starter prompts on an empty conversation (reviewer-friendly entry points).
@@ -309,6 +409,7 @@ def _page_chat() -> None:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
             if message["role"] == "assistant":
+                _render_structured_facts(message.get("evidence", []))
                 _render_sources(message.get("results", []), message.get("citations", []))
                 _render_tool_executions(message.get("tool_calls", []))
 
@@ -324,6 +425,7 @@ def _page_chat() -> None:
     with st.chat_message("user"):
         st.markdown(prompt)
 
+    from src.copilot.cache import TTLCache
     from src.copilot.knowledge.retrieval import build_default_coordinator
     from src.copilot.service import CareerIntelligenceService
 
@@ -331,8 +433,15 @@ def _page_chat() -> None:
     retriever = build_retriever(config, mode=mode, store=store)
     # Production: wire the real structured stores into the chat answer.
     coordinator = build_default_coordinator(config)
+    # Persist the translation cache across per-query service instances (OPT-4).
+    if "translation_cache" not in st.session_state:
+        st.session_state["translation_cache"] = TTLCache(
+            ttl_seconds=config.query_cache_ttl_seconds,
+            max_entries=config.query_cache_max_entries,
+        )
     service = CareerIntelligenceService(
-        config=config, retriever=retriever, knowledge_coordinator=coordinator
+        config=config, retriever=retriever, knowledge_coordinator=coordinator,
+        translation_cache=st.session_state["translation_cache"],
     )
 
     with st.chat_message("assistant"):
@@ -363,6 +472,7 @@ def _page_chat() -> None:
             status.update(label="Done", state="complete")
 
         st.markdown(result.answer)
+        _render_structured_facts(result.response.evidence)
         _render_sources(result.retrieved, result.citations)
         _render_tool_executions(result.tool_calls)
 
@@ -373,6 +483,7 @@ def _page_chat() -> None:
             "content": result.answer,
             "citations": result.citations,
             "results": result.retrieved,
+            "evidence": result.response.evidence,
             "tool_calls": result.tool_calls,
         }
     )
@@ -432,6 +543,14 @@ def _render_source_sections() -> None:
     cols[1].metric("Structured records", f"{health['structured_records']:,}")
     cols[2].metric("Vector chunks", f"{health['vector_chunks']:,}")
     cols[3].metric("Licence review", health["licence_review"])
+    # Freshness (OPT-8): available sources by refresh status.
+    cols = st.columns(3)
+    cols[0].metric("Current", health["fresh_current"])
+    cols[1].metric("Refresh due", health["refresh_due"])
+    cols[2].metric("Freshness unknown", health["freshness_unknown"])
+    if health["refresh_due"]:
+        st.caption("Some sources are **refresh due** — run "
+                   "`python scripts/check_source_freshness.py` for the list.")
 
     # Last refresh (from the generated status file) + missing critical sources.
     status_path = constants.SOURCE_STATUS_PATH
@@ -470,6 +589,12 @@ def _render_source_sections() -> None:
             return "—"
         return "✅ PRODUCTION READY" if s.production_ready else "⛔ NOT PRODUCTION READY"
 
+    def _fresh_badge(s) -> str:
+        if not s or not s.available_for_retrieval:
+            return "—"
+        return {"CURRENT": "🟢 CURRENT", "REFRESH DUE": "🟠 REFRESH DUE"}.get(
+            s.freshness, "⚪ UNKNOWN")
+
     def _row(e):
         s = statuses.get(e.source_id)
         return {
@@ -481,6 +606,7 @@ def _render_source_sections() -> None:
             "Origin": (s.data_origin or "—") if s else "—",
             "Data": _origin_badge(s),
             "Production": _prod_badge(s),
+            "Freshness": _fresh_badge(s),
             "Lifecycle": s.lifecycle if s else "CONFIGURED",
             "Licence": "review" if e.licence_review_required else (e.licence or "—"),
             "Source link": e.source_url or "",
@@ -639,6 +765,32 @@ def _page_rag_inspector() -> None:
         mcols[1].metric("Queries", trace.translated_query_count)
         mcols[2].metric("Context", trace.context_count)
         mcols[3].metric("Latency (ms)", trace.retrieval_latency_ms)
+
+        # Hybrid calibration (OPT-2): effective weights + dominant signal.
+        if (trace.retrieval_strategy or "").lower() == "hybrid":
+            st.markdown("**Hybrid calibration**")
+            wcols = st.columns(4)
+            wcols[0].metric("Vector weight", getattr(trace, "effective_vector_weight", "—"))
+            wcols[1].metric("Keyword weight", getattr(trace, "effective_keyword_weight", "—"))
+            wcols[2].metric("Weighting", getattr(trace, "weight_strategy", "—") or "—")
+            wcols[3].metric("Reranker", getattr(trace, "reranker_provider", "none") or "none")
+            reason = getattr(trace, "weight_reason_code", "")
+            if reason:
+                st.caption(f"Weight signal: `{reason}`")
+            if getattr(trace, "reranker_used", False):
+                st.caption(
+                    f"Reranked {getattr(trace, 'reranked_count', 0)} candidate(s) in "
+                    f"{getattr(trace, 'reranker_latency_ms', 0)} ms."
+                )
+        if getattr(trace, "quality_mode", ""):
+            cache_bits = []
+            if getattr(trace, "translation_cache_hit", False):
+                cache_bits.append("translation cache hit")
+            if getattr(trace, "structured_cache_hit", False):
+                cache_bits.append("structured cache hit")
+            cache_note = f" · {', '.join(cache_bits)}" if cache_bits else ""
+            st.caption(f"Quality mode: `{trace.quality_mode}`{cache_note}")
+
         st.markdown("**Security**")
         scols = st.columns(3)
         scols[0].write(f"Input verdict: `{trace.input_verdict}`")
@@ -668,6 +820,12 @@ def _page_rag_inspector() -> None:
             _results_table(trace.keyword_results)
         st.write(f"Fused ranking ({len(trace.fused_results)})")
         _results_table(trace.fused_results)
+        if trace.vector_results or trace.keyword_results:
+            st.caption(
+                "Dominant signal: "
+                + dominant_signal(trace.vector_results, trace.keyword_results,
+                                  trace.fused_results)
+            )
         if trace.evidence_sources:
             st.write("Final evidence sources:")
             for src in trace.evidence_sources:
@@ -894,6 +1052,22 @@ def _render_practise_this_role(ss, role_req) -> None:
     cols[0].write(f"**Top competencies:** {', '.join(prev['top_competencies']) or '—'}")
     cols[1].write(f"**Priority gaps:** {', '.join(prev['priority_gaps']) or '—'}")
     cols[1].write(f"**Likely interview themes:** {', '.join(prev['likely_themes']) or '—'}")
+
+    # Provenance labels (OPT-5): show what each part of this handoff is derived
+    # from, so the user knows which facts are grounded vs tool-derived.
+    prov = []
+    prov.append("Requirements: Job Description Analyzer" if role_req else None)
+    prov.append("Fit (strengths/gaps): deterministic Gap Analyzer" if gap else None)
+    prov.append(f"Grounding sources: {context.source_count}" if context.source_count
+                else "Grounding sources: none retrieved")
+    st.caption("Provenance — " + " · ".join(p for p in prov if p))
+    if context.source_references:
+        with st.expander(f"Grounding sources ({context.source_count})", expanded=False):
+            for ref in context.source_references:
+                label = ref.title or ref.source or "source"
+                page = f" (p.{ref.page})" if ref.page else ""
+                st.markdown(f"- {label}{page}")
+
     st.caption(
         "Sends this preparation to Interview Practice to pre-fill a setup you can "
         "review and edit. It never starts an interview automatically."

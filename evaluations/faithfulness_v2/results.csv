@@ -1,0 +1,9 @@
+query,evidence,provenance_complete,citation_linked,salary_context,citation_precision,insufficient_correct
+What does a Data Analyst do?,1,True,True,,1.0,True
+What does an HR Manager earn in the US?,2,True,True,True,1.0,True
+What does an HR Manager earn in Germany?,2,True,True,True,1.0,False
+What digital competencies does a manager need?,12,True,True,,1.0,True
+What are cybersecurity incident response responsibilities?,12,True,True,,1.0,True
+Is there a shortage of software developers in Germany?,1,True,True,,1.0,True
+How many job openings are expected for nurses in the US?,6,True,True,,1.0,True
+What is the meaning of life?,0,,,,,True
