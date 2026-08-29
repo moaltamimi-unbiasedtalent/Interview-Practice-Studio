@@ -43,6 +43,7 @@ data/chroma/*
 data/processed/*
 data/raw/*
 data/knowledge/*
+data/knowledge_demo/
 !data/raw/.gitkeep
 !data/raw/README.md
 !data/processed/.gitkeep

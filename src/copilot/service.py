@@ -105,6 +105,28 @@ class PipelineTrace:
 
 
 @dataclass
+class PipelinePlan:
+    """A dry-run description of what a query *would* trigger — no LLM, no cost.
+
+    Built entirely from deterministic heuristics (heuristic translation, the
+    regex router, the fixed intent→route table) so the user can preview the
+    intended steps before spending a synthesis call.
+    """
+
+    query: str
+    intent: str
+    retrieval_lane: str
+    lane_reason: str
+    detected_country: str | None
+    rag_required: bool
+    tools_planned: list[str] = field(default_factory=list)
+    tools_expected_to_run: list[str] = field(default_factory=list)
+    tools_skipped_no_input: list[str] = field(default_factory=list)
+    steps: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass
 class OrchestrationResult:
     """The service's result: a grounded response plus the pipeline trace."""
 
@@ -366,6 +388,73 @@ class CareerIntelligenceService:
             usage=usage,
         )
         return OrchestrationResult(response=response, trace=trace)
+
+    # -- dry-run planning (OPT-5) ------------------------------------------
+
+    def plan(
+        self,
+        query: str,
+        *,
+        job_description: str | None = None,
+        candidate_background: str | None = None,
+        days_until_interview: int | None = None,
+        hours_per_week: float | None = None,
+    ) -> PipelinePlan:
+        """Preview what ``query`` would trigger, using only deterministic
+        heuristics — no query-translation LLM call, no retrieval, no synthesis,
+        no tool execution. Safe to call for free before running ``answer``.
+        """
+        from src.copilot.knowledge.router import detect_country, route_question
+        from src.copilot.rag.translation import heuristic_translation
+
+        cleaned = validate_input(query or "", "query").cleaned
+        translated = heuristic_translation(cleaned)
+        route_decision = route_question(cleaned)
+        route = route_for_intent(translated.intent)
+        rag_required = route.rag_required and translated.retrieval_required
+
+        # Predict tool execution from the same input-gating rules as _run_tools,
+        # without invoking anything.
+        planned = list(route.tools)
+        expected: list[str] = []
+        skipped: list[str] = []
+        have_jd = bool(job_description)
+        have_bg = bool(candidate_background)
+        for tool in planned:
+            if tool == constants.TOOL_JOB_ANALYZER:
+                (expected if have_jd else skipped).append(tool)
+            elif tool == constants.TOOL_GAP_ANALYZER:
+                (expected if (have_jd and have_bg) else skipped).append(tool)
+            elif tool == constants.TOOL_PREP_PLANNER:
+                ready = have_jd and have_bg and days_until_interview and hours_per_week
+                (expected if ready else skipped).append(tool)
+            elif tool == constants.TOOL_QUESTION_GENERATOR:
+                expected.append(tool)  # runs from retrieved context
+            else:
+                expected.append(tool)
+
+        steps = ["Validate + injection-scan the question"]
+        if rag_required:
+            steps.append("Hybrid retrieval over the knowledge base")
+        if route_decision.lane and route_decision.lane != "vector":
+            steps.append(f"Structured retrieval (lane: {route_decision.lane})")
+        if expected:
+            steps.append("Run tools: " + ", ".join(expected))
+        steps.append("Synthesise a grounded, cited answer")
+
+        notes: list[str] = []
+        if skipped:
+            notes.append("Provide more inputs to enable: " + ", ".join(skipped))
+        notes.append("Preview only — heuristic routing; the live run may refine "
+                     "the intent with the translation model.")
+
+        return PipelinePlan(
+            query=cleaned, intent=translated.intent,
+            retrieval_lane=route_decision.lane, lane_reason=route_decision.reason,
+            detected_country=detect_country(cleaned), rag_required=rag_required,
+            tools_planned=planned, tools_expected_to_run=expected,
+            tools_skipped_no_input=skipped, steps=steps, notes=notes,
+        )
 
     # -- retrieval calibration (OPT-1B / OPT-2) ----------------------------
 

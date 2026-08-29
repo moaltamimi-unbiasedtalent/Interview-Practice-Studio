@@ -16,6 +16,28 @@ def _go(route: str) -> None:
     st.rerun()
 
 
+def _render_journey_progress() -> None:
+    """Compact Prepare → Practise progress based on real session milestones."""
+    from src.integration import handoff
+
+    ss = st.session_state
+    explored = bool(ss.get("chat_history") or ss.get("last_inspection"))
+    planned = handoff.has_context(ss)
+    practised = handoff.get_interview_summary(ss) is not None
+
+    stages = [
+        ("Explore a role", explored),
+        ("Build a plan", planned),
+        ("Practise", practised),
+    ]
+    done = sum(1 for _, ok in stages)
+    st.caption(f"Your journey · {done}/{len(stages)} steps")
+    st.progress(done / len(stages))
+    cols = st.columns(len(stages))
+    for col, (label, ok) in zip(cols, stages):
+        col.markdown(f"{'✅' if ok else '⬜'} {label}")
+
+
 def render_home() -> None:
     shared.page_header(
         nav.APP_TITLE,
@@ -53,6 +75,8 @@ def render_home() -> None:
         "straight to Interview Practice with **Practise this role**.",
         icon="🧭",
     )
+
+    _render_journey_progress()
 
     st.divider()
     shared.section_header("How it works")

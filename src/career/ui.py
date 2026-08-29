@@ -313,6 +313,40 @@ def _render_tool_executions(executions) -> None:
                 st.caption(f"error: {ex.error}")
 
 
+def _render_dry_run(config, job_description, candidate_background, days, hpw) -> None:
+    """Free 'what would this do?' preview — deterministic, no LLM/retrieval/tools."""
+    with st.expander("Preview plan (dry run — no cost)", expanded=False):
+        st.caption(
+            "See which retrieval lanes and tools a question would trigger before "
+            "spending a model call. Uses heuristic routing only."
+        )
+        q = st.text_input("Question to preview", key="dry_run_query")
+        if not st.button("Preview plan", key="dry_run_btn") or not q.strip():
+            return
+        from src.copilot.service import CareerIntelligenceService
+
+        plan = CareerIntelligenceService(config=config).plan(
+            q, job_description=job_description.strip() or None,
+            candidate_background=candidate_background.strip() or None,
+            days_until_interview=int(days) or None,
+            hours_per_week=float(hpw) or None,
+        )
+        pcols = st.columns(3)
+        pcols[0].metric("Intent", plan.intent)
+        pcols[1].metric("Lane", plan.retrieval_lane)
+        pcols[2].metric("Country", plan.detected_country or "—")
+        st.write("**Planned steps**")
+        for i, step in enumerate(plan.steps, start=1):
+            st.markdown(f"{i}. {step}")
+        if plan.tools_expected_to_run:
+            st.caption("Tools that would run: " + ", ".join(plan.tools_expected_to_run))
+        if plan.tools_skipped_no_input:
+            st.warning("Would be skipped (missing inputs): "
+                       + ", ".join(plan.tools_skipped_no_input))
+        for note in plan.notes:
+            st.caption(f"• {note}")
+
+
 def _page_chat() -> None:
     st.subheader("Chat")
     config = _config()
@@ -347,6 +381,8 @@ def _page_chat() -> None:
     if company_context is not None:
         # Carry a safe summary for the interview handoff (never raw files).
         st.session_state["company_context_summary"] = company_context.safe_summary()
+
+    _render_dry_run(config, job_description, candidate_background, days, hpw)
 
     st.session_state.setdefault("chat_history", [])
 
@@ -991,6 +1027,22 @@ def _render_practise_this_role(ss, role_req) -> None:
     cols[0].write(f"**Top competencies:** {', '.join(prev['top_competencies']) or '—'}")
     cols[1].write(f"**Priority gaps:** {', '.join(prev['priority_gaps']) or '—'}")
     cols[1].write(f"**Likely interview themes:** {', '.join(prev['likely_themes']) or '—'}")
+
+    # Provenance labels (OPT-5): show what each part of this handoff is derived
+    # from, so the user knows which facts are grounded vs tool-derived.
+    prov = []
+    prov.append("Requirements: Job Description Analyzer" if role_req else None)
+    prov.append("Fit (strengths/gaps): deterministic Gap Analyzer" if gap else None)
+    prov.append(f"Grounding sources: {context.source_count}" if context.source_count
+                else "Grounding sources: none retrieved")
+    st.caption("Provenance — " + " · ".join(p for p in prov if p))
+    if context.source_references:
+        with st.expander(f"Grounding sources ({context.source_count})", expanded=False):
+            for ref in context.source_references:
+                label = ref.title or ref.source or "source"
+                page = f" (p.{ref.page})" if ref.page else ""
+                st.markdown(f"- {label}{page}")
+
     st.caption(
         "Sends this preparation to Interview Practice to pre-fill a setup you can "
         "review and edit. It never starts an interview automatically."
