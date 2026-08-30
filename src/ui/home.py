@@ -30,7 +30,7 @@ def _render_journey_progress() -> None:
         ("Build a plan", planned),
         ("Practise", practised),
     ]
-    done = sum(1 for _, ok in stages)
+    done = sum(1 for _, ok in stages if ok)
     st.caption(f"Your journey · {done}/{len(stages)} steps")
     st.progress(done / len(stages))
     cols = st.columns(len(stages))

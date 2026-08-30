@@ -62,33 +62,6 @@ def _render_header(config: CopilotConfig) -> None:
         )
 
 
-def _render_status(config: CopilotConfig) -> None:
-    # Status booleans only — never secret values.
-    st.sidebar.divider()
-    st.sidebar.markdown("### Status")
-    st.sidebar.write(f"Model: `{config.default_model}`")
-    st.sidebar.write(f"OpenRouter configured: {'✅' if config.is_configured else '❌'}")
-    try:
-        count = _get_store(config).count()
-        st.sidebar.write(f"Indexed chunks: {count}")
-    except Exception:  # pragma: no cover - defensive UI guard
-        st.sidebar.write("Indexed chunks: unavailable")
-    st.sidebar.caption(f"Vector store: `{config.chroma_persist_dir}`")
-
-    # Embedding quality mode — honest about semantic vs lexical retrieval.
-    status = embedding_status(config)
-    if status["quality_mode"] == "SEMANTIC":
-        st.sidebar.write(f"Embeddings: ✅ SEMANTIC (`{status['model']}`)")
-    else:
-        st.sidebar.write("Embeddings: ⚠ OFFLINE LEXICAL")
-        st.sidebar.caption(
-            "No semantic embedding credential configured — retrieval uses a "
-            "local lexical (hash) embedder. Answers are grounded in real "
-            "sources, but semantic similarity is approximate. Set "
-            "`COPILOT_EMBEDDING_API_KEY` for semantic retrieval."
-        )
-
-
 # --- Chat --------------------------------------------------------------------
 
 
@@ -1317,6 +1290,18 @@ def render_sidebar() -> None:
     """Career-specific sidebar: a friendly status; technical controls are secondary."""
     config = _config()
     st.sidebar.caption(f"Model ready: {'✅' if config.is_configured else '❌ add API key'}")
+
+    # Embedding quality mode — honest about semantic vs lexical retrieval (OPT-1).
+    emb = embedding_status(config)
+    if emb["quality_mode"] == "SEMANTIC":
+        st.sidebar.caption(f"Embeddings: ✅ SEMANTIC (`{emb['model']}`)")
+    else:
+        st.sidebar.caption(
+            "Embeddings: ⚠ OFFLINE LEXICAL — no semantic embedding credential, so "
+            "retrieval uses a local lexical (hash) embedder. Answers stay grounded "
+            "in real sources, but semantic similarity is approximate. Set "
+            "`COPILOT_EMBEDDING_API_KEY` for semantic retrieval."
+        )
 
     # Technical controls kept out of the way (developer/advanced).
     default_mode_index = (
