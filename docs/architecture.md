@@ -169,6 +169,17 @@ Evaluation are reachable in every mode. Reviewer mode is now purely presentation
 (it shows a "Reviewer mode" caption and may default advanced sections expanded);
 `reviewer_mode` remains a `CopilotConfig` field for that purpose.
 
+### Evaluation layers
+
+Two layers, kept separate. The **primary** layer is deterministic and offline —
+retrieval/routing/coverage metrics (11R, 11R-A, KB-2, product coverage,
+quality_v2, faithfulness_v2) that form the CI quality gate. The **secondary**
+layer is **optional RAGAS** (`src/copilot/evaluation/ragas_adapter.py`,
+`scripts/eval_ragas.py`): LLM-judged generation quality (Faithfulness, Response
+Relevancy, Context Precision, Context Recall) over public held-out cases. RAGAS is
+lazy-imported, never part of the chat runtime or CI, and degrades to a clean NOT
+RUN without evaluator credentials — see [`ragas_evaluation.md`](ragas_evaluation.md).
+
 ## Tests
 
 [`tests/test_copilot_orchestration.py`](../tests/test_copilot_orchestration.py)

@@ -192,3 +192,27 @@ precedence (1.0) and coverage — without touching the 11R / 11R-A baseline.
 **What are the limitations?** Synthetic sample data (so numbers are illustrative),
 a lexical offline embedder (semantic quality needs an OpenAI key), best-effort
 injection defence, and live LLM/speech/live paths that need credentials.
+
+## RAGAS — generation-quality evaluation (optional, secondary)
+
+**Talk track.** "I evaluate Career Intelligence at two levels. First,
+deterministic retrieval metrics such as Hit@K, MRR and Recall@K tell me whether
+the right evidence was retrieved. Second, RAGAS evaluates the generated answer
+itself — for example, whether the answer is faithful to the retrieved context and
+relevant to the question. I keep RAGAS optional and outside normal CI because its
+evaluator metrics use an LLM and can have cost and variability."
+
+**The RAGAS metrics in plain language:**
+
+- **Faithfulness** — did the answer stay supported by its evidence?
+- **Response Relevancy** — did the answer answer the question?
+- **Context Precision** — was the retrieved evidence useful rather than noisy?
+- **Context Recall** — did retrieval capture enough of what a reference answer
+  needs? (Only run where a credible reference exists.)
+
+RAGAS is **not** the production RAG engine and does **not** replace the
+deterministic retrieval evaluation. It runs only on public held-out cases
+(`evaluations/ragas/cases.json`), never on private candidate/company data, and
+only when evaluator credentials are configured — otherwise the CLI and the
+Evaluation page report a clean NOT RUN. See
+[`docs/ragas_evaluation.md`](ragas_evaluation.md).
