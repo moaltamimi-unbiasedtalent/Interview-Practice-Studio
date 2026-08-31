@@ -893,6 +893,21 @@ def _run_tool(invoker, name: str, args: dict):
     return result.result
 
 
+def _invalidate_downstream_role_state(session_state) -> None:
+    """Clear Career Tool state derived from a previous role after a new analysis.
+
+    A fresh Job Description Analyzer result makes the old gap analysis, plan,
+    questions, confirmed handoff role and any active PreparationContext stale, so
+    they are dropped to prevent them leaking into the new role's handoff.
+    Unrelated Career chat/history is deliberately left untouched.
+    """
+    from src.integration import handoff as _handoff
+
+    for key in ("gap_result", "prep_plan", "question_set", "handoff_target_role"):
+        session_state.pop(key, None)
+    _handoff.clear_context(session_state)
+
+
 def _page_tools() -> None:
     st.subheader("Career Tools")
     st.caption(
@@ -916,6 +931,8 @@ def _page_tools() -> None:
                 ss["role_requirements"] = _run_tool(
                     invoker, constants.TOOL_JOB_ANALYZER, {"job_description": jd}
                 )
+            # A new role invalidates data derived from the previous one.
+            _invalidate_downstream_role_state(ss)
     role_req = ss.get("role_requirements")
     if role_req is not None:
         st.write(f"**Role:** {role_req.role_title or 'n/a'} · **Seniority:** {role_req.seniority or 'n/a'}")
@@ -1000,10 +1017,31 @@ def _page_tools() -> None:
     _render_tools_used()
 
 
+def _resolve_handoff_target_role(role_req, session_state) -> str:
+    """Resolve the target role for the handoff (deterministic; never fabricated).
+
+    Precedence: (1) the analyser's ``role_title`` when non-empty, else (2) a
+    manually confirmed role held in ``handoff_target_role``, else (3) "".
+    Values are trimmed; no role is inferred from arbitrary text.
+    """
+    analyser_role = ((getattr(role_req, "role_title", None) or "").strip()
+                     if role_req is not None else "")
+    if analyser_role:
+        return analyser_role
+    return (session_state.get("handoff_target_role") or "").strip()
+
+
 def _render_practise_this_role(ss, role_req) -> None:
-    """Offer a handoff to Interview Practice once a role has been analysed."""
+    """Offer a handoff to Interview Practice once a role has been analysed.
+
+    The handoff requires a target role. If the analyser did not identify one, the
+    user is asked to confirm/enter it before a :class:`PreparationContext` is ever
+    built — the domain contract (target role mandatory) is preserved.
+    """
     if role_req is None:
         return
+    from pydantic import ValidationError
+
     from src.integration import handoff
     from src.integration.preparation_context import build_preparation_context
 
@@ -1011,13 +1049,48 @@ def _render_practise_this_role(ss, role_req) -> None:
     st.markdown("### Practise this role")
     gap = ss.get("gap_result")
     evidence = (ss.get("last_inspection") or {}).get("results") or []
-    context = build_preparation_context(
-        role_requirements=role_req,
-        gap_result=gap,
-        evidence=evidence,
-        job_description=ss.get("tool_jd") or None,
-        company_context=ss.get("company_context_summary") or None,
-    )
+
+    analyser_role = (getattr(role_req, "role_title", None) or "").strip()
+    if not analyser_role:
+        # The analyser could not identify a role — ask the user to confirm one
+        # rather than fabricating a placeholder.
+        st.warning("Target role needed")
+        st.caption(
+            "The job analysis did not identify a target role confidently. Enter "
+            "or confirm the role before creating the Interview Practice handoff."
+        )
+        # Seed once from the Question Generator role if it is already populated.
+        if "handoff_target_role" not in ss:
+            seed = (ss.get("tool_role") or "").strip()
+            if seed:
+                ss["handoff_target_role"] = seed
+        st.text_input("Target role", key="handoff_target_role")
+
+    target_role = _resolve_handoff_target_role(role_req, ss)
+    if not target_role:
+        st.button("Practise this role", type="primary",
+                  key="practise_this_role", disabled=True)
+        st.caption("Add a target role above to enable the handoff.")
+        return
+
+    # Build the context defensively: an expected domain-validation error must
+    # surface as a friendly message, never a raw traceback.
+    try:
+        context = build_preparation_context(
+            target_role=target_role,
+            role_requirements=role_req,
+            gap_result=gap,
+            evidence=evidence,
+            job_description=ss.get("tool_jd") or None,
+            company_context=ss.get("company_context_summary") or None,
+        )
+    except (ValueError, ValidationError):
+        st.warning("Could not prepare the handoff — a valid target role is required.")
+        st.caption("Confirm the target role above and try again.")
+        st.button("Practise this role", type="primary",
+                  key="practise_this_role", disabled=True)
+        return
+
     prev = handoff.preview(context)
     cols = st.columns(2)
     cols[0].write(f"**Role:** {prev['role']}")
