@@ -50,11 +50,18 @@ db = [
     "alembic>=1.13,<2.0",
     "psycopg[binary]>=3.1,<4.0",
 ]
-# Evaluation harnesses (retrieval comparison, RAG + injection evaluation) are
-# pure-Python and run on the base install; this group is a stable alias for
-# discoverability and future optional evaluation tooling.
+# Optional generation-quality evaluation with RAGAS. The deterministic retrieval
+# harnesses are pure-Python and run on the base install; RAGAS is an OPTIONAL
+# secondary layer (LLM-judged Faithfulness / Response Relevancy / Context
+# Precision / Context Recall) that is never part of normal CI or the app runtime.
+# The adapter lazy-imports RAGAS, so the base app runs without this group.
+# RAGAS >=0.2 provides the modern API used here (SingleTurnSample /
+# EvaluationDataset / metric classes / evaluate + Langchain*Wrapper).
 # Install with:  pip install -e ".[evaluation]"
-evaluation = []
+evaluation = [
+    "ragas>=0.2,<0.3",
+    "langchain-openai>=0.2,<1.0",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
