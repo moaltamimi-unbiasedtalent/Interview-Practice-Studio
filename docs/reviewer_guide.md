@@ -3,10 +3,11 @@
 Short, plain answers to the concepts a reviewer may ask about. (No step-by-step
 model reasoning — just what each thing is and why it's here.)
 
-**How is the app navigated?** The sidebar has two groups. The **primary product
-journey** is a radio at the top: Home, Career Intelligence, Interview Practice,
-Knowledge Base. Below the normal sidebar content is a **Review & diagnostics**
-section with two buttons that are **always available** (no reviewer flag needed):
+**How is the app navigated?** The sidebar has two groups of buttons. The
+**primary product journey** is at the top: Home, Career Intelligence, Interview
+Practice, Knowledge Base (the current page's button is highlighted and disabled).
+Below the normal sidebar content is a **Review & diagnostics** section with two
+buttons that are **always available** (no reviewer flag needed):
 
 - **RAG Inspector** — shows how the *last* Career Intelligence question was
   understood and retrieved: query translation/intent, structured retrieval
