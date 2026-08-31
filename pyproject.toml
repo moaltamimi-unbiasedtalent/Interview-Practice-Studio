@@ -55,12 +55,16 @@ db = [
 # secondary layer (LLM-judged Faithfulness / Response Relevancy / Context
 # Precision / Context Recall) that is never part of normal CI or the app runtime.
 # The adapter lazy-imports RAGAS, so the base app runs without this group.
-# RAGAS >=0.2 provides the modern API used here (SingleTurnSample /
-# EvaluationDataset / metric classes / evaluate + Langchain*Wrapper).
-# Install with:  pip install -e ".[evaluation]"
+# Pinned to the 0.2.x API actually verified against this repo (ragas 0.2.15 with
+# langchain 0.3.30 / langchain-core 0.3.86 / langchain-openai 0.3.35 / pydantic
+# 2.13.5 / openai 2.54.0 on Python 3.11): SingleTurnSample / EvaluationDataset /
+# metric classes / evaluate + Langchain*Wrapper. Floor at the tested 0.2.15 for
+# reproducibility; cap below 0.3 so an unreviewed API change cannot slip in.
+# langchain-openai is already a base dependency (evaluator wrapper) — pinned here
+# to the same <0.4 range for consistency. Install with:  pip install -e ".[evaluation]"
 evaluation = [
-    "ragas>=0.2,<0.3",
-    "langchain-openai>=0.2,<1.0",
+    "ragas>=0.2.15,<0.3",
+    "langchain-openai>=0.2,<0.4",
 ]
 
 [tool.pytest.ini_options]

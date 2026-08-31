@@ -22,9 +22,34 @@ primary CI quality gate.
 
 ## RAGAS version / API
 
-- Pinned `ragas>=0.2,<0.3` (plus `langchain-openai>=0.2,<1.0`) — the modern RAGAS
-  API: `SingleTurnSample`, `EvaluationDataset`, metric classes, and `evaluate()`
-  with `LangchainLLMWrapper` / `LangchainEmbeddingsWrapper`.
+- Pinned `ragas>=0.2.15,<0.3` (plus `langchain-openai>=0.2,<0.4`, matching the
+  base range). **Verified by a clean-venv install** on Python 3.11.15:
+
+  | package | version |
+  |---|---|
+  | ragas | 0.2.15 |
+  | langchain | 0.3.30 |
+  | langchain-core | 0.3.86 |
+  | langchain-openai | 0.3.35 |
+  | pydantic | 2.13.5 |
+  | openai | 2.54.0 |
+
+  `pip check` reports no broken requirements. All lazy imports the adapter uses
+  (`SingleTurnSample`, `EvaluationDataset`, `Faithfulness`, `ResponseRelevancy`,
+  `LLMContextPrecisionWithoutReference`, `LLMContextRecall`, `LangchainLLMWrapper`,
+  `LangchainEmbeddingsWrapper`, `evaluate`, and `langchain_openai.ChatOpenAI` /
+  `OpenAIEmbeddings`) resolve and construct.
+
+- **Why this pin:** the adapter was written for the 0.2.x API (verified with
+  0.2.15), which is compatible with the repo's `langchain>=0.3,<0.4`,
+  `langchain-openai <0.4`, Pydantic v2 and Python 3.10+. The floor is the tested
+  0.2.15 for reproducibility; the `<0.3` cap keeps an unreviewed API change from
+  slipping in. RAGAS 0.4 is intentionally **not** adopted in this hardening pass.
+
+- Metric-name mapping (project → RAGAS class → RAGAS column):
+  `response_relevancy` maps to `ResponseRelevancy`, whose RAGAS column is
+  `answer_relevancy`; the adapter normalises via each metric's `.name`.
+
 - Metric-name mapping (project → RAGAS class):
   - `faithfulness` → `Faithfulness`
   - `response_relevancy` → `ResponseRelevancy` (formerly "answer relevancy")
@@ -45,6 +70,24 @@ included in this phase (the deterministic tool-selection benchmark stands).
 compensation, labour-market, shortages, transition, digital competency,
 cybersecurity, seniority, mixed, and insufficient-evidence — spanning US, UK,
 Germany and EU/global.
+
+## Compatibility verification (RAGAS-1A)
+
+- **Optional extra installs:** `pip install -e ".[evaluation]"` succeeds in a
+  clean Python 3.11 venv (versions above; `pip check` clean).
+- **Base install still clean:** in the base venv (no `[evaluation]`), `import app`
+  works and `ragas` is not present — the product runtime does not depend on RAGAS.
+- **Offline integration tests pass both ways:**
+  - RAGAS **absent** (base `.venv`): `pytest tests/test_ragas_adapter.py` → 16
+    passed, 1 skipped (the installed-only import check skips).
+  - RAGAS **installed** (clean venv): same file → 16 passed, 1 skipped (the
+    missing-package check skips; the installed-import check runs).
+  - Full suite with all extras incl. RAGAS: **1227 passed, 2 skipped** — same pass
+    count as the base env, so RAGAS breaks nothing (Career Intelligence, Interview
+    Practice, RAG Inspector, Evaluation, navigation, handoff, security all pass).
+- **CLI with RAGAS installed but no credentials:** `python scripts/eval_ragas.py`
+  and `--live` both print the NOT-RUN message and exit 0 — no traceback, no
+  network call, no key required.
 
 ## Live evaluation run
 

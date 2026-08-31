@@ -1,14 +1,18 @@
 """Offline coverage for the optional RAGAS evaluation layer.
 
-RAGAS is never installed in the test environment and never called over the
-network here — every RAGAS entry point is injected/mocked. These tests prove the
-adapter, CLI and UI degrade cleanly and convert data safely.
+These tests never make a network call — every RAGAS entry point is
+injected/mocked. They are robust to RAGAS being installed OR absent: the
+"missing package" paths are skipped when RAGAS is present, and an extra check
+runs only when it is present. Evaluator credentials are always cleared so the
+result never depends on the ambient environment.
 """
 
 from __future__ import annotations
 
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -21,6 +25,15 @@ _CLI_SPEC = importlib.util.spec_from_file_location(
     "eval_ragas", ROOT / "scripts" / "eval_ragas.py")
 cli = importlib.util.module_from_spec(_CLI_SPEC)
 _CLI_SPEC.loader.exec_module(cli)
+
+_RAGAS_PRESENT = ra.ragas_available()
+
+
+@pytest.fixture(autouse=True)
+def _no_ambient_evaluator_creds(monkeypatch):
+    """Credential-dependent behaviour must not depend on the ambient env."""
+    for var in ("RAGAS_EVAL_API_KEY", "RAGAS_EVAL_BASE_URL", "RAGAS_EVAL_MODEL"):
+        monkeypatch.delenv(var, raising=False)
 
 
 # --- Fakes (no ragas import) -------------------------------------------------
@@ -65,29 +78,47 @@ def _service_result(answer="A data analyst interprets data [1].", *, with_eviden
 # --- A/B: base app + lazy import --------------------------------------------
 
 
-def test_A_base_app_imports_without_ragas() -> None:
-    assert ra.ragas_available() is False  # not installed in the test env
+def test_A_base_app_imports_without_requiring_ragas() -> None:
+    # The product runtime must import whether or not RAGAS is installed.
     import app  # noqa: F401
     from src.copilot.service import CareerIntelligenceService  # noqa: F401
+    assert isinstance(ra.ragas_available(), bool)
 
 
-def test_B_adapter_import_does_not_import_ragas() -> None:
-    import sys
-    # Importing the adapter must not pull in ragas.
-    assert "ragas" not in sys.modules
+def test_B_adapter_import_is_lazy() -> None:
+    # A fresh interpreter importing only the adapter must NOT load ragas
+    # (proves the imports are lazy regardless of whether ragas is installed).
+    code = (
+        "import sys; import src.copilot.evaluation.ragas_adapter as ra; "
+        "print('ragas' in sys.modules)"
+    )
+    out = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT),
+                         capture_output=True, text=True)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.strip() == "False"
 
 
-# --- C/D: friendly skips -----------------------------------------------------
-
-
+@pytest.mark.skipif(_RAGAS_PRESENT, reason="ragas is installed in this environment")
 def test_C_missing_package_raises_not_installed() -> None:
     with pytest.raises(ra.RagasNotInstalled):
         ra.run_ragas([ra.RagasEvalCase("c1", "q", "a")],
                      config=ra.EvaluatorConfig(api_key="x"))  # no evaluate_fn → real path
 
 
-def test_C_cli_live_without_package_skips_cleanly() -> None:
-    assert cli.main(["--live"]) == 0  # ragas not installed → skip, exit 0
+@pytest.mark.skipif(not _RAGAS_PRESENT, reason="requires ragas installed")
+def test_C_installed_adapter_imports_work() -> None:
+    # With the extra installed, the lazy RAGAS/LangChain imports resolve.
+    llm, embeddings = ra._build_evaluator(ra.EvaluatorConfig(api_key="sk-test"))
+    assert llm is not None and embeddings is not None
+    metrics = ra._build_metrics(reference_free_only=False)
+    assert {m[0] for m in metrics} == {
+        ra.METRIC_FAITHFULNESS, ra.METRIC_RESPONSE_RELEVANCY,
+        ra.METRIC_CONTEXT_PRECISION, ra.METRIC_CONTEXT_RECALL}
+
+
+def test_C_cli_live_without_run_prerequisites_exits_zero() -> None:
+    # No evaluator credentials (and, when absent, no package) → clean skip.
+    assert cli.main(["--live"]) == 0
 
 
 def test_D_missing_credentials_not_run() -> None:
@@ -228,3 +259,20 @@ def test_O_ui_loads_latest_run(monkeypatch, tmp_path) -> None:
     latest = career_ui._latest_ragas_run()
     assert latest is not None
     assert latest["run_config"]["timestamp"] == "new"  # newest by directory name
+
+
+def test_O_evaluation_page_renders_not_run_state() -> None:
+    # The Evaluation page renders the RAGAS section without executing RAGAS.
+    # (No runs directory exists in the repo, so it shows the NOT-RUN message.)
+    import pathlib
+
+    from streamlit.testing.v1 import AppTest
+
+    app_path = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
+    at = AppTest.from_file(app_path, default_timeout=60)
+    at.session_state["os_active_page"] = "Evaluation"
+    at.run()
+    assert not at.exception
+    blob = " ".join(m.value for m in at.markdown) + " ".join(i.value for i in at.info)
+    assert "RAGAS" in blob
+    assert "No RAGAS run yet" in blob  # read-only NOT-RUN state, nothing executed
