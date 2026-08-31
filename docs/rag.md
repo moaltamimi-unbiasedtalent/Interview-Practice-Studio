@@ -151,6 +151,16 @@ python scripts/build_index.py --reset      # rebuild the collection
 python scripts/build_index.py --in-memory  # dry run, no persistence
 ```
 
+## Generation-quality evaluation (RAGAS, optional)
+
+The retrieval evaluation above measures whether the right evidence was retrieved.
+An optional secondary layer, **RAGAS**, measures whether the generated answer used
+that evidence — Faithfulness, Response Relevancy, Context Precision, Context
+Recall — via an LLM evaluator. It is isolated from the production RAG path
+(`scripts/eval_ragas.py`, `src/copilot/evaluation/ragas_adapter.py`), opt-in
+(`pip install -e ".[evaluation]"`), public-cases-only, and never runs in CI or
+without evaluator credentials. See [`ragas_evaluation.md`](ragas_evaluation.md).
+
 ## Manual test dataset
 
 [`data/eval/manual_questions.json`](../data/eval/manual_questions.json) holds 12

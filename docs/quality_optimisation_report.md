@@ -78,6 +78,17 @@ states the mode honestly.
   keys are logged; `embedding_status` and cache stats expose booleans/counts only.
 - Existing interfaces were extended rather than rewritten.
 
+## Update — optional RAGAS generation-quality layer
+
+A later phase (RAGAS-1) added an **optional secondary** evaluation layer that
+measures the *generation* rather than retrieval: RAGAS Faithfulness, Response
+Relevancy, Context Precision and Context Recall over public held-out cases
+(`evaluations/ragas/`). It does not replace any metric in this report, is
+lazy-imported and opt-in (`pip install -e ".[evaluation]"`), never runs in CI, and
+reports NOT RUN without evaluator credentials. See
+[`ragas_evaluation.md`](ragas_evaluation.md) and
+[`ragas_implementation_report.md`](ragas_implementation_report.md).
+
 ## Reviewer notes
 
 - Enable the Advanced diagnostic pages with `COPILOT_REVIEWER_MODE=true`.

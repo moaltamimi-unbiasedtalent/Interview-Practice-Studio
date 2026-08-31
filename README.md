@@ -61,6 +61,15 @@ alter narrative retrieval); the gain is coverage of structured role and
 compensation questions. Reproduce with `python scripts/eval_expanded.py` (it
 never overwrites the 11R baseline).
 
+**Two-level evaluation.** The deterministic retrieval metrics above are the
+primary, offline CI gate — they measure whether the right evidence was retrieved.
+An **optional** secondary layer, **RAGAS**, measures the *generation* itself
+(Faithfulness, Response Relevancy, Context Precision, Context Recall) using an LLM
+evaluator. RAGAS is not the production RAG engine and does not replace the custom
+metrics; it is opt-in (`pip install -e ".[evaluation]"`), runs only on public
+held-out cases, never in normal CI, and reports a clean NOT RUN without evaluator
+credentials. See [docs/ragas_evaluation.md](docs/ragas_evaluation.md).
+
 ### Current Sprint: Career Intelligence
 
 The **Career Intelligence** module is the active Turing College sprint ("Building
