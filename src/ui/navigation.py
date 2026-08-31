@@ -9,9 +9,9 @@ One Streamlit app, one URL. The routes split into two groups:
   gated by reviewer mode — but they stay out of the primary product navigation
   so the candidate journey is uncluttered.
 
-The active application page (``ACTIVE_PAGE_KEY``) is tracked separately from the
-primary radio value (``PRIMARY_NAV_KEY``) so a diagnostic page can be shown
-without the radio forcing the route back to a primary option.
+Navigation is a single authoritative route in ``ACTIVE_PAGE_KEY``. Both the
+primary and the diagnostic controls are buttons that write to that one key, so a
+click always survives the Streamlit rerun and there is exactly one active route.
 """
 
 from __future__ import annotations
@@ -46,9 +46,8 @@ NAV_ITEMS: list[str] = PRIMARY_NAV_ITEMS + DIAGNOSTIC_NAV_ITEMS
 # Routes handled by the Career Intelligence module.
 CAREER_ROUTES = {CAREER, KNOWLEDGE_BASE, RAG_INSPECTOR, EVALUATION}
 
-# Session-state keys for the split active-page / primary-radio model.
+# The single authoritative navigation state key.
 ACTIVE_PAGE_KEY = "os_active_page"
-PRIMARY_NAV_KEY = "os_primary_nav"
 
 # Grouped display labels for the primary radio (underlying page values unchanged).
 NAV_DISPLAY: dict[str, str] = {
@@ -88,7 +87,6 @@ __all__ = [
     "DIAGNOSTIC_LABELS",
     "CAREER_ROUTES",
     "ACTIVE_PAGE_KEY",
-    "PRIMARY_NAV_KEY",
     "WORKFLOW",
     "WORKFLOW_STEPS",
     "display_label",

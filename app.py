@@ -28,13 +28,12 @@ __all__ = ["main", "_build_configuration"]
 
 
 def _resolve_active_page() -> str:
-    """Resolve the current page from queued navigation + the primary radio.
+    """Resolve the single authoritative route from session state.
 
-    Navigation can be set three ways: the primary radio (a primary route), the
-    secondary diagnostic buttons (a diagnostic route), and queued ``_pending_nav``
-    (Home cards, the Career → Interview handoff). The active page is tracked
-    independently of the radio so a diagnostic page is never overwritten just
-    because it is not one of the radio's options.
+    There is ONE navigation state — ``nav.ACTIVE_PAGE_KEY``. Every navigation
+    action (primary buttons, diagnostic buttons, queued ``_pending_nav`` from Home
+    cards and the Career → Interview handoff) writes to it. No widget state is
+    reconciled from the active page, so a user's click always survives the rerun.
     """
     ss = st.session_state
 
@@ -48,17 +47,10 @@ def _resolve_active_page() -> str:
         if target in nav.NAV_ITEMS:
             ss[nav.ACTIVE_PAGE_KEY] = target
 
-    ss.setdefault(nav.ACTIVE_PAGE_KEY, nav.HOME)
-    ss.setdefault(nav.PRIMARY_NAV_KEY, nav.HOME)
-
-    # When the active page is a primary route, the radio must reflect it (so a
-    # queued/migrated primary page is not reset to Home by change-detection). A
-    # diagnostic active page leaves the radio on its last primary selection.
-    active = ss[nav.ACTIVE_PAGE_KEY]
-    if active in nav.PRIMARY_NAV_ITEMS:
-        ss[nav.PRIMARY_NAV_KEY] = active
-        ss["_last_primary_radio"] = active
-    ss.setdefault("_last_primary_radio", ss[nav.PRIMARY_NAV_KEY])
+    active = ss.get(nav.ACTIVE_PAGE_KEY, nav.HOME)
+    if active not in nav.NAV_ITEMS:  # unknown/stale route → safe fallback
+        active = nav.HOME
+    ss[nav.ACTIVE_PAGE_KEY] = active
     return active
 
 
@@ -69,30 +61,13 @@ def main() -> None:
     inject_once()  # emit the small design-system style block for this run
 
     active = _resolve_active_page()
-    ss = st.session_state
 
     from src.copilot.config import load_config
 
     reviewer_mode = load_config().reviewer_mode
 
     # --- Primary product navigation (top of sidebar) ---
-    st.sidebar.markdown(f"### {nav.APP_TITLE}")
-    radio_value = st.sidebar.radio(
-        "Navigate",
-        nav.PRIMARY_NAV_ITEMS,
-        key=nav.PRIMARY_NAV_KEY,
-        format_func=nav.display_label,
-    )
-    # A radio change wins; otherwise, while on a primary page, follow the radio.
-    if radio_value != ss.get("_last_primary_radio"):
-        active = radio_value
-    elif active in nav.PRIMARY_NAV_ITEMS:
-        active = radio_value
-    ss["_last_primary_radio"] = radio_value
-    ss[nav.ACTIVE_PAGE_KEY] = active
-
-    st.sidebar.caption(nav.WORKFLOW)
-    st.sidebar.divider()
+    _render_primary_nav(active)
 
     # --- Route to the active page (renders its own sidebar content too) ---
     if active == nav.HOME:
@@ -116,20 +91,50 @@ def main() -> None:
     _render_diagnostics_nav(active, reviewer_mode)
 
 
+def _navigate(route: str) -> None:
+    """Set the single active route and rerun."""
+    st.session_state[nav.ACTIVE_PAGE_KEY] = route
+    st.rerun()
+
+
+def _render_primary_nav(active: str) -> None:
+    """Primary product navigation as buttons over one authoritative route.
+
+    The active route is a disabled primary-styled button (clear active state
+    without relying on colour alone); the others are secondary buttons that set
+    the active route and rerun.
+    """
+    st.sidebar.markdown(f"### {nav.APP_TITLE}")
+    for route in nav.PRIMARY_NAV_ITEMS:
+        is_active = active == route
+        clicked = st.sidebar.button(
+            nav.display_label(route),
+            key=f"nav_{route}",
+            use_container_width=True,
+            type="primary" if is_active else "secondary",
+            disabled=is_active,  # current page is not re-clickable → no needless rerun
+        )
+        if clicked:
+            _navigate(route)
+    st.sidebar.caption(nav.WORKFLOW)
+    st.sidebar.divider()
+
+
 def _render_diagnostics_nav(active: str, reviewer_mode: bool) -> None:
     """Render the always-available Review & diagnostics links below the main nav."""
     st.sidebar.divider()
     st.sidebar.caption("Review & diagnostics")
     for route in nav.DIAGNOSTIC_NAV_ITEMS:
         is_active = active == route
-        if st.sidebar.button(
+        clicked = st.sidebar.button(
             nav.DIAGNOSTIC_LABELS[route],
             key=f"diag_{route}",
             use_container_width=True,
+            type="primary" if is_active else "secondary",
             disabled=is_active,  # current diagnostic page reads as active
-        ):
-            st.session_state[nav.ACTIVE_PAGE_KEY] = route
-            st.rerun()
+        )
+        if clicked:
+            _navigate(route)
     if nav.is_diagnostic(active):
         st.sidebar.caption(f"Viewing: {nav.DIAGNOSTIC_LABELS[active]}")
     if reviewer_mode:

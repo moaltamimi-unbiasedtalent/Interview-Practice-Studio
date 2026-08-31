@@ -144,20 +144,23 @@ never sets the active page directly.
 
 ### Navigation model
 
-Routes split into two groups (`src/ui/navigation.py`):
+Routes split into two groups (`src/ui/navigation.py`), both rendered as buttons:
 
 - **Primary product journey** — `PRIMARY_NAV_ITEMS`: Home, Career Intelligence,
-  Interview Practice, Knowledge Base — a radio at the top of the sidebar.
+  Interview Practice, Knowledge Base — buttons at the top of the sidebar.
 - **Secondary review / diagnostics** — `DIAGNOSTIC_NAV_ITEMS`: RAG Inspector and
-  Evaluation — compact buttons in a "Review & diagnostics" section lower in the
-  sidebar. These are **always accessible** (no longer gated by reviewer mode).
+  Evaluation — buttons in a "Review & diagnostics" section lower in the sidebar.
+  These are **always accessible** (not gated by reviewer mode).
 
-The active page (`ACTIVE_PAGE_KEY`) is tracked independently of the primary radio
-value (`PRIMARY_NAV_KEY`), so selecting a diagnostic page does not force the route
-back to a primary option; the active diagnostic button is disabled and a
-"Viewing" caption marks it. Queued navigation (`_pending_nav` from Home cards and
-the Career → Interview handoff) is applied before widgets render, and the legacy
-`os_nav` key is migrated on first run.
+Navigation is a **single authoritative route** in `ACTIVE_PAGE_KEY`. Every
+control — primary buttons, diagnostic buttons, and queued `_pending_nav` (Home
+cards, the Career → Interview handoff) — writes to that one key and reruns, so a
+click always survives the rerun and there is exactly one active route. The active
+button is disabled and primary-styled (clear state without relying on colour);
+diagnostics also show a "Viewing" caption. No widget state is reconciled from the
+active page (the earlier radio-sync model caused selections to snap back). Queued
+navigation is applied before widgets render, and the legacy `os_nav` key is
+migrated on first run.
 
 ### Reviewer mode
 

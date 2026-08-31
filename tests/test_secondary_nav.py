@@ -35,6 +35,13 @@ def _diag_button(at, route):
     raise AssertionError(f"diagnostic button for {route} not found")
 
 
+def _primary_button(at, route):
+    for b in at.button:
+        if b.label == nav.display_label(route):
+            return b
+    raise AssertionError(f"primary button for {route} not found")
+
+
 def test_click_diagnostic_sets_active_page() -> None:  # (14 G)
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
@@ -62,13 +69,14 @@ def test_active_diagnostic_button_is_disabled() -> None:  # (14 H / section 8)
     assert _diag_button(at, nav.RAG_INSPECTOR).disabled is True
 
 
-def test_primary_radio_overrides_diagnostic() -> None:  # (14 I)
+def test_primary_button_overrides_diagnostic() -> None:  # (14 I / 11)
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     _diag_button(at, nav.RAG_INSPECTOR).click()
     at.run()
     assert at.session_state[nav.ACTIVE_PAGE_KEY] == nav.RAG_INSPECTOR
-    at.radio(key=nav.PRIMARY_NAV_KEY).set_value(nav.INTERVIEW).run()
+    _primary_button(at, nav.INTERVIEW).click()
+    at.run()
     assert not at.exception
     assert at.session_state[nav.ACTIVE_PAGE_KEY] == nav.INTERVIEW
 

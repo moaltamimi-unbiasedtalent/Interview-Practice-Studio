@@ -11,19 +11,19 @@ def test_career_ui_imports() -> None:
     from src.career import ui  # noqa: F401
 
 
-def test_shell_boots_with_primary_radio_only() -> None:
+def test_shell_boots_with_primary_nav_buttons() -> None:
     from src.ui import navigation as nav
 
     at = AppTest.from_file(APP_PATH, default_timeout=30)
     at.run()
     assert not at.exception
-    options = [opt for radio in at.radio for opt in radio.options]
-    # Primary product routes are in the top radio…
-    for section in nav.PRIMARY_NAV_ITEMS:
-        assert nav.display_label(section) in options
-    # …and diagnostics are NOT radio options (they are secondary buttons).
-    for section in nav.DIAGNOSTIC_NAV_ITEMS:
-        assert nav.display_label(section) not in options
+    labels = [b.label for b in at.button]
+    # Primary product routes render as buttons in the sidebar…
+    for route in nav.PRIMARY_NAV_ITEMS:
+        assert nav.display_label(route) in labels
+    # …and so do the (separate) diagnostic routes.
+    for route in nav.DIAGNOSTIC_NAV_ITEMS:
+        assert nav.DIAGNOSTIC_LABELS[route] in labels
 
 
 def test_diagnostics_are_buttons_in_normal_mode() -> None:
