@@ -127,11 +127,47 @@ class PipelinePlan:
 
 
 @dataclass
+class PreparationArtifacts:
+    """Typed, ephemeral tool outputs kept for the Career → Interview handoff.
+
+    These are the *raw* typed results the Chat pipeline already computed (role
+    requirements, gap analysis, preparation plan, question set). They are
+    deliberately kept OFF :class:`ChatResponse` so they are never logged,
+    serialised into chat history, surfaced in the RAG Inspector, added to usage
+    logs, or placed in the safe ToolExecution summaries — they are session /
+    handoff state only, consumed to build a ``PreparationContext``.
+    """
+
+    role_requirements: object | None = None
+    gap_result: object | None = None
+    preparation_plan: object | None = None
+    question_set: object | None = None
+
+    def is_empty(self) -> bool:
+        return not any((self.role_requirements, self.gap_result,
+                        self.preparation_plan, self.question_set))
+
+
+@dataclass
+class ToolRunOutcome:
+    """Internal return contract for :meth:`_run_tools`."""
+
+    executions: list = field(default_factory=list)
+    summaries: list = field(default_factory=list)
+    artifacts: PreparationArtifacts = field(default_factory=PreparationArtifacts)
+
+
+@dataclass
 class OrchestrationResult:
-    """The service's result: a grounded response plus the pipeline trace."""
+    """The service's result: a grounded response plus the pipeline trace.
+
+    ``preparation_artifacts`` carries typed handoff state (see
+    :class:`PreparationArtifacts`); it is never merged into ``response``.
+    """
 
     response: ChatResponse
     trace: PipelineTrace
+    preparation_artifacts: PreparationArtifacts | None = None
 
     @property
     def answer(self) -> str:
@@ -326,7 +362,7 @@ class CareerIntelligenceService:
         # 6) Tool requirement + 7) tool execution (controlled).
         if route.tools:
             _step("Running tools")
-        tool_execs, tool_summaries = self._run_tools(
+        tool_outcome = self._run_tools(
             route,
             trace,
             job_description=job_description,
@@ -336,6 +372,8 @@ class CareerIntelligenceService:
             question_focus=question_focus,
             results=results,
         )
+        tool_execs = tool_outcome.executions
+        tool_summaries = tool_outcome.summaries
 
         # 8) Assemble unified, numbered evidence (structured first, then narrative)
         # into trust-separated sections; build matching citations.
@@ -387,7 +425,10 @@ class CareerIntelligenceService:
             translated_query=translated,
             usage=usage,
         )
-        return OrchestrationResult(response=response, trace=trace)
+        return OrchestrationResult(
+            response=response, trace=trace,
+            preparation_artifacts=tool_outcome.artifacts,
+        )
 
     # -- dry-run planning (OPT-5) ------------------------------------------
 
@@ -589,11 +630,13 @@ class CareerIntelligenceService:
         hours_per_week,
         question_focus,
         results,
-    ) -> tuple[list, list[str]]:
+    ) -> ToolRunOutcome:
         executions: list = []
         summaries: list[str] = []
         role_req = None
         gap_res = None
+        prep_plan = None
+        question_set = None
 
         def record(name: str, args: dict):
             result = self.tool_invoker.invoke(name, args)
@@ -655,6 +698,7 @@ class CareerIntelligenceService:
                 )
                 if res.ok:
                     plan = res.result
+                    prep_plan = plan
                     summaries.append(
                         f"Preparation plan: {plan.total_available_hours}h over "
                         f"{len(plan.weekly_structure)} week(s)."
@@ -679,12 +723,22 @@ class CareerIntelligenceService:
                 )
                 if res.ok:
                     qset = res.result
+                    question_set = qset
                     total = sum(len(c.questions) for c in qset.categories)
                     summaries.append(
                         f"Interview questions: {total} across {len(qset.categories)} categories."
                     )
 
-        return executions, summaries
+        return ToolRunOutcome(
+            executions=executions,
+            summaries=summaries,
+            artifacts=PreparationArtifacts(
+                role_requirements=role_req,
+                gap_result=gap_res,
+                preparation_plan=prep_plan,
+                question_set=question_set,
+            ),
+        )
 
     # -- structured retrieval + evidence assembly --------------------------
 

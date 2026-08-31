@@ -39,7 +39,11 @@ Analyze (structured requirements). Add a background → Analyze gaps → show th
 **deterministic** match % (computed in Python, not an LLM score).
 
 **6–7 · PreparationContext + Practise this role.** Show the "Practise this role"
-preview (role, seniority, top competencies, gaps, themes) → click it.
+preview (role, seniority, top competencies, gaps, themes) → click it. The **same
+handoff also works from Career Chat**: ask a role-relevant question (optionally
+set the **Target role** field), then use the "Ready to practise this role?" card
+below the answer. If a job analysis returns no role, the card asks you to confirm
+one — it never fabricates a role and never crashes.
 
 **7–8 · Interview Practice.** Show the setup **pre-filled** from the context with
 "Prepared with Career Intelligence — N sources". Emphasise it's editable and

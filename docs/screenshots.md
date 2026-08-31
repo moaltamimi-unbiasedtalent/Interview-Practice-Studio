@@ -13,7 +13,8 @@ Tick when captured.
 | 6 | RAG Inspector | routing + translation + vector/keyword/fused | [ ] |
 | 7 | Tool call | "Tools used" panel / a tool result | [ ] |
 | 8 | Preparation plan | Career Tools → plan table | [ ] |
-| 9 | Practise this role | handoff preview + button | [ ] |
+| 9 | Practise this role (Tools) | handoff preview + button | [ ] |
+| 9b | Practise this role (Chat) | "Ready to practise this role?" card below a Chat answer | [ ] |
 | 10 | Interview setup | pre-filled setup + "Prepared with Career Intelligence" | [ ] |
 | 11 | Interview Practice | a question + evaluation | [ ] |
 | 12 | Deep Dive | branch from an answer | [ ] |

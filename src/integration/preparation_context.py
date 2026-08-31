@@ -9,10 +9,32 @@ from __future__ import annotations
 
 from src.integration.models import PreparationContext, SourceReference
 
-__all__ = ["build_preparation_context"]
+__all__ = ["build_preparation_context", "resolve_target_role"]
 
 _MAX_ITEMS = 50
 _MAX_ITEM_CHARS = 400
+_MAX_ROLE_CHARS = 200
+
+
+def resolve_target_role(
+    *,
+    user_confirmed_role: str | None = None,
+    role_requirements=None,
+    resolved_occupation: str | None = None,
+) -> str:
+    """Deterministically pick the handoff target role — never fabricated.
+
+    Precedence: (1) an explicit user-confirmed role, (2) the Job Description
+    Analyzer's ``role_title``, (3) a structured resolved occupation, else "".
+    Values are trimmed and length-bounded. No LLM call, no answer-text parsing,
+    no placeholder substitution.
+    """
+    role_title = getattr(role_requirements, "role_title", None) if role_requirements else None
+    for candidate in (user_confirmed_role, role_title, resolved_occupation):
+        role = (str(candidate).strip() if candidate else "")
+        if role:
+            return role[:_MAX_ROLE_CHARS]
+    return ""
 
 
 def _clean_list(values, limit: int = _MAX_ITEMS) -> list[str]:
@@ -29,13 +51,31 @@ def _clean_list(values, limit: int = _MAX_ITEMS) -> list[str]:
     return out
 
 
+def _reference_fields(result) -> tuple:
+    """Extract ``(title, source, page)`` from a retrieval or knowledge-evidence
+    item, without coupling to Chroma/LangChain internals.
+
+    Supports both ``RetrievalResult`` (``title``/``source``/``page`` properties)
+    and structured ``KnowledgeEvidence`` (``source_title``/``source_url`` +
+    ``occupation_title``). Only plain scalars are read.
+    """
+    title = (getattr(result, "title", None)
+             or getattr(result, "source_title", None)
+             or getattr(result, "occupation_title", None))
+    source = (getattr(result, "source", None)
+              or getattr(result, "source_url", None)
+              or getattr(result, "source_id", None))
+    page = getattr(result, "page", None)
+    if not isinstance(page, int):
+        page = None
+    return title, source, page
+
+
 def _source_references(evidence) -> list[SourceReference]:
     refs: list[SourceReference] = []
     seen: set[tuple] = set()
     for result in evidence or []:
-        title = getattr(result, "title", None)
-        source = getattr(result, "source", None)
-        page = getattr(result, "page", None)
+        title, source, page = _reference_fields(result)
         key = (title, source, page)
         if key in seen or not (title or source):
             continue
@@ -64,7 +104,7 @@ def build_preparation_context(
     rr = role_requirements
     gap = gap_result
 
-    role = (target_role or (getattr(rr, "role_title", None) if rr else None) or "").strip()
+    role = resolve_target_role(user_confirmed_role=target_role, role_requirements=rr)
     if not role:
         raise ValueError("A target role is required to build a PreparationContext.")
 

@@ -350,7 +350,13 @@ def _page_chat() -> None:
         )
 
     # Optional structured context enables combined RAG + tool flows.
-    with st.expander("Optional context (job description, candidate background)"):
+    with st.expander("Optional preparation context (job description, candidate background)"):
+        st.text_input(
+            "Target role", key="chat_target_role",
+            help="Optional. Enter it if you already know the role; otherwise Career "
+                 "Intelligence may identify it from the job description or structured "
+                 "occupation data.",
+        )
         job_description = st.text_area("Job description", height=120, key="chat_jd")
         candidate_background = st.text_area("Candidate background", height=100, key="chat_bg")
         cols = st.columns(2)
@@ -391,6 +397,8 @@ def _page_chat() -> None:
         "career_pending_prompt", None
     )
     if not prompt:
+        # No new turn: still offer the handoff for the last eligible answer.
+        _maybe_render_chat_handoff(st.session_state)
         return
 
     prompt = prompt.strip()[: constants.MAX_QUERY_CHARS]
@@ -477,6 +485,75 @@ def _page_chat() -> None:
 
     career_history.append_turn(st.session_state, career_history.build_turn(prompt, result))
     career_history.record_final_generation(st.session_state, result.response.usage)
+
+    # Capture bounded handoff state (session only; NOT logged/serialised into
+    # chat history, usage, or the RAG Inspector) and offer the practice handoff.
+    _store_chat_preparation(st.session_state, result)
+    _maybe_render_chat_handoff(st.session_state)
+
+
+def _store_chat_preparation(ss, result) -> None:
+    """Persist bounded Career-Chat preparation for the Interview handoff.
+
+    Stores only what the handoff needs. Typed tool artifacts stay in this
+    dedicated session slot — never in chat history, usage logs, or the inspector.
+    Cleared when the latest answer is not a practice-eligible career answer.
+    """
+    from src.integration.preparation_context import resolve_target_role
+
+    trace = result.trace
+    artifacts = result.preparation_artifacts
+    role_req = getattr(artifacts, "role_requirements", None)
+    resolved_occupation = getattr(trace, "resolved_occupation", "") or ""
+    target_role = resolve_target_role(
+        user_confirmed_role=ss.get("chat_target_role") or "",
+        role_requirements=role_req,
+        resolved_occupation=resolved_occupation,
+    )
+    # Unified evidence for provenance: structured KnowledgeEvidence + narrative.
+    evidence = list(result.response.evidence or []) + list(result.retrieved or [])
+    has_prep = bool(target_role) or bool(evidence) or (
+        artifacts is not None and not artifacts.is_empty()
+    )
+    eligible = (
+        not trace.blocked
+        and getattr(trace, "intent", "") != "smalltalk"
+        and has_prep
+    )
+    if not eligible:
+        ss.pop("career.chat_preparation", None)
+        return
+    ss["career.chat_preparation"] = {
+        "role_requirements": role_req,
+        "gap_result": getattr(artifacts, "gap_result", None),
+        "preparation_plan": getattr(artifacts, "preparation_plan", None),
+        "question_set": getattr(artifacts, "question_set", None),
+        "resolved_occupation": resolved_occupation,
+        "evidence": evidence,
+        "job_description": ss.get("chat_jd") or None,
+        "company_context": ss.get("company_context_summary") or None,
+    }
+
+
+def _maybe_render_chat_handoff(ss) -> None:
+    """Render the Career-Chat → Interview Practice handoff for the last answer."""
+    prep = ss.get("career.chat_preparation")
+    if not prep:
+        return
+    _render_practice_handoff(
+        ss,
+        surface="chat",
+        role_requirements=prep.get("role_requirements"),
+        gap_result=prep.get("gap_result"),
+        resolved_occupation=prep.get("resolved_occupation") or None,
+        evidence=prep.get("evidence"),
+        job_description=prep.get("job_description"),
+        company_context=prep.get("company_context"),
+        user_confirmed_role=ss.get("chat_target_role") or "",
+        confirm_input_key=None,  # canonical role field lives in Optional context
+        heading="Ready to practise this role?",
+        intro="Use the preparation above to start an interview tailored to this role.",
+    )
 
 
 # --- Knowledge Base ----------------------------------------------------------
@@ -1018,77 +1095,117 @@ def _page_tools() -> None:
 
 
 def _resolve_handoff_target_role(role_req, session_state) -> str:
-    """Resolve the target role for the handoff (deterministic; never fabricated).
-
-    Precedence: (1) the analyser's ``role_title`` when non-empty, else (2) a
-    manually confirmed role held in ``handoff_target_role``, else (3) "".
-    Values are trimmed; no role is inferred from arbitrary text.
+    """Career Tools target-role resolution: analyser role first, then a confirmed
+    role. Delegates to the shared :func:`resolve_target_role`; kept because the
+    Career Tools tests target this precedence directly.
     """
-    analyser_role = ((getattr(role_req, "role_title", None) or "").strip()
-                     if role_req is not None else "")
-    if analyser_role:
-        return analyser_role
-    return (session_state.get("handoff_target_role") or "").strip()
+    from src.integration.preparation_context import resolve_target_role
+
+    role_title = (getattr(role_req, "role_title", None) or "").strip() if role_req else ""
+    if role_title:
+        return resolve_target_role(role_requirements=role_req)
+    return resolve_target_role(
+        user_confirmed_role=(session_state or {}).get("handoff_target_role"))
 
 
-def _render_practise_this_role(ss, role_req) -> None:
-    """Offer a handoff to Interview Practice once a role has been analysed.
+def _handoff_role_source(target_role, *, user_confirmed_role, role_requirements,
+                         resolved_occupation) -> str:
+    """Label where the resolved target role came from (mirrors resolve precedence)."""
+    role_title = (getattr(role_requirements, "role_title", None) or "").strip()
+    if (user_confirmed_role or "").strip() == target_role and target_role:
+        return "User confirmed"
+    if role_title and role_title == target_role:
+        return "Job Description Analyzer"
+    if (resolved_occupation or "").strip() == target_role and target_role:
+        return "Structured role resolver"
+    return "User confirmed"
 
-    The handoff requires a target role. If the analyser did not identify one, the
-    user is asked to confirm/enter it before a :class:`PreparationContext` is ever
-    built — the domain contract (target role mandatory) is preserved.
+
+def _render_practice_handoff(
+    ss,
+    *,
+    surface: str,
+    role_requirements=None,
+    gap_result=None,
+    resolved_occupation: str | None = None,
+    evidence=None,
+    job_description: str | None = None,
+    company_context: str | None = None,
+    user_confirmed_role: str = "",
+    confirm_input_key: str | None = None,
+    heading: str = "Practise this role",
+    intro: str | None = None,
+) -> None:
+    """One Career → Interview handoff renderer, shared by Career Tools and Chat.
+
+    Resolves/confirms the target role, builds a :class:`PreparationContext` only
+    when a role exists, renders the preview + provenance, and requests navigation.
+    It performs NO retrieval or LLM call — it only reshapes already-computed,
+    plain inputs. The domain contract (target role mandatory) is preserved.
     """
-    if role_req is None:
-        return
     from pydantic import ValidationError
 
     from src.integration import handoff
-    from src.integration.preparation_context import build_preparation_context
+    from src.integration.preparation_context import (
+        build_preparation_context,
+        resolve_target_role,
+    )
 
     st.divider()
-    st.markdown("### Practise this role")
-    gap = ss.get("gap_result")
-    evidence = (ss.get("last_inspection") or {}).get("results") or []
+    st.markdown(f"### {heading}")
+    if intro:
+        st.caption(intro)
 
-    analyser_role = (getattr(role_req, "role_title", None) or "").strip()
-    if not analyser_role:
-        # The analyser could not identify a role — ask the user to confirm one
-        # rather than fabricating a placeholder.
+    target_role = resolve_target_role(
+        user_confirmed_role=user_confirmed_role,
+        role_requirements=role_requirements,
+        resolved_occupation=resolved_occupation,
+    )
+
+    # If no role resolved and this surface hosts its own confirm field, show it.
+    if not target_role and confirm_input_key is not None:
         st.warning("Target role needed")
         st.caption(
-            "The job analysis did not identify a target role confidently. Enter "
-            "or confirm the role before creating the Interview Practice handoff."
+            "I have preparation evidence, but I need a target role before creating "
+            "the Interview Practice handoff. Enter or confirm the role below."
         )
-        # Seed once from the Question Generator role if it is already populated.
-        if "handoff_target_role" not in ss:
+        if confirm_input_key not in ss:
             seed = (ss.get("tool_role") or "").strip()
             if seed:
-                ss["handoff_target_role"] = seed
-        st.text_input("Target role", key="handoff_target_role")
+                ss[confirm_input_key] = seed
+        st.text_input("Target role", key=confirm_input_key)
+        target_role = resolve_target_role(
+            user_confirmed_role=ss.get(confirm_input_key),
+            role_requirements=role_requirements,
+            resolved_occupation=resolved_occupation,
+        )
 
-    target_role = _resolve_handoff_target_role(role_req, ss)
     if not target_role:
         st.button("Practise this role", type="primary",
-                  key="practise_this_role", disabled=True)
-        st.caption("Add a target role above to enable the handoff.")
+                  key=f"practise_{surface}", disabled=True)
+        if confirm_input_key is None:
+            st.caption("Add a **Target role** in *Optional preparation context* "
+                       "above to enable the handoff.")
+        else:
+            st.caption("Add a target role above to enable the handoff.")
         return
 
-    # Build the context defensively: an expected domain-validation error must
-    # surface as a friendly message, never a raw traceback.
+    # Build defensively: an expected domain-validation error must surface as a
+    # friendly message, never a raw traceback.
     try:
         context = build_preparation_context(
             target_role=target_role,
-            role_requirements=role_req,
-            gap_result=gap,
+            role_requirements=role_requirements,
+            gap_result=gap_result,
             evidence=evidence,
-            job_description=ss.get("tool_jd") or None,
-            company_context=ss.get("company_context_summary") or None,
+            job_description=job_description,
+            company_context=company_context,
         )
     except (ValueError, ValidationError):
         st.warning("Could not prepare the handoff — a valid target role is required.")
         st.caption("Confirm the target role above and try again.")
         st.button("Practise this role", type="primary",
-                  key="practise_this_role", disabled=True)
+                  key=f"practise_{surface}", disabled=True)
         return
 
     prev = handoff.preview(context)
@@ -1099,14 +1216,20 @@ def _render_practise_this_role(ss, role_req) -> None:
     cols[1].write(f"**Priority gaps:** {', '.join(prev['priority_gaps']) or '—'}")
     cols[1].write(f"**Likely interview themes:** {', '.join(prev['likely_themes']) or '—'}")
 
-    # Provenance labels (OPT-5): show what each part of this handoff is derived
-    # from, so the user knows which facts are grounded vs tool-derived.
-    prov = []
-    prov.append("Requirements: Job Description Analyzer" if role_req else None)
-    prov.append("Fit (strengths/gaps): deterministic Gap Analyzer" if gap else None)
-    prov.append(f"Grounding sources: {context.source_count}" if context.source_count
-                else "Grounding sources: none retrieved")
-    st.caption("Provenance — " + " · ".join(p for p in prov if p))
+    # Concise provenance — where each part of this handoff came from.
+    role_source = _handoff_role_source(
+        target_role, user_confirmed_role=user_confirmed_role,
+        role_requirements=role_requirements, resolved_occupation=resolved_occupation)
+    prov = [f"Role: {role_source}"]
+    if role_requirements is not None:
+        prov.append("Requirements: Job Description Analyzer")
+    if gap_result is not None:
+        prov.append("Strengths/gaps: Candidate Gap Analyzer")
+    if (resolved_occupation or "").strip():
+        prov.append("Occupation: Structured role resolver")
+    prov.append(f"Evidence: {context.source_count} source(s)"
+                if context.source_count else "Evidence: none retrieved")
+    st.caption("Provenance — " + " · ".join(prov))
     if context.source_references:
         with st.expander(f"Grounding sources ({context.source_count})", expanded=False):
             for ref in context.source_references:
@@ -1118,9 +1241,33 @@ def _render_practise_this_role(ss, role_req) -> None:
         "Sends this preparation to Interview Practice to pre-fill a setup you can "
         "review and edit. It never starts an interview automatically."
     )
-    if st.button("Practise this role", type="primary", key="practise_this_role"):
+    if st.button("Practise this role", type="primary", key=f"practise_{surface}"):
         handoff.request_practice(st.session_state, context)
         st.rerun()
+
+
+def _render_practise_this_role(ss, role_req) -> None:
+    """Career Tools handoff — delegates to the shared renderer.
+
+    Preserves the existing journey (JD Analyzer → Gap → Plan → Questions →
+    Practise) and the analyser-role-first behaviour, with user confirmation when
+    the analyser did not identify a role.
+    """
+    if role_req is None:
+        return
+    evidence = (ss.get("last_inspection") or {}).get("results") or []
+    _render_practice_handoff(
+        ss,
+        surface="tools",
+        role_requirements=role_req,
+        gap_result=ss.get("gap_result"),
+        resolved_occupation=None,
+        evidence=evidence,
+        job_description=ss.get("tool_jd") or None,
+        company_context=ss.get("company_context_summary") or None,
+        user_confirmed_role=ss.get("handoff_target_role") or "",
+        confirm_input_key="handoff_target_role",
+    )
 
 
 def _render_rag_evaluation_report() -> None:
