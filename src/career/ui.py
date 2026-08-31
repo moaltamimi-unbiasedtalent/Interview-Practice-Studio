@@ -1417,6 +1417,75 @@ def _render_product_coverage() -> None:
     st.divider()
 
 
+def _latest_ragas_run() -> dict | None:
+    """Load the most recent RAGAS run's results.json, or None. Never executes RAGAS."""
+    import json
+    import os
+
+    runs_dir = "evaluations/ragas/runs"
+    if not os.path.isdir(runs_dir):
+        return None
+    run_dirs = sorted(
+        (d for d in os.listdir(runs_dir) if os.path.isdir(os.path.join(runs_dir, d))),
+        reverse=True,
+    )
+    for name in run_dirs:
+        path = os.path.join(runs_dir, name, "results.json")
+        if os.path.isfile(path):
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    data = json.load(handle)
+                data["_dir"] = os.path.join(runs_dir, name)
+                return data
+            except (OSError, json.JSONDecodeError):
+                continue
+    return None
+
+
+def _render_ragas_section() -> None:
+    """Show the latest RAGAS run (read-only). RAGAS is never executed from the UI."""
+    st.caption(
+        "Retrieval metrics tell us whether the system found relevant evidence. "
+        "RAGAS evaluates whether the generated answer used that evidence "
+        "faithfully and answered the question. RAGAS is an optional live layer "
+        "(LLM-judged, with cost) and does not run in CI or from this page."
+    )
+    run = _latest_ragas_run()
+    if run is None:
+        st.info(
+            "No RAGAS run yet. RAGAS is an optional live evaluation layer and does "
+            "not run in CI. Generate a baseline with "
+            "`python scripts/eval_ragas.py --live` (needs evaluator credentials)."
+        )
+        return
+
+    metrics = run.get("metrics", {})
+    cfg = run.get("run_config", {})
+    st.caption(
+        f"Last run: {cfg.get('timestamp', '—')} · RAGAS {cfg.get('ragas_version', '—')} · "
+        f"evaluator `{cfg.get('evaluator_model', '—')}` · {cfg.get('case_count', '—')} case(s)."
+    )
+    cols = st.columns(4)
+    cols[0].metric("Faithfulness", _ragas_val(metrics.get("faithfulness")))
+    cols[1].metric("Response Relevancy", _ragas_val(metrics.get("response_relevancy")))
+    cols[2].metric("Context Precision", _ragas_val(metrics.get("context_precision")))
+    cols[3].metric("Context Recall", _ragas_val(metrics.get("context_recall")))
+    st.caption("Measured baseline values (not pass/fail). The deterministic "
+               "retrieval evaluations above remain the primary quality gate.")
+
+    import os
+
+    summary_path = os.path.join(run.get("_dir", ""), "summary.md")
+    if os.path.isfile(summary_path):
+        with st.expander("View latest RAGAS report"):
+            with open(summary_path, encoding="utf-8") as handle:
+                st.markdown(handle.read())
+
+
+def _ragas_val(value) -> str:
+    return "n/a" if value is None else f"{value}"
+
+
 def _page_evaluation() -> None:
     st.subheader("Evaluation")
     config = _config()
@@ -1440,6 +1509,9 @@ def _page_evaluation() -> None:
     _render_rag_evaluation_report()
     st.markdown("#### Expanded architecture (11R-A)")
     _render_expanded_report()
+
+    st.markdown("#### RAGAS — Generation Quality (optional)")
+    _render_ragas_section()
 
     st.markdown("**Live retrieval comparison (vector / keyword / hybrid)**")
     st.caption(
