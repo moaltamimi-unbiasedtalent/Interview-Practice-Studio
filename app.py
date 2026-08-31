@@ -27,57 +27,113 @@ from src.ui.home import render_home
 __all__ = ["main", "_build_configuration"]
 
 
+def _resolve_active_page() -> str:
+    """Resolve the current page from queued navigation + the primary radio.
+
+    Navigation can be set three ways: the primary radio (a primary route), the
+    secondary diagnostic buttons (a diagnostic route), and queued ``_pending_nav``
+    (Home cards, the Career → Interview handoff). The active page is tracked
+    independently of the radio so a diagnostic page is never overwritten just
+    because it is not one of the radio's options.
+    """
+    ss = st.session_state
+
+    # One-run migration from the legacy single key.
+    if nav.ACTIVE_PAGE_KEY not in ss and "os_nav" in ss:
+        ss[nav.ACTIVE_PAGE_KEY] = ss.pop("os_nav")
+
+    # Queued navigation is applied before any widget is created.
+    if "_pending_nav" in ss:
+        target = ss.pop("_pending_nav")
+        if target in nav.NAV_ITEMS:
+            ss[nav.ACTIVE_PAGE_KEY] = target
+
+    ss.setdefault(nav.ACTIVE_PAGE_KEY, nav.HOME)
+    ss.setdefault(nav.PRIMARY_NAV_KEY, nav.HOME)
+
+    # When the active page is a primary route, the radio must reflect it (so a
+    # queued/migrated primary page is not reset to Home by change-detection). A
+    # diagnostic active page leaves the radio on its last primary selection.
+    active = ss[nav.ACTIVE_PAGE_KEY]
+    if active in nav.PRIMARY_NAV_ITEMS:
+        ss[nav.PRIMARY_NAV_KEY] = active
+        ss["_last_primary_radio"] = active
+    ss.setdefault("_last_primary_radio", ss[nav.PRIMARY_NAV_KEY])
+    return active
+
+
 def main() -> None:
     st.set_page_config(page_title=nav.APP_TITLE, layout="wide")
     from src.ui.styles import inject_once
 
     inject_once()  # emit the small design-system style block for this run
 
-    # Home cards queue a route change; apply it before the nav widget is created
-    # (mutating a widget key after instantiation is not allowed).
-    if "_pending_nav" in st.session_state:
-        st.session_state["os_nav"] = st.session_state.pop("_pending_nav")
+    active = _resolve_active_page()
+    ss = st.session_state
 
-    # Reviewer mode reveals the Advanced diagnostic pages (RAG Inspector,
-    # Evaluation); the default candidate view keeps the nav focused.
     from src.copilot.config import load_config
 
     reviewer_mode = load_config().reviewer_mode
-    nav_items = nav.visible_nav_items(reviewer_mode)
-    # If a hidden page was queued/remembered, fall back to Home.
-    if st.session_state.get("os_nav") not in nav_items:
-        st.session_state.pop("os_nav", None)
 
+    # --- Primary product navigation (top of sidebar) ---
     st.sidebar.markdown(f"### {nav.APP_TITLE}")
-    # Grouped display (Prepare / Practise / Resources / Advanced) via format_func;
-    # the underlying page values are unchanged so routing stays stable.
-    page = st.sidebar.radio(
+    radio_value = st.sidebar.radio(
         "Navigate",
-        nav_items,
-        key="os_nav",
+        nav.PRIMARY_NAV_ITEMS,
+        key=nav.PRIMARY_NAV_KEY,
         format_func=nav.display_label,
     )
-    if reviewer_mode:
-        st.sidebar.caption("Reviewer mode: Advanced diagnostics visible.")
+    # A radio change wins; otherwise, while on a primary page, follow the radio.
+    if radio_value != ss.get("_last_primary_radio"):
+        active = radio_value
+    elif active in nav.PRIMARY_NAV_ITEMS:
+        active = radio_value
+    ss["_last_primary_radio"] = radio_value
+    ss[nav.ACTIVE_PAGE_KEY] = active
+
     st.sidebar.caption(nav.WORKFLOW)
     st.sidebar.divider()
 
-    if page == nav.HOME:
+    # --- Route to the active page (renders its own sidebar content too) ---
+    if active == nav.HOME:
         render_home()
-    elif page == nav.INTERVIEW:
+    elif active == nav.INTERVIEW:
         render_studio()
-    elif page in nav.CAREER_ROUTES:
+    elif active in nav.CAREER_ROUTES:
         # Career module: shared config + its own sidebar, then the chosen page.
         career_ui.ensure_ready()
         career_ui.render_sidebar()
-        if page == nav.CAREER:
+        if active == nav.CAREER:
             career_ui.render_career()
-        elif page == nav.KNOWLEDGE_BASE:
+        elif active == nav.KNOWLEDGE_BASE:
             career_ui.render_knowledge_base()
-        elif page == nav.RAG_INSPECTOR:
+        elif active == nav.RAG_INSPECTOR:
             career_ui.render_rag_inspector()
-        elif page == nav.EVALUATION:
+        elif active == nav.EVALUATION:
             career_ui.render_evaluation()
+
+    # --- Secondary Review & diagnostics section (lower in the sidebar) ---
+    _render_diagnostics_nav(active, reviewer_mode)
+
+
+def _render_diagnostics_nav(active: str, reviewer_mode: bool) -> None:
+    """Render the always-available Review & diagnostics links below the main nav."""
+    st.sidebar.divider()
+    st.sidebar.caption("Review & diagnostics")
+    for route in nav.DIAGNOSTIC_NAV_ITEMS:
+        is_active = active == route
+        if st.sidebar.button(
+            nav.DIAGNOSTIC_LABELS[route],
+            key=f"diag_{route}",
+            use_container_width=True,
+            disabled=is_active,  # current diagnostic page reads as active
+        ):
+            st.session_state[nav.ACTIVE_PAGE_KEY] = route
+            st.rerun()
+    if nav.is_diagnostic(active):
+        st.sidebar.caption(f"Viewing: {nav.DIAGNOSTIC_LABELS[active]}")
+    if reviewer_mode:
+        st.sidebar.caption("Reviewer mode")
 
 
 if __name__ == "__main__":

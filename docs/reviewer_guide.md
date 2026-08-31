@@ -3,6 +3,20 @@
 Short, plain answers to the concepts a reviewer may ask about. (No step-by-step
 model reasoning — just what each thing is and why it's here.)
 
+**How is the app navigated?** The sidebar has two groups. The **primary product
+journey** is a radio at the top: Home, Career Intelligence, Interview Practice,
+Knowledge Base. Below the normal sidebar content is a **Review & diagnostics**
+section with two buttons that are **always available** (no reviewer flag needed):
+
+- **RAG Inspector** — shows how the *last* Career Intelligence question was
+  understood and retrieved: query translation/intent, structured retrieval
+  (country, resolved occupation, source precedence, record counts), the hybrid
+  vector/BM25/fused channels and weights, reranker, security verdicts, citations,
+  tool calls, the exact context sent to the model, and token usage.
+- **Evaluation** — shows the measured results: Product Coverage, the 11R baseline
+  and 11R-A expanded architecture, the live vector/keyword/hybrid comparison, and
+  tool-selection accuracy. Historical 11R / 11R-A artifacts are never overwritten.
+
 **What is RAG?** Retrieval-Augmented Generation: before answering, the app
 *retrieves* relevant evidence from a knowledge base and gives it to the model, so
 answers are grounded in real sources instead of the model's memory.

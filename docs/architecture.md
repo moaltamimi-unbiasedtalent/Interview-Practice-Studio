@@ -140,14 +140,31 @@ a `PreparationArtifacts` dataclass) so clicking *Practise this role* triggers **
 extra LLM/tool call**. Those artifacts are session/handoff state only — never
 merged into `ChatResponse`, chat history, usage logs, or the RAG Inspector.
 Navigation goes through `handoff.request_practice` / `_pending_nav`; the Career UI
-never mutates `os_nav` directly.
+never sets the active page directly.
+
+### Navigation model
+
+Routes split into two groups (`src/ui/navigation.py`):
+
+- **Primary product journey** — `PRIMARY_NAV_ITEMS`: Home, Career Intelligence,
+  Interview Practice, Knowledge Base — a radio at the top of the sidebar.
+- **Secondary review / diagnostics** — `DIAGNOSTIC_NAV_ITEMS`: RAG Inspector and
+  Evaluation — compact buttons in a "Review & diagnostics" section lower in the
+  sidebar. These are **always accessible** (no longer gated by reviewer mode).
+
+The active page (`ACTIVE_PAGE_KEY`) is tracked independently of the primary radio
+value (`PRIMARY_NAV_KEY`), so selecting a diagnostic page does not force the route
+back to a primary option; the active diagnostic button is disabled and a
+"Viewing" caption marks it. Queued navigation (`_pending_nav` from Home cards and
+the Career → Interview handoff) is applied before widgets render, and the legacy
+`os_nav` key is migrated on first run.
 
 ### Reviewer mode
 
-`COPILOT_REVIEWER_MODE=true` reveals the Advanced diagnostic pages (RAG Inspector,
-Evaluation) in the top nav (`navigation.visible_nav_items`). The default
-candidate view hides them for a focused Prepare → Practise journey; routing and
-page values are unchanged either way.
+`COPILOT_REVIEWER_MODE=true` no longer gates page access — RAG Inspector and
+Evaluation are reachable in every mode. Reviewer mode is now purely presentational
+(it shows a "Reviewer mode" caption and may default advanced sections expanded);
+`reviewer_mode` remains a `CopilotConfig` field for that purpose.
 
 ## Tests
 
