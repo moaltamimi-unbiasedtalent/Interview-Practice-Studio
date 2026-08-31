@@ -131,6 +131,17 @@ role, requirements, gaps and sources from Career Intelligence to Interview
 Practice — no framework objects cross the boundary. It can also carry a **safe,
 summarised company context** (never raw files).
 
+**How do I hand off to Interview Practice?** Both Career surfaces offer the same
+**Practise this role** action: **Career Tools** (after the JD Analyzer → Gap →
+Plan → Questions flow) and **Career Chat** (after a role-relevant answer). A
+target role is required and never fabricated — it is taken from a user-confirmed
+role, the Job Description Analyzer's `role_title`, or a structured resolved
+occupation, and you are asked to confirm it when none is found. In Chat, set the
+optional **Target role** field to force a specific role. The handoff pre-fills an
+**editable** interview setup and never starts an interview automatically. The
+typed tool artifacts used to build the context are session-only handoff state —
+they are never logged, added to chat history, or shown in the RAG Inspector.
+
 **How does company context work?** A candidate supplies an employer's official
 URL / careers page and/or uploads company materials (annual report, investor
 deck). `build_company_context` validates the URLs, classifies each source

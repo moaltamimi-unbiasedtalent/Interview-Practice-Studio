@@ -127,6 +127,21 @@ Career Intelligence layer is split into a **backend** and a **UI adapter**:
 `src/career/ui.py` depends on `src/copilot`, never the reverse; the backend has
 no Streamlit import, which keeps it unit-testable without a UI.
 
+### Unified practice handoff
+
+Both Career surfaces — **Career Chat** and **Career Tools** — reach Interview
+Practice through one shared renderer (`_render_practice_handoff`) and one contract
+(`PreparationContext`). Target-role resolution is a single deterministic helper
+(`resolve_target_role`): user-confirmed role → analyser `role_title` → structured
+resolved occupation → "" (no fabrication). The context is built only when a role
+exists; otherwise the UI asks the user to confirm one. Chat reuses the typed tool
+outputs already computed during the answer (`OrchestrationResult.preparation_artifacts`,
+a `PreparationArtifacts` dataclass) so clicking *Practise this role* triggers **no
+extra LLM/tool call**. Those artifacts are session/handoff state only — never
+merged into `ChatResponse`, chat history, usage logs, or the RAG Inspector.
+Navigation goes through `handoff.request_practice` / `_pending_nav`; the Career UI
+never mutates `os_nav` directly.
+
 ### Reviewer mode
 
 `COPILOT_REVIEWER_MODE=true` reveals the Advanced diagnostic pages (RAG Inspector,

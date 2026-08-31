@@ -138,13 +138,23 @@ flowchart TD
 
 **Career → Interview handoff**
 
+Both Career surfaces — **Career Chat** and **Career Tools** — can hand off to
+Interview Practice through the same `PreparationContext` and the one
+**Practise this role** action. A target role is mandatory and never fabricated:
+it comes from an explicit user-confirmed role, the Job Description Analyzer's
+`role_title`, or a structured resolved occupation, and the user is asked to
+confirm it when none is found. The handoff pre-fills an **editable** interview
+setup and never starts an interview automatically.
+
 ```mermaid
 flowchart LR
+    CHAT[Career Chat] --> PC[PreparationContext]
     JD[Job description] --> JA[Job Description Analyzer]
     JA --> GA[Gap Analyzer]
     GA --> PP[Preparation Plan]
-    JA --> PC[PreparationContext]
+    JA --> PC
     GA --> PC
+    OCC[Structured resolved occupation] --> PC
     PC --> HO["Practise this role"]
     HO --> SETUP[Interview setup pre-fill editable]
 ```
