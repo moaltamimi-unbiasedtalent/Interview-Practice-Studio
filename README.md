@@ -19,6 +19,13 @@ Platform workflow: **UNDERSTAND → PREPARE → PRACTISE → REVIEW → IMPROVE*
 Practise, Review & Improve). The two modules keep clear boundaries and are each
 independently testable; see [docs/interview_os_architecture.md](docs/interview_os_architecture.md).
 
+**Navigation.** The sidebar has a **primary product journey** (Home, Career
+Intelligence, Interview Practice, Knowledge Base) and a separate **Review &
+diagnostics** section lower down with **RAG Inspector** (how the last question was
+understood and retrieved) and **Evaluation** (measured RAG/tool/product-coverage
+results). Both diagnostic pages are always accessible; reviewer mode
+(`COPILOT_REVIEWER_MODE`) is presentational only and no longer gates access.
+
 **Career Intelligence is a multi-source knowledge system**, not just a vector
 store: a deterministic router sends each question to the right lane across five
 stores — a **Role DB** (ESCO/O*NET/ISCO/KldB/BLS OOH), a **Competency DB**

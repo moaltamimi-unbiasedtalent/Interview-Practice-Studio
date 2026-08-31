@@ -15,28 +15,46 @@ class TestNavigation:
         assert nav.display_label(nav.CAREER).startswith("Prepare")
         assert nav.display_label(nav.INTERVIEW).startswith("Practise")
         assert nav.display_label(nav.KNOWLEDGE_BASE).startswith("Resources")
-        assert nav.display_label(nav.RAG_INSPECTOR).startswith("Advanced")
-        assert nav.display_label(nav.EVALUATION).startswith("Advanced")
 
     def test_display_label_preserves_underlying_value(self) -> None:
         # The route value (used by routing/tests) is unchanged by grouping.
-        for page in nav.NAV_ITEMS:
+        for page in nav.PRIMARY_NAV_ITEMS:
             assert page in nav.display_label(page) or page == nav.HOME
 
     def test_workflow_has_five_steps(self) -> None:
         assert nav.WORKFLOW_STEPS == ["UNDERSTAND", "PREPARE", "PRACTISE", "REVIEW", "IMPROVE"]
         assert "→" in nav.WORKFLOW
 
-    def test_reviewer_mode_shows_all_routes(self) -> None:
-        assert nav.visible_nav_items(reviewer_mode=True) == nav.NAV_ITEMS
+    # --- Primary vs diagnostic split (secondary-nav UX fix) ------------------
 
-    def test_default_hides_advanced_routes(self) -> None:
-        visible = nav.visible_nav_items(reviewer_mode=False)
-        assert nav.RAG_INSPECTOR not in visible
-        assert nav.EVALUATION not in visible
-        # Candidate journey pages remain.
-        for page in (nav.HOME, nav.CAREER, nav.INTERVIEW, nav.KNOWLEDGE_BASE):
-            assert page in visible
+    def test_primary_nav_items(self) -> None:  # (14 A–D)
+        assert nav.PRIMARY_NAV_ITEMS == [
+            nav.HOME, nav.CAREER, nav.INTERVIEW, nav.KNOWLEDGE_BASE,
+        ]
+
+    def test_diagnostic_nav_items(self) -> None:  # (14 E, F)
+        assert nav.DIAGNOSTIC_NAV_ITEMS == [nav.RAG_INSPECTOR, nav.EVALUATION]
+
+    def test_nav_items_is_primary_plus_diagnostics(self) -> None:
+        assert nav.NAV_ITEMS == nav.PRIMARY_NAV_ITEMS + nav.DIAGNOSTIC_NAV_ITEMS
+
+    def test_diagnostics_are_not_in_primary(self) -> None:
+        # Diagnostics never clutter the primary product navigation…
+        for route in nav.DIAGNOSTIC_NAV_ITEMS:
+            assert route not in nav.PRIMARY_NAV_ITEMS
+        # …but they remain valid, routable pages (never removed from NAV_ITEMS).
+        assert nav.RAG_INSPECTOR in nav.NAV_ITEMS
+        assert nav.EVALUATION in nav.NAV_ITEMS
+
+    def test_is_diagnostic(self) -> None:
+        assert nav.is_diagnostic(nav.RAG_INSPECTOR)
+        assert nav.is_diagnostic(nav.EVALUATION)
+        assert not nav.is_diagnostic(nav.HOME)
+
+    def test_visible_nav_items_gate_removed(self) -> None:  # (14 L)
+        # The reviewer-mode gate that used to hide diagnostics no longer exists.
+        assert not hasattr(nav, "visible_nav_items")
+        assert not hasattr(nav, "ADVANCED_ROUTES")
 
 
 class TestSharedDesignSystem:
