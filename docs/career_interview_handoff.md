@@ -41,6 +41,20 @@ The **Career Tools** page shows a **Practise this role** section once a role has
 been analysed, with a short preview (role, seniority, top competencies, priority
 gaps, likely interview themes).
 
+### Target role is mandatory
+
+A `PreparationContext` **must** have a `target_role`; it is never fabricated (no
+"Unknown"/"N/A" placeholder). Resolution is deterministic
+(`_resolve_handoff_target_role`): the analyser's `role_title` is used when
+present; otherwise the user confirms/edits the role in a **Target role** field
+(`handoff_target_role`). Only when a non-empty role exists does the UI build the
+context — so an analyser response without a `role_title` shows a "Target role
+needed" prompt instead of crashing, and the handoff button stays disabled until a
+role is provided. The handoff still **never** starts an interview automatically.
+Analysing a **new** job description clears the stale downstream Career Tool state
+(gap, plan, questions, confirmed role, active context) so it cannot leak into the
+new role's handoff; unrelated Career chat/history is preserved.
+
 ## Handoff (navigation + state)
 
 [`src/integration/handoff.py`](../src/integration/handoff.py) owns the session
