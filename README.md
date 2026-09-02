@@ -68,7 +68,10 @@ An **optional** secondary layer, **RAGAS**, measures the *generation* itself
 evaluator. RAGAS is not the production RAG engine and does not replace the custom
 metrics; it is opt-in (`pip install -e ".[evaluation]"`), runs only on public
 held-out cases, never in normal CI, and reports a clean NOT RUN without evaluator
-credentials. See [docs/ragas_evaluation.md](docs/ragas_evaluation.md).
+credentials. It runs from the CLI (`python scripts/eval_ragas.py --live`) or
+explicitly from the Evaluation page (fixed scopes, cost-confirmation gated); both
+share one runner and failed evaluator runs never become baselines. See
+[docs/ragas_evaluation.md](docs/ragas_evaluation.md).
 
 ### Current Sprint: Career Intelligence
 
