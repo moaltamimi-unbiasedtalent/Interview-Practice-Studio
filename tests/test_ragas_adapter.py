@@ -61,6 +61,15 @@ def _run(cases, **kw):
         to_sample_fn=_fake_sample, **kw)
 
 
+def _run_scores(cases, score_for):
+    """Run with a custom per-index score generator (index -> value)."""
+    def ev(samples, metrics, llm, embeddings):
+        return {i: {name: score_for(i) for name, _ in metrics} for i in range(len(samples))}
+    return ra.run_ragas(cases, config=ra.EvaluatorConfig(api_key="x"),
+                        evaluate_fn=ev, build_metrics_fn=_fake_metrics,
+                        to_sample_fn=_fake_sample)
+
+
 def _service_result(answer="A data analyst interprets data [1].", *, with_evidence=True):
     evidence = [KnowledgeEvidence(
         evidence_id="e1", text="A data analyst collects and interprets data.",
@@ -210,7 +219,11 @@ def _fake_run_dict():
                       ra.METRIC_CONTEXT_PRECISION: 0.9}],
         "metric_names": [ra.METRIC_FAITHFULNESS, ra.METRIC_RESPONSE_RELEVANCY,
                          ra.METRIC_CONTEXT_PRECISION],
+        "metrics_with_scores": [ra.METRIC_FAITHFULNESS, ra.METRIC_RESPONSE_RELEVANCY,
+                                ra.METRIC_CONTEXT_PRECISION],
         "context_recall_run": False, "referenced_case_count": 0, "case_count": 1,
+        "valid_score_count": 3, "expected_score_count": 3, "failed_score_count": 0,
+        "valid_case_count": 1, "score_coverage": 1.0, "status": ra.STATUS_COMPLETE,
     }
 
 
@@ -261,13 +274,18 @@ def test_O_ui_loads_latest_run(monkeypatch, tmp_path) -> None:
     assert latest["run_config"]["timestamp"] == "new"  # newest by directory name
 
 
-def test_O_evaluation_page_renders_not_run_state() -> None:
-    # The Evaluation page renders the RAGAS section without executing RAGAS.
-    # (No runs directory exists in the repo, so it shows the NOT-RUN message.)
+def test_O_evaluation_page_shows_not_run_state(monkeypatch) -> None:
+    # The Evaluation page renders the RAGAS NOT-RUN state without executing RAGAS.
+    # _latest_ragas_run is stubbed to None (no runs) — avoids depending on, or
+    # mutating, the real CWD/store cache. (Its own logic is covered by test_N and
+    # the skip-invalid tests.)
     import pathlib
 
     from streamlit.testing.v1 import AppTest
 
+    from src.career import ui as career_ui
+
+    monkeypatch.setattr(career_ui, "_latest_ragas_run", lambda: None)
     app_path = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
     at = AppTest.from_file(app_path, default_timeout=60)
     at.session_state["os_active_page"] = "Evaluation"
@@ -276,3 +294,186 @@ def test_O_evaluation_page_renders_not_run_state() -> None:
     blob = " ".join(m.value for m in at.markdown) + " ".join(i.value for i in at.info)
     assert "RAGAS" in blob
     assert "No RAGAS run yet" in blob  # read-only NOT-RUN state, nothing executed
+
+
+# --- Section 15: invalid-number handling (is_valid_score / aggregate / status) --
+
+
+class TestInvalidScores:
+    def test_is_valid_score_matrix(self) -> None:
+        assert ra.is_valid_score(0.0) and ra.is_valid_score(1.0) and ra.is_valid_score(0.5)
+        for bad in (float("nan"), float("inf"), float("-inf"), None, True, "0.5"):
+            assert ra.is_valid_score(bad) is False
+
+    def test_A_all_nan_aggregates_none_status_failed(self) -> None:
+        cases = [ra.RagasEvalCase(f"c{i}", "q", "a", retrieved_contexts=["x"]) for i in range(3)]
+        run = _run_scores(cases, lambda i: float("nan"))
+        assert all(v is None for v in run["metrics"].values())
+        assert run["valid_score_count"] == 0
+        assert run["status"] == ra.STATUS_FAILED
+        assert ra.has_usable_scores(run) is False
+
+    def test_B_mixed_nan_and_finite_partial(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"]),
+                 ra.RagasEvalCase("c1", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: 0.6 if i == 0 else float("nan"))
+        # NaN ignored; finite value averaged correctly.
+        assert run["metrics"][ra.METRIC_FAITHFULNESS] == 0.6
+        assert run["status"] == ra.STATUS_PARTIAL
+        assert run["valid_score_count"] == 3 and run["expected_score_count"] == 6
+
+    def test_C_positive_infinity_ignored(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: float("inf"))
+        assert all(v is None for v in run["metrics"].values())
+        assert run["status"] == ra.STATUS_FAILED
+
+    def test_D_negative_infinity_ignored(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: float("-inf"))
+        assert all(v is None for v in run["metrics"].values())
+
+    def test_E_zero_is_valid(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: 0.0)
+        assert run["metrics"][ra.METRIC_FAITHFULNESS] == 0.0
+        assert run["status"] == ra.STATUS_COMPLETE
+
+    def test_F_one_is_valid(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: 1.0)
+        assert run["metrics"][ra.METRIC_FAITHFULNESS] == 1.0
+        assert run["status"] == ra.STATUS_COMPLETE
+
+    def test_G_none_ignored(self) -> None:
+        cases = [ra.RagasEvalCase("c0", "q", "a", retrieved_contexts=["x"])]
+        run = _run_scores(cases, lambda i: None)
+        assert all(v is None for v in run["metrics"].values())
+        assert run["status"] == ra.STATUS_FAILED
+
+
+# --- Section 16: CLI guard (all-invalid → hard stop; partial/complete → write) --
+
+
+def _mock_live(monkeypatch, run_dict):
+    import src.copilot.config as cfgmod
+
+    class _Cfg:
+        is_configured = True
+        retrieval_mode = "hybrid"
+
+    class _Svc:
+        def answer(self, q):
+            return _service_result()
+
+    monkeypatch.setattr(ra, "ragas_available", lambda: True)
+    monkeypatch.setattr(ra, "evaluator_config_from_env",
+                        lambda **k: ra.EvaluatorConfig(api_key="x", base_url="https://x"))
+    monkeypatch.setattr(cfgmod, "load_config", lambda: _Cfg())
+    monkeypatch.setattr(cli, "_build_service", lambda config: _Svc())
+    monkeypatch.setattr(ra, "run_ragas", lambda *a, **k: run_dict)
+
+
+def _run_dict(status, metrics, *, valid, expected):
+    return {
+        "metrics": metrics,
+        "per_case": [{"case_id": "c0", "category": "role", **{k: v for k, v in metrics.items()
+                                                              if v is not None}}],
+        "metric_names": list(metrics),
+        "metrics_with_scores": [k for k, v in metrics.items() if v is not None],
+        "context_recall_run": False, "referenced_case_count": 0, "case_count": 1,
+        "valid_score_count": valid, "expected_score_count": expected,
+        "failed_score_count": expected - valid,
+        "valid_case_count": 1 if valid else 0,
+        "score_coverage": round(valid / expected, 4) if expected else 0.0,
+        "status": status,
+    }
+
+
+def test_cli_all_invalid_hard_stops(monkeypatch, tmp_path, capsys) -> None:
+    failed = _run_dict(ra.STATUS_FAILED,
+                       {"faithfulness": None, "response_relevancy": None,
+                        "context_precision": None}, valid=0, expected=3)
+    _mock_live(monkeypatch, failed)
+    called = {"write": False}
+    monkeypatch.setattr(cli, "_write_artifacts",
+                        lambda *a, **k: called.__setitem__("write", True))
+    out_dir = tmp_path / "run"
+    rc = cli.main(["--live", "--limit", "1", "--output-dir", str(out_dir)])
+    captured = capsys.readouterr().out
+    assert rc == 2
+    assert "RAGAS RUN FAILED" in captured
+    assert called["write"] is False       # artifacts never written
+    assert not out_dir.exists()           # directory never created
+
+
+def test_cli_partial_writes_with_status(monkeypatch, tmp_path) -> None:
+    partial = _run_dict(ra.STATUS_PARTIAL,
+                        {"faithfulness": 0.6, "response_relevancy": 0.6,
+                         "context_precision": 0.6}, valid=2, expected=3)
+    _mock_live(monkeypatch, partial)
+    out_dir = tmp_path / "run"
+    rc = cli.main(["--live", "--limit", "1", "--output-dir", str(out_dir)])
+    assert rc == 0
+    for name in ("results.json", "results.csv", "summary.md", "run_config.json"):
+        assert (out_dir / name).is_file()
+    cfg = json.loads((out_dir / "run_config.json").read_text())
+    assert cfg["status"] == ra.STATUS_PARTIAL and cfg["score_coverage"] > 0
+    assert "PARTIAL" in (out_dir / "summary.md").read_text()
+
+
+def test_cli_complete_writes_status_complete(monkeypatch, tmp_path) -> None:
+    complete = _run_dict(ra.STATUS_COMPLETE,
+                         {"faithfulness": 0.9, "response_relevancy": 0.8,
+                          "context_precision": 0.7}, valid=3, expected=3)
+    _mock_live(monkeypatch, complete)
+    out_dir = tmp_path / "run"
+    rc = cli.main(["--live", "--limit", "1", "--output-dir", str(out_dir)])
+    assert rc == 0
+    cfg = json.loads((out_dir / "run_config.json").read_text())
+    assert cfg["status"] == ra.STATUS_COMPLETE
+
+
+def test_cli_written_json_is_strict_no_nan(monkeypatch, tmp_path) -> None:
+    # Even if a stray non-finite slipped through, allow_nan=False would fail loud.
+    complete = _run_dict(ra.STATUS_COMPLETE,
+                         {"faithfulness": 0.9, "response_relevancy": 0.8,
+                          "context_precision": 0.7}, valid=3, expected=3)
+    _mock_live(monkeypatch, complete)
+    out_dir = tmp_path / "run"
+    cli.main(["--live", "--limit", "1", "--output-dir", str(out_dir)])
+    text = (out_dir / "results.json").read_text()
+    assert "NaN" not in text and "Infinity" not in text
+    json.loads(text)  # strict parse succeeds
+
+
+# --- Section 17: UI skips invalid/legacy NaN runs ---------------------------
+
+
+def test_ui_skips_all_nan_legacy_run(monkeypatch, tmp_path) -> None:
+    from src.career import ui as career_ui
+
+    runs = tmp_path / "evaluations" / "ragas" / "runs"
+    (runs / "20260101_000000").mkdir(parents=True)   # older, valid
+    (runs / "20260102_000000").mkdir(parents=True)   # newer, all-null (failed legacy)
+    (runs / "20260101_000000" / "results.json").write_text(json.dumps(
+        {"metrics": {"faithfulness": 0.7}, "run_config": {"timestamp": "valid"}}))
+    (runs / "20260102_000000" / "results.json").write_text(json.dumps(
+        {"metrics": {"faithfulness": None, "response_relevancy": None},
+         "run_config": {"timestamp": "failed"}}))
+    monkeypatch.chdir(tmp_path)
+    latest = career_ui._latest_ragas_run()
+    assert latest is not None
+    assert latest["run_config"]["timestamp"] == "valid"  # skipped the newer invalid run
+    assert latest["_invalid_ignored"] is True
+
+
+def test_ui_returns_none_when_only_invalid_runs(monkeypatch, tmp_path) -> None:
+    from src.career import ui as career_ui
+
+    runs = tmp_path / "evaluations" / "ragas" / "runs"
+    (runs / "20260101_000000").mkdir(parents=True)
+    (runs / "20260101_000000" / "results.json").write_text(json.dumps(
+        {"metrics": {"faithfulness": None}, "run_config": {"status": "FAILED"}}))
+    monkeypatch.chdir(tmp_path)
+    assert career_ui._latest_ragas_run() is None

@@ -67,3 +67,32 @@ Configured independently of production chat via `RAGAS_EVAL_API_KEY`,
 Missing → the CLI reports *"RAGAS evaluation not run — evaluator credentials not
 configured."* and exits 0 (unless `--require-live`). The production chat key is
 **not** reused unless the user explicitly opts in.
+
+> **Common misconfiguration:** an OpenRouter key (`sk-or-…`) sent to the default
+> OpenAI endpoint fails to authenticate, so every metric comes back NaN. Set
+> `RAGAS_EVAL_BASE_URL=https://openrouter.ai/api/v1` (and OpenRouter-style model
+> names). The CLI never prints the key; on failure it reports which of
+> `RAGAS_EVAL_API_KEY` / `RAGAS_EVAL_BASE_URL` / `RAGAS_EVAL_MODEL` /
+> `RAGAS_EVAL_EMBEDDING_MODEL` to check, plus a safe base-URL/model diagnostic.
+
+## Execution status (technical validity, not model quality)
+
+A valid metric score is a **finite real number**; `NaN`, `+inf`, `-inf` and
+`None` are never stored and never aggregated. Each run gets a deterministic
+status from how many *expected* scores came back valid (Context Recall is
+expected only on referenced cases):
+
+| Status | Rule | Persisted? |
+|---|---|---|
+| **COMPLETE** | every expected score is valid | yes |
+| **PARTIAL** | some — but not all — scores are valid | yes (marked PARTIAL, with coverage) |
+| **FAILED** | zero valid scores (e.g. evaluator auth failure) | **no** — the CLI exits non-zero (2) and writes no artifacts |
+
+A FAILED run therefore can never look "completed": no `runs/<timestamp>/`
+directory and no `results.*` are created. PARTIAL runs are written but clearly
+flagged (`valid_score_count / expected_score_count`, `score_coverage`) so a
+partial evaluator outage is not mistaken for a low model score. Artifacts are
+written with `json.dumps(allow_nan=False)`, so a non-finite value can never leak
+into `results.json` / `run_config.json`. The Evaluation page skips invalid/legacy
+all-NaN runs and uses the newest *usable* run as the baseline (warning that an
+invalid run was ignored); it never deletes historical folders.

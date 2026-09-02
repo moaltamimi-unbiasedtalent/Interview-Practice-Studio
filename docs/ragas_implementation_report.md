@@ -7,6 +7,39 @@ Career Intelligence. The existing deterministic evaluation (11R, 11R-A, KB-2,
 product coverage, quality_v2, faithfulness_v2) is unchanged and remains the
 primary CI quality gate.
 
+## Update — RAGAS-1B: fail-safe score validation (all-NaN guard)
+
+A real live run exposed a failure mode: the evaluator failed to authenticate (an
+OpenRouter key sent to the default OpenAI endpoint because `RAGAS_EVAL_BASE_URL`
+was unset), RAGAS caught per-job exceptions, every metric became NaN, yet the CLI
+still wrote a full run that *looked* completed. Fixed without redesign:
+
+- **Valid score = finite real number.** `is_valid_score()` rejects `NaN`, `±inf`,
+  `None` and bool. Per-case merge and aggregation store/average only valid scores;
+  an aggregate with no valid values is `None`, never `NaN`.
+- **Execution status** COMPLETE / PARTIAL / FAILED derived from valid vs expected
+  score counts (Context Recall expected only on referenced cases). Run metadata
+  adds `valid_score_count`, `expected_score_count`, `failed_score_count`,
+  `valid_case_count`, `score_coverage`, `status`, and `has_usable_scores()`.
+- **CLI hard stop:** a FAILED run (zero valid scores) prints `RAGAS RUN FAILED`,
+  a safe config diagnostic (base-URL configured/default, model, embedding model —
+  never the key), exits **2**, and writes **no** directory or artifacts. PARTIAL
+  and COMPLETE runs are written, with status/coverage in `run_config.json`,
+  `results.json` and `summary.md`.
+- **JSON safety:** artifacts use `json.dumps(allow_nan=False)` so a non-finite
+  value can never leak into standard JSON.
+- **Evaluation page:** skips invalid/legacy all-NaN runs and shows the newest
+  usable run (warning that an invalid run was ignored); PARTIAL runs show a
+  coverage warning; nothing renders as `nan`.
+- **Known failed local runs:** `evaluations/ragas/runs/20260902_073016/` and
+  `.../20260902_074506/` contain authentication-failure NaN scores and must **not**
+  be used as a baseline. `evaluations/ragas/runs/` is now git-ignored (generated,
+  local-only); historical folders are never deleted automatically — remove local
+  failed runs manually if desired.
+
+Status is **technical execution coverage, not model quality**; no pass/fail
+performance threshold is introduced.
+
 ## What was implemented
 
 | Item | Location |

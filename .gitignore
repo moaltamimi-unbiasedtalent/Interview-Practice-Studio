@@ -52,3 +52,7 @@ data/knowledge_demo/
 
 # Local editor/launch config
 .claude/
+
+# RAGAS run artifacts are generated locally (may contain generated answers);
+# never commit them. The public cases + README under evaluations/ragas/ stay tracked.
+evaluations/ragas/runs/

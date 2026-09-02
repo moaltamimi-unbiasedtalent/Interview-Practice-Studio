@@ -1417,8 +1417,27 @@ def _render_product_coverage() -> None:
     st.divider()
 
 
+def _ragas_run_usable(data: dict) -> bool:
+    """A usable RAGAS run has at least one finite aggregate metric.
+
+    New runs also carry an explicit status; a FAILED status is never usable.
+    Legacy runs (no status) are judged purely on metric finiteness, so an
+    all-NaN/null legacy run is correctly rejected as a baseline.
+    """
+    from src.copilot.evaluation.ragas_adapter import STATUS_FAILED, is_valid_score
+
+    if (data.get("run_config", {}) or {}).get("status") == STATUS_FAILED:
+        return False
+    return any(is_valid_score(v) for v in (data.get("metrics") or {}).values())
+
+
 def _latest_ragas_run() -> dict | None:
-    """Load the most recent RAGAS run's results.json, or None. Never executes RAGAS."""
+    """Load the most recent USABLE RAGAS run's results.json, or None.
+
+    Never executes RAGAS. Invalid runs (all-NaN/null legacy runs, or FAILED runs)
+    are skipped in favour of the newest usable prior run; ``_invalid_ignored`` on
+    the returned dict flags that at least one newer invalid run was skipped.
+    """
     import json
     import os
 
@@ -1429,16 +1448,23 @@ def _latest_ragas_run() -> dict | None:
         (d for d in os.listdir(runs_dir) if os.path.isdir(os.path.join(runs_dir, d))),
         reverse=True,
     )
+    skipped_invalid = False
     for name in run_dirs:
         path = os.path.join(runs_dir, name, "results.json")
-        if os.path.isfile(path):
-            try:
-                with open(path, encoding="utf-8") as handle:
-                    data = json.load(handle)
-                data["_dir"] = os.path.join(runs_dir, name)
-                return data
-            except (OSError, json.JSONDecodeError):
-                continue
+        if not os.path.isfile(path):
+            continue
+        try:
+            with open(path, encoding="utf-8") as handle:
+                data = json.load(handle)  # strict JSON; NaN would raise here
+        except (OSError, ValueError):
+            skipped_invalid = True  # unreadable / non-standard JSON (e.g. NaN)
+            continue
+        if not _ragas_run_usable(data):
+            skipped_invalid = True
+            continue
+        data["_dir"] = os.path.join(runs_dir, name)
+        data["_invalid_ignored"] = skipped_invalid
+        return data
     return None
 
 
@@ -1459,12 +1485,24 @@ def _render_ragas_section() -> None:
         )
         return
 
+    if run.get("_invalid_ignored"):
+        st.warning("A more recent RAGAS run was invalid (no valid evaluator scores) "
+                   "and is not used as a baseline. Showing the latest usable run.")
+
     metrics = run.get("metrics", {})
     cfg = run.get("run_config", {})
+    status = cfg.get("status")
     st.caption(
         f"Last run: {cfg.get('timestamp', '—')} · RAGAS {cfg.get('ragas_version', '—')} · "
         f"evaluator `{cfg.get('evaluator_model', '—')}` · {cfg.get('case_count', '—')} case(s)."
     )
+    if status == "PARTIAL":
+        st.warning(
+            "This RAGAS run completed with partial evaluator coverage "
+            f"({cfg.get('valid_score_count', '?')}/{cfg.get('expected_score_count', '?')} "
+            "valid scores). Metrics aggregate only valid scores — this is technical "
+            "coverage, not model quality."
+        )
     cols = st.columns(4)
     cols[0].metric("Faithfulness", _ragas_val(metrics.get("faithfulness")))
     cols[1].metric("Response Relevancy", _ragas_val(metrics.get("response_relevancy")))
@@ -1483,7 +1521,9 @@ def _render_ragas_section() -> None:
 
 
 def _ragas_val(value) -> str:
-    return "n/a" if value is None else f"{value}"
+    from src.copilot.evaluation.ragas_adapter import is_valid_score
+
+    return f"{value}" if is_valid_score(value) else "n/a"
 
 
 def _page_evaluation() -> None:
