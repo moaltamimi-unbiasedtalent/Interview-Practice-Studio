@@ -216,3 +216,12 @@ deterministic retrieval evaluation. It runs only on public held-out cases
 only when evaluator credentials are configured — otherwise the CLI and the
 Evaluation page report a clean NOT RUN. See
 [`docs/ragas_evaluation.md`](ragas_evaluation.md).
+
+**Running it from the app.** RAGAS can be run explicitly from the Evaluation page
+(*Review & diagnostics → Evaluation → RAGAS — Generation Quality → Run a new RAGAS
+evaluation*) using three fixed scopes (2 / 10 / 35 public cases). It never runs
+automatically on page open, requires ticking a "makes live provider calls"
+confirmation, and shows a safe configuration status first (package / credential /
+model / base-URL — never the key). The UI and the CLI share one evaluation runner
+(`src/copilot/evaluation/ragas_runner.py`), and failed evaluator runs (no valid
+scores) cannot become baselines — they write no artifacts.

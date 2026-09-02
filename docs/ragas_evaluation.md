@@ -52,6 +52,21 @@ variability — hence optional and out of CI.
 - RAGAS is isolated from `CareerIntelligenceService`; the chat path works
   identically whether or not RAGAS is installed.
 
+## Running it (CLI or Evaluation page — one shared runner)
+
+Both interfaces call `src/copilot/evaluation/ragas_runner.py` (`run_live_ragas`),
+so there is a single evaluation implementation and no duplicated logic.
+
+- **CLI:** `python scripts/eval_ragas.py --live [--limit N] [--category …]`.
+- **Evaluation page:** *Review & diagnostics → Evaluation → RAGAS — Generation
+  Quality → Run a new RAGAS evaluation*. Three fixed scopes only (2 / 10 / 35
+  public cases — no free-form counts). It never runs on page open; a
+  "makes live provider calls" checkbox must be ticked, and a safe configuration
+  status (package / credential / evaluator model / embedding model / base-URL —
+  never the key) must be complete before the Run button enables. Duplicate runs
+  within a rerun are prevented. Results render by status (success / partial
+  warning / failure) and the read-only latest-run view refreshes.
+
 ## Data contract
 
 The adapter consumes a plain `RagasEvalCase` (no LangChain/Chroma/SQLite/Streamlit

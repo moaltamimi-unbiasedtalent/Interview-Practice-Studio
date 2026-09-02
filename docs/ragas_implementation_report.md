@@ -40,6 +40,32 @@ still wrote a full run that *looked* completed. Fixed without redesign:
 Status is **technical execution coverage, not model quality**; no pass/fail
 performance threshold is introduced.
 
+## Update — RAGAS-2: run RAGAS safely from the Evaluation page
+
+RAGAS can now be launched from the UI without the terminal, with every safeguard
+intact:
+
+- **Shared runner** `src/copilot/evaluation/ragas_runner.py` (`run_live_ragas`,
+  `check_configuration`, `write_artifacts`) is the single evaluation
+  implementation. `scripts/eval_ragas.py` and the Evaluation page are both thin
+  interfaces over it — no duplicated logic; the CLI is not shelled out to.
+- **Guarded controls** on *Review & diagnostics → Evaluation → RAGAS — Generation
+  Quality*: three fixed scopes (2 / 10 / 35 public cases — no free-form counts),
+  a required "makes live provider calls" checkbox, and a safe configuration status
+  (package / evaluator credential / Career model / evaluator model / embedding /
+  base-URL — **never the key**). The Run button stays disabled until configuration
+  is complete and the box is ticked; a run in progress cannot be re-triggered.
+- **Never on page open** — RAGAS executes only when the button is clicked.
+- **Results by status** — success (COMPLETE), warning with coverage (PARTIAL),
+  error with no baseline saved (FAILED). Metric legends and a COMPLETE/PARTIAL/
+  FAILED explainer are shown; no pass/fail thresholds.
+- **Security** — only `evaluations/ragas/cases.json` is evaluated; no chat,
+  candidate background, JD, transcript, or company data. Session state holds only
+  bounded, secret-free status.
+- **OpenRouter** — `check_configuration` warns (safely, without the key) when an
+  OpenRouter-style key is set with a default base URL, the exact misconfiguration
+  that caused the earlier all-NaN failure.
+
 ## What was implemented
 
 | Item | Location |
