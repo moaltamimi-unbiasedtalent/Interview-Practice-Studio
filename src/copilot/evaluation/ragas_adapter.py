@@ -15,6 +15,7 @@ to a clean, explicit skip, never a crash.
 
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass, field
 
@@ -28,11 +29,36 @@ __all__ = [
     "case_from_service_result",
     "load_cases",
     "run_ragas",
+    "is_valid_score",
+    "has_usable_scores",
+    "STATUS_COMPLETE",
+    "STATUS_PARTIAL",
+    "STATUS_FAILED",
     "METRIC_FAITHFULNESS",
     "METRIC_RESPONSE_RELEVANCY",
     "METRIC_CONTEXT_PRECISION",
     "METRIC_CONTEXT_RECALL",
 ]
+
+# Deterministic execution-status labels (technical validity, NOT model quality).
+STATUS_COMPLETE = "COMPLETE"
+STATUS_PARTIAL = "PARTIAL"
+STATUS_FAILED = "FAILED"
+
+
+def is_valid_score(value) -> bool:
+    """A usable metric score is a finite real number (not bool, NaN, or inf)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(float(value))
+    except (TypeError, ValueError):
+        return False
+
+
+def has_usable_scores(run: dict) -> bool:
+    """True if the run produced at least one valid (finite) evaluator score."""
+    return int(run.get("valid_score_count", 0)) > 0
 
 # Project-facing metric names (stable; independent of RAGAS column renames).
 METRIC_FAITHFULNESS = "faithfulness"
@@ -319,13 +345,36 @@ def run_ragas(
 
     rows = list(per_case.values())
     aggregates = _aggregate(rows, metric_names)
+
+    # Execution validity (technical coverage, NOT model quality). Only finite
+    # scores count; a failed evaluator job leaves its score absent.
+    reference_free = [METRIC_FAITHFULNESS, METRIC_RESPONSE_RELEVANCY, METRIC_CONTEXT_PRECISION]
+    expected = len(reference_free) * len(cases) + (len(with_ref) if context_recall_run else 0)
+    valid = sum(1 for r in rows for name in metric_names if is_valid_score(r.get(name)))
+    valid_case_count = sum(1 for r in rows
+                           if any(is_valid_score(r.get(name)) for name in metric_names))
+    metrics_with_scores = [name for name in metric_names if aggregates.get(name) is not None]
+    if valid == 0:
+        status = STATUS_FAILED
+    elif valid >= expected:
+        status = STATUS_COMPLETE
+    else:
+        status = STATUS_PARTIAL
+
     return {
         "metrics": aggregates,
         "per_case": rows,
         "metric_names": metric_names,
+        "metrics_with_scores": metrics_with_scores,
         "context_recall_run": context_recall_run,
         "referenced_case_count": len(with_ref),
         "case_count": len(cases),
+        "valid_score_count": valid,
+        "expected_score_count": expected,
+        "failed_score_count": max(0, expected - valid),
+        "valid_case_count": valid_case_count,
+        "score_coverage": round(valid / expected, 4) if expected else 0.0,
+        "status": status,
     }
 
 
@@ -354,13 +403,15 @@ def _merge_scores(per_case, cases, scores_by_index, metric_names) -> None:
     for idx, case in enumerate(cases):
         scores = scores_by_index.get(idx, {})
         for name in metric_names:
-            if name in scores and scores[name] is not None:
+            # Only store finite scores; a failed evaluator job (NaN/inf/None)
+            # stays absent rather than becoming a misleading numeric value.
+            if is_valid_score(scores.get(name)):
                 per_case[case.case_id][name] = round(float(scores[name]), 4)
 
 
 def _aggregate(rows, metric_names) -> dict:
     agg: dict[str, float | None] = {}
     for name in metric_names:
-        values = [r[name] for r in rows if isinstance(r.get(name), (int, float))]
+        values = [float(r[name]) for r in rows if is_valid_score(r.get(name))]
         agg[name] = round(sum(values) / len(values), 4) if values else None
     return agg

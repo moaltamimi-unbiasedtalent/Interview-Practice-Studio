@@ -116,10 +116,30 @@ def main(argv: list[str] | None = None) -> int:
     print("Scoring with RAGAS (LLM evaluator)…")
     run = ra.run_ragas(eval_cases, config=evaluator)
 
+    # HARD STOP before any artifact is created: an all-invalid run (e.g. the
+    # evaluator failed to authenticate and every metric came back NaN) must NOT
+    # be persisted as a normal evaluation result.
+    if not ra.has_usable_scores(run):
+        print("RAGAS RUN FAILED — evaluator returned no valid scores.")
+        print("No evaluation artifacts were written.")
+        print("Check evaluator configuration: RAGAS_EVAL_API_KEY, RAGAS_EVAL_BASE_URL, "
+              "RAGAS_EVAL_MODEL and RAGAS_EVAL_EMBEDDING_MODEL.")
+        print(f"  Evaluator base URL: {'configured' if evaluator.base_url else 'default'}")
+        print(f"  Evaluator model: {evaluator.model}")
+        print(f"  Embedding model: {evaluator.embedding_model}")
+        return 2
+
+    # COMPLETE / PARTIAL: create the unique run directory and write artifacts.
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     out = Path(args.output_dir) if args.output_dir else RUNS_DIR / stamp
     out.mkdir(parents=True, exist_ok=True)
     _write_artifacts(out, run, evaluator, stamp)
+    print(f"Execution status: {run['status']} · valid scores "
+          f"{run['valid_score_count']}/{run['expected_score_count']} "
+          f"({round(run['score_coverage'] * 100, 1)}% coverage)")
+    if run["status"] == ra.STATUS_PARTIAL:
+        print("PARTIAL run — some evaluator jobs returned no valid score; "
+              "aggregates use only valid scores.")
     print(f"Wrote {out}/results.json, results.csv, summary.md, run_config.json")
     for name, value in run["metrics"].items():
         print(f"  {name}: {value if value is not None else 'n/a'}")
@@ -138,17 +158,26 @@ def _write_artifacts(out: Path, run: dict, evaluator, stamp: str) -> None:
     run_config = {
         "timestamp": stamp,
         "ragas_version": ragas_version,
+        "status": run["status"],
         "case_count": run["case_count"],
         "referenced_case_count": run["referenced_case_count"],
         "context_recall_run": run["context_recall_run"],
+        "valid_score_count": run["valid_score_count"],
+        "expected_score_count": run["expected_score_count"],
+        "failed_score_count": run["failed_score_count"],
+        "score_coverage": run["score_coverage"],
         "metric_names": run["metric_names"],
         "git_commit": _git_sha(),
         **evaluator.safe_dict(),  # never includes the API key
     }
-    (out / "run_config.json").write_text(json.dumps(run_config, indent=2), encoding="utf-8")
+    # allow_nan=False guarantees no non-standard NaN/inf can leak into JSON; by
+    # this point scores are already normalised, so this is a fail-loud backstop.
+    (out / "run_config.json").write_text(
+        json.dumps(run_config, indent=2, allow_nan=False), encoding="utf-8")
     (out / "results.json").write_text(
         json.dumps({"metrics": run["metrics"], "per_case": run["per_case"],
-                    "run_config": run_config}, indent=2), encoding="utf-8")
+                    "run_config": run_config}, indent=2, allow_nan=False),
+        encoding="utf-8")
 
     fieldnames = ["case_id", "category", *run["metric_names"]]
     with open(out / "results.csv", "w", newline="", encoding="utf-8") as handle:
@@ -168,6 +197,14 @@ def _summary_md(run: dict, run_config: dict) -> str:
         f"evaluator `{run_config['evaluator_model']}` · {run['case_count']} case(s).",
         "Measured values (baseline — not pass/fail). Optional secondary layer; the "
         "deterministic retrieval evaluations remain the primary gate.\n",
+        "## Execution status\n",
+        f"Status: **{run['status']}**",
+        f"Valid scores: {run['valid_score_count']} / {run['expected_score_count']}",
+        f"Score coverage: {round(run['score_coverage'] * 100, 1)}%",
+        ("\n_Some evaluator jobs did not return valid numeric scores. Metrics below "
+         "are aggregated only from valid scores. This is technical evaluation "
+         "coverage, not model quality._" if run["status"] == ra.STATUS_PARTIAL else ""),
+        "",
         "## Overall\n",
         f"- Faithfulness: **{_fmt(m.get(ra.METRIC_FAITHFULNESS))}**",
         f"- Response Relevancy: **{_fmt(m.get(ra.METRIC_RESPONSE_RELEVANCY))}**",
@@ -193,7 +230,7 @@ def _summary_md(run: dict, run_config: dict) -> str:
             f"{_avg(rows, ra.METRIC_CONTEXT_PRECISION)} |")
 
     lowest = sorted(
-        (r for r in run["per_case"] if isinstance(r.get(ra.METRIC_FAITHFULNESS), (int, float))),
+        (r for r in run["per_case"] if ra.is_valid_score(r.get(ra.METRIC_FAITHFULNESS))),
         key=lambda r: r[ra.METRIC_FAITHFULNESS])[:5]
     if lowest:
         lines += ["", "## Lowest-faithfulness cases (review, not automatic failures)\n"]
@@ -203,11 +240,12 @@ def _summary_md(run: dict, run_config: dict) -> str:
 
 
 def _fmt(value) -> str:
-    return "n/a" if value is None else f"{value}"
+    # Defensively map None / NaN / inf → n/a; never render a non-finite value.
+    return f"{value}" if ra.is_valid_score(value) else "n/a"
 
 
 def _avg(rows, name) -> str:
-    vals = [r[name] for r in rows if isinstance(r.get(name), (int, float))]
+    vals = [float(r[name]) for r in rows if ra.is_valid_score(r.get(name))]
     return f"{round(sum(vals) / len(vals), 3)}" if vals else "n/a"
 
 
