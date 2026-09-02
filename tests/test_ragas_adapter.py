@@ -228,9 +228,12 @@ def _fake_run_dict():
 
 
 def test_L_run_writes_all_artifacts(tmp_path) -> None:
+    from src.copilot.evaluation import ragas_runner as runner
+
     out = tmp_path / "20260101_000000"
     out.mkdir()
-    cli._write_artifacts(out, _fake_run_dict(), ra.EvaluatorConfig(api_key="secret"), "20260101_000000")
+    runner.write_artifacts(out, _fake_run_dict(), ra.EvaluatorConfig(api_key="secret"),
+                           "20260101_000000")
     for name in ("results.json", "results.csv", "summary.md", "run_config.json"):
         assert (out / name).is_file()
     # API key never written.
@@ -239,11 +242,13 @@ def test_L_run_writes_all_artifacts(tmp_path) -> None:
 
 
 def test_M_second_run_does_not_overwrite_first(tmp_path) -> None:
+    from src.copilot.evaluation import ragas_runner as runner
+
     a = tmp_path / "20260101_000000"; a.mkdir()
     b = tmp_path / "20260102_000000"; b.mkdir()
-    cli._write_artifacts(a, _fake_run_dict(), ra.EvaluatorConfig(api_key="x"), "20260101_000000")
+    runner.write_artifacts(a, _fake_run_dict(), ra.EvaluatorConfig(api_key="x"), "20260101_000000")
     before = (a / "results.json").read_text()
-    cli._write_artifacts(b, _fake_run_dict(), ra.EvaluatorConfig(api_key="x"), "20260102_000000")
+    runner.write_artifacts(b, _fake_run_dict(), ra.EvaluatorConfig(api_key="x"), "20260102_000000")
     assert (a / "results.json").read_text() == before  # first run untouched
     assert (b / "results.json").is_file()
 
@@ -357,6 +362,7 @@ class TestInvalidScores:
 
 def _mock_live(monkeypatch, run_dict):
     import src.copilot.config as cfgmod
+    from src.copilot.evaluation import ragas_runner as runner
 
     class _Cfg:
         is_configured = True
@@ -370,7 +376,9 @@ def _mock_live(monkeypatch, run_dict):
     monkeypatch.setattr(ra, "evaluator_config_from_env",
                         lambda **k: ra.EvaluatorConfig(api_key="x", base_url="https://x"))
     monkeypatch.setattr(cfgmod, "load_config", lambda: _Cfg())
-    monkeypatch.setattr(cli, "_build_service", lambda config: _Svc())
+    # The CLI delegates to the shared runner; mock its service builder + ra.run_ragas
+    # so no real service or network is used.
+    monkeypatch.setattr(runner, "_default_service", lambda config: _Svc())
     monkeypatch.setattr(ra, "run_ragas", lambda *a, **k: run_dict)
 
 
@@ -394,9 +402,11 @@ def test_cli_all_invalid_hard_stops(monkeypatch, tmp_path, capsys) -> None:
     failed = _run_dict(ra.STATUS_FAILED,
                        {"faithfulness": None, "response_relevancy": None,
                         "context_precision": None}, valid=0, expected=3)
+    from src.copilot.evaluation import ragas_runner as runner
+
     _mock_live(monkeypatch, failed)
     called = {"write": False}
-    monkeypatch.setattr(cli, "_write_artifacts",
+    monkeypatch.setattr(runner, "write_artifacts",
                         lambda *a, **k: called.__setitem__("write", True))
     out_dir = tmp_path / "run"
     rc = cli.main(["--live", "--limit", "1", "--output-dir", str(out_dir)])
