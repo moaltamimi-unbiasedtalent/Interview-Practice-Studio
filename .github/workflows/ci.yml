@@ -20,6 +20,8 @@ jobs:
           pip install -e ".[dev,speech,live]"
       - name: Compile
         run: python -m compileall -q app.py src scripts tests
+      - name: Ruff (conservative F/E9 rules)
+        run: ruff check .
       - name: Import checks (app + key modules)
         run: |
           python -c "import app"
