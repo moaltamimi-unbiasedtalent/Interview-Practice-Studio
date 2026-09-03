@@ -1825,15 +1825,6 @@ def _page_evaluation() -> None:
         st.caption(f"Over {len(probes)} probes. See docs/hybrid_search.md.")
 
 
-PAGES = {
-    "Chat": _page_chat,
-    "Knowledge Base": _page_knowledge_base,
-    "Career Tools": _page_tools,
-    "RAG Inspector": _page_rag_inspector,
-    "Evaluation": _page_evaluation,
-}
-
-
 # --- Public entry points for the Interview OS shell --------------------------
 # The unified app.py owns st.set_page_config and the top-level navigation; these
 # render the Career Intelligence module's pages within that shell.
