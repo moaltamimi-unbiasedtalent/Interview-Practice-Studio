@@ -31,7 +31,16 @@ All configuration is via environment variables or `.streamlit/secrets.toml`
 
 ## Database & migrations
 
-- Dev/tests create tables automatically (`init_db` → `create_all`).
+**Migration ownership.** Local development and tests (SQLite) create tables with
+`init_db` → `create_all`. **Production (any non-SQLite database) is schema-owned by
+Alembic** — `init_db` no longer calls `create_all` there, so the schema is never
+silently created or altered at startup; run migrations explicitly. The baseline
+revision `0001_initial` is **immutable**: it uses explicit `op.create_table` /
+`op.create_index` operations (it does not import the live model metadata), so a
+later model change cannot retroactively alter it. Add schema changes as new
+revisions (`alembic revision --autogenerate`), never by editing `0001`.
+
+- Dev/tests: `init_db` creates the SQLite schema automatically.
 - Production applies Alembic migrations:
   ```bash
   pip install -e ".[db]"

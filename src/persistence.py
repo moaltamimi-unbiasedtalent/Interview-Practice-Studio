@@ -173,6 +173,13 @@ def make_session_factory(engine: Engine) -> sessionmaker:
     return sessionmaker(bind=engine, expire_on_commit=False, future=True)
 
 
-def init_db(engine: Engine) -> None:
-    """Create tables for development/tests. Production uses Alembic migrations."""
-    Base.metadata.create_all(engine)
+def init_db(engine: Engine, *, force: bool = False) -> None:
+    """Create tables for local SQLite development/tests.
+
+    Production databases (non-SQLite) are schema-owned by Alembic — run
+    ``alembic upgrade head``. This never silently creates or alters a production
+    schema via ``create_all``; pass ``force=True`` only for a deliberate,
+    non-production bootstrap.
+    """
+    if force or engine.dialect.name == "sqlite":
+        Base.metadata.create_all(engine)
