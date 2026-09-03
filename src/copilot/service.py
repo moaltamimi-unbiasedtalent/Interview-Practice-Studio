@@ -579,39 +579,44 @@ class CareerIntelligenceService:
                 return []
 
         filters = translated.metadata_filters or None
+        is_hybrid = isinstance(self.retriever, HybridRetriever)
 
-        # Per-query retrieval, fused across the translated queries.
+        # Per-query retrieval, fused across the translated queries. For the
+        # PRIMARY (rewritten) query on a hybrid retriever we call search() once
+        # and reuse its result for BOTH fusion and the RAG Inspector channels —
+        # previously a second search() ran on the same query purely for the
+        # inspector, duplicating the vector embedding + BM25 lookup. Alternate
+        # query variants still trigger their own retrieval.
         per_query: list[list[RetrievalResult]] = []
-        for query in translated.all_queries:
+        for index, query in enumerate(translated.all_queries):
             try:
-                per_query.append(
-                    self.retriever.retrieve(query, top_k=self.top_k, filters=filters)
-                )
+                if is_hybrid:
+                    detail = self.retriever.search(query, top_k=self.top_k, filters=filters)
+                    per_query.append(detail.fused)
+                    if index == 0:  # primary query → inspector channels (no re-search)
+                        trace.retrieval_strategy = "hybrid"
+                        trace.vector_results = detail.vector
+                        trace.keyword_results = detail.keyword
+                        for channel in detail.degraded:
+                            if channel not in trace.degraded:
+                                trace.degraded.append(channel)
+                else:
+                    per_query.append(
+                        self.retriever.retrieve(query, top_k=self.top_k, filters=filters)
+                    )
             except Exception:  # noqa: BLE001 - one query failing must not abort
                 trace.degraded.append("retrieval")
                 per_query.append([])
         results = reciprocal_rank_fusion(per_query, top_k=self.top_k)
 
-        # Channel detail for the inspector (best-effort).
-        try:
-            if isinstance(self.retriever, HybridRetriever):
-                trace.retrieval_strategy = "hybrid"
-                detail = self.retriever.search(
-                    translated.rewritten_query, top_k=self.top_k, filters=filters
-                )
-                trace.vector_results = detail.vector
-                trace.keyword_results = detail.keyword
-                for channel in detail.degraded:
-                    if channel not in trace.degraded:
-                        trace.degraded.append(channel)
-            elif isinstance(self.retriever, VectorRetriever):
+        # Inspector strategy/channels for the non-hybrid retrievers (fused only).
+        if not is_hybrid:
+            if isinstance(self.retriever, VectorRetriever):
                 trace.retrieval_strategy = "vector"
                 trace.vector_results = results
             elif isinstance(self.retriever, KeywordRetriever):
                 trace.retrieval_strategy = "keyword"
                 trace.keyword_results = results
-        except Exception:  # noqa: BLE001 - inspector detail is non-critical
-            pass
 
         trace.fused_results = results
         trace.rag_used = bool(results)
