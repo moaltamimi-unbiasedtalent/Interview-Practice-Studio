@@ -43,7 +43,21 @@ def _cases(rows: list[dict]) -> list[RagCase]:
                     expected_terms=r.get("expected_terms", [])) for r in rows]
 
 
-def main() -> int:
+def main(argv: list[str] | None = None, *, out_dir: Path | None = None) -> int:
+    # An explicit out_dir (programmatic/test use) bypasses CLI parsing so callers
+    # never accidentally pick up an unrelated sys.argv (e.g. pytest's arguments).
+    if out_dir is not None:
+        out = Path(out_dir)
+    else:
+        import argparse
+
+        parser = argparse.ArgumentParser(description="Held-out quality evaluation (OPT-7).")
+        parser.add_argument("--output-dir", default=None,
+                            help="directory for results.json/summary.md (default: "
+                                 "evaluations/quality_v2)")
+        args = parser.parse_args(argv)
+        out = Path(args.output_dir or OUT)
+
     config = load_config()
     data = json.loads(DATASET.read_text(encoding="utf-8"))
     top_k = int(data.get("top_k", 5))
@@ -130,8 +144,8 @@ def main() -> int:
         "faithfulness": faithfulness, "llm_judge": llm_judge,
         "note": "Held-out, deterministic, offline. Does not modify 11R/11R-A.",
     }
-    OUT.mkdir(parents=True, exist_ok=True)
-    (OUT / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
     hy = retrieval["hybrid"]
     lines = [
@@ -155,8 +169,8 @@ def main() -> int:
         "## LLM-judge\n",
         f"- {llm_judge['status']} — {llm_judge['reason']}\n",
     ]
-    (OUT / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
-    print(f"Wrote {OUT}/results.json + summary.md")
+    (out / "summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"Wrote {out}/results.json + summary.md")
     print(f"Retrieval Hit@{top_k}={hy['hit_rate_at_k']} MRR={hy['mrr']} | "
           f"tool acc={tool_acc} | OOD leaks={ood['ood_leaks_at_in_domain_min']}")
     return 0
