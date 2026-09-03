@@ -10,6 +10,7 @@ view and never fires a duplicate API call.
 from __future__ import annotations
 
 import json
+import logging
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -20,7 +21,7 @@ from scripts import compare_prompts as cp
 import dataclasses
 import os
 
-from src import auth, constants, security, timing, ui_helpers, visual_coach
+from src import auth, constants, security, timing, ui_helpers
 from src.avatar import LocalAvatarRenderer
 from src.persistence import init_db, make_engine, make_session_factory
 from src.repository import InterviewRepository
@@ -45,6 +46,8 @@ from src.live_interview import (
 from components.live_interviewer import is_available as live_component_available
 from components.live_interviewer import live_interviewer
 from src.integration import handoff  # career → interview preparation handoff
+
+logger = logging.getLogger(__name__)
 
 _METADATA_CACHE_KEY = "_model_supported_params"
 
@@ -236,16 +239,38 @@ def _test_connection(config: AppConfig, model: str) -> None:
 # =============================================================================
 
 
+def _live_enabled() -> bool:
+    """Whether the experimental Live interviewer is exposed in the product.
+
+    Live is OFF by default: its realtime browser lifecycle (barge-in, reconnect,
+    token expiry) is not yet verified end-to-end, so it is hidden from normal
+    navigation to avoid presenting an unreliable feature as production-ready. Set
+    ``INTERVIEW_LIVE_ENABLED=true`` to opt in for experimentation. Type and Record
+    are always available.
+    """
+    return os.environ.get("INTERVIEW_LIVE_ENABLED", "").strip().lower() in {
+        "1", "true", "yes", "on"}
+
+
+def _answer_methods() -> list[str]:
+    return ["Type", "Record", "Live"] if _live_enabled() else ["Type", "Record"]
+
+
 def _render_mode_cards() -> None:
     """Friendly practice-mode cards (no technical/provider concepts shown).
 
     Selecting one sets the default answer method for the interview; the candidate
     can still switch per question. Camera coaching and models stay out of sight.
+    The experimental Live card is hidden unless INTERVIEW_LIVE_ENABLED is set.
     """
     st.markdown("#### How would you like to practise?")
     chosen = st.session_state.get("_practice_mode", "Type")
-    columns = st.columns(len(constants.PRACTICE_MODE_CARDS))
-    for column, card in zip(columns, constants.PRACTICE_MODE_CARDS):
+    allowed = set(_answer_methods())
+    cards = [c for c in constants.PRACTICE_MODE_CARDS if c["id"] in allowed]
+    if chosen not in allowed:  # a stale/hidden mode falls back to Type
+        chosen = "Type"
+    columns = st.columns(len(cards))
+    for column, card in zip(columns, cards):
         with column:
             selected = card["id"] == chosen
             st.markdown(f"**{card['title']}**")
@@ -682,7 +707,6 @@ def _render_branch_controls(session: SessionManager) -> None:
     if data.branch_evaluations:
         render_feedback(data.branch_evaluations[-1])
         _render_delivery_section()
-        _render_visual_section(session)
     columns = st.columns(2)
     if session.can_go_deeper():
         if columns[0].button("Go deeper", type="primary", key="branch_deeper"):
@@ -707,12 +731,18 @@ def _render_answer_input(
     and live modes also show recommended answer-length guidance (never a limit).
     """
     guidance = timing.guidance_for_question(question, is_deep_dive=is_deep_dive) if question else None
+    methods = _answer_methods()
+    # A stale "Live" selection (feature since hidden) falls back to Type.
+    if st.session_state.get(f"{ns}_method") not in methods:
+        st.session_state.pop(f"{ns}_method", None)
     method = st.radio(
         "Answer method",
-        ["Type", "Record", "Live"],
+        methods,
         horizontal=True,
         key=f"{ns}_method",
-        help="Type, record a voice answer, or try the experimental live interviewer.",
+        help="Type your answer" + (
+            ", record a voice answer, or try the experimental live interviewer."
+            if _live_enabled() else " or record a voice answer."),
     )
     if method == "Type":
         answer = st.chat_input(placeholder, max_chars=constants.MAX_ANSWER_CHARS)
@@ -859,12 +889,6 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
         _live_fallback(ns)
         return
 
-    # Optional Visual Engagement Coach — camera is OFF by default and requires an
-    # explicit opt-in. The live interview works fully without video.
-    camera_on = _render_camera_opt_in(ns)
-    if camera_on is None:
-        return  # awaiting the candidate's camera choice
-
     try:
         _token, session_config = LiveInterviewService(
             token_service=token_service
@@ -882,16 +906,6 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
         session_config["recommended_seconds"] = guidance.recommended_seconds
         session_config["soft_warning_seconds"] = guidance.soft_warning_seconds
         session_config["hard_guidance_seconds"] = guidance.hard_guidance_seconds
-    if camera_on:
-        session_config["enable_visual_coaching"] = True
-        session_config["calibration_seconds"] = constants.VISUAL_COACH_CALIBRATION_SECONDS
-        st.caption(
-            f"🎥 {constants.VISUAL_STATUS_ACTIVE} — processed locally on your "
-            "device; no video is sent or saved."
-        )
-        if st.button("Disable camera coaching", key=f"{ns}_cam_disable"):
-            st.session_state["_camera_coaching"] = False
-            st.rerun()
 
     event = live_interviewer(session_config=session_config, key=f"{ns}_live")
 
@@ -909,35 +923,7 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
                         "response_start_latency"
                     ),
                 }
-        # Aggregated visual metrics only — never frames or landmarks.
-        raw_visual = event.get("visual_metrics")
-        if camera_on and raw_visual:
-            metrics = visual_coach.build_metrics(raw_visual)
-            session.record_visual_metrics(metrics.as_dict())
-            st.session_state["_visual_notes"] = visual_coach.coaching_from_metrics(
-                metrics
-            )
     _render_transcript_review(session, on_submit=on_submit, ns=ns, guidance=guidance)
-
-
-def _render_camera_opt_in(ns: str) -> bool | None:
-    """Camera opt-in gate. Returns True (on), False (off), or None (undecided).
-
-    Camera is off by default; the disclaimer makes the coaching-only, local-only
-    nature explicit before any camera use.
-    """
-    decision = st.session_state.get("_camera_coaching")
-    if decision is not None:
-        return bool(decision)
-    st.info(constants.VISUAL_DISCLAIMER)
-    columns = st.columns(2)
-    if columns[0].button("Enable camera coaching", key=f"{ns}_cam_on"):
-        st.session_state["_camera_coaching"] = True
-        st.rerun()
-    if columns[1].button("Continue without camera", key=f"{ns}_cam_off"):
-        st.session_state["_camera_coaching"] = False
-        st.rerun()
-    return None
 
 
 def _render_delivery_section() -> None:
@@ -953,28 +939,6 @@ def _render_delivery_section() -> None:
         for note in notes:
             st.markdown(f"- {note}")
         st.caption("Guidance on pacing only — it does not affect your score.")
-
-
-def _render_visual_section(session) -> None:
-    """Show 'Visual delivery' coaching for the most recent answer, if any.
-
-    Camera coaching only — processed locally, never a judgement of attention and
-    never part of the score. The candidate can clear the metrics here.
-    """
-    notes = st.session_state.get("_visual_notes")
-    if not notes:
-        return
-    with st.expander("Visual delivery", expanded=False):
-        for note in notes:
-            st.markdown(f"- {note}")
-        st.caption(
-            "Camera coaching only — processed locally on your device and not "
-            "part of your score."
-        )
-        if st.button("Clear camera metrics", key="clear_visual_turn"):
-            session.clear_visual_metrics()
-            st.session_state.pop("_visual_notes", None)
-            st.rerun()
 
 
 def _avatar_state(session: SessionManager) -> str:
@@ -1089,7 +1053,6 @@ def render_interview(session: SessionManager) -> None:
     if data.evaluations:
         render_feedback(data.evaluations[-1])
         _render_delivery_section()
-        _render_visual_section(session)
         st.divider()
 
     if session.state is SessionState.AWAITING_ANSWER:
@@ -1244,36 +1207,6 @@ def _render_delivery_summary(session: SessionManager) -> None:
     st.caption("Delivery guidance only — it does not affect the readiness score.")
 
 
-def _render_visual_summary(session: SessionManager) -> None:
-    """Aggregated visual-engagement coaching for the report (kept separate).
-
-    Clearly separated from answer-content scoring; omitted when there are no
-    confident camera metrics (nothing fabricated).
-    """
-    summary = visual_coach.aggregate_visual(session.data.visual_metrics)
-    if not summary.get("visual_answers"):
-        return
-    st.divider()
-    st.markdown("**Visual engagement (camera coaching)**")
-    cols = st.columns(3)
-    cols[0].metric(
-        "Avg screen-facing", f"{summary['average_screen_facing_percentage']:.0f}%"
-    )
-    cols[1].metric(
-        "Longest away", f"{summary['longest_extended_away_seconds']:.0f}s"
-    )
-    cols[2].metric("Extended-away periods", summary["total_extended_away_periods"])
-    for note in summary.get("coaching", []):
-        st.markdown(f"- {note}")
-    st.caption(
-        "Camera coaching only — processed locally, not a judgement of attention "
-        "and not part of the readiness score."
-    )
-    if st.button("Clear camera metrics", key="clear_visual_report"):
-        session.clear_visual_metrics()
-        st.rerun()
-
-
 def render_report(session: SessionManager) -> None:
     report = session.data.report
     # Publish a plain summary to the integration channel (for combined export).
@@ -1290,6 +1223,17 @@ def render_report(session: SessionManager) -> None:
     except Exception:  # pragma: no cover - export channel must never break the UI
         pass
     st.subheader("Interview readiness report")
+    # If saving to history failed, warn (safely) and offer a retry — the report
+    # itself stays fully usable.
+    if session.data.save_failed and not session.data.saved_report_id:
+        st.warning(
+            "Your report was generated, but it could not be saved to Interview "
+            "History. Please try again."
+        )
+        if st.button("Retry saving to history", key="retry_save_history"):
+            session.data.save_failed = False
+            _persist_if_new(session, load_config())
+            st.rerun()
     st.metric("Readiness score", f"{report.overall_readiness_score}/100")
     st.caption("Practice guidance only — not an employment decision.")
 
@@ -1628,31 +1572,47 @@ def _interview_payload(data) -> dict:
                 ),
             }
         )
+    # Deep Dive branches. Completed branches are archived into ``data.branches``
+    # (and the active lists cleared) when the candidate returns to the main
+    # interview, so serialise BOTH the archived branches and any still-active one
+    # — otherwise finished Deep Dives are silently dropped from history.
     base = len(data.questions)
-    parent = base - 1 if base else None
-    for j, branch in enumerate(data.branch_questions):
-        answer_text = data.branch_answers[j] if j < len(data.branch_answers) else ""
-        evaluation = (
-            data.branch_evaluations[j].model_dump()
-            if j < len(data.branch_evaluations)
-            else None
-        )
-        questions.append(
-            {
-                "position": base + j,
-                "canonical_question": branch.question,
-                "question_type": getattr(branch, "question_type", "behavioural"),
-                "difficulty": branch.difficulty,
-                "timing_guidance": None,
-                "is_deep_dive": True,
-                "parent_position": parent,
-                "answer": (
-                    {"text": answer_text, "evaluation": evaluation}
-                    if (answer_text or evaluation)
-                    else None
-                ),
-            }
-        )
+    default_parent = base - 1 if base else None
+    position = base
+
+    def _branch_records(questions_list, answers, evaluations, parent_id):
+        nonlocal position
+        parent_pos = parent_id if isinstance(parent_id, int) else default_parent
+        for j, branch in enumerate(questions_list):
+            answer_text = answers[j] if j < len(answers) else ""
+            evaluation = evaluations[j] if j < len(evaluations) else None
+            evaluation = evaluation.model_dump() if evaluation is not None else None
+            questions.append(
+                {
+                    "position": position,
+                    "canonical_question": branch.question,
+                    "question_type": getattr(branch, "question_type", "behavioural"),
+                    "difficulty": branch.difficulty,
+                    "timing_guidance": None,
+                    "is_deep_dive": True,
+                    "parent_position": parent_pos,
+                    "answer": (
+                        {"text": answer_text, "evaluation": evaluation}
+                        if (answer_text or evaluation)
+                        else None
+                    ),
+                }
+            )
+            position += 1
+
+    for archived in getattr(data, "branches", []):
+        _branch_records(
+            archived.get("questions", []), archived.get("answers", []),
+            archived.get("evaluations", []), archived.get("parent_question_id"))
+    # Any branch still active at completion (not yet returned to main).
+    _branch_records(
+        data.branch_questions, data.branch_answers, data.branch_evaluations,
+        data.branch_parent_question_id)
     report = None
     if data.report is not None:
         report = {
@@ -1673,18 +1633,30 @@ def _interview_payload(data) -> dict:
 
 
 def _persist_if_new(session: SessionManager, config: AppConfig) -> None:
-    """Save a completed interview once. Best-effort — never breaks the view."""
-    if st.session_state.get("_saved_report_id"):
+    """Save a completed interview once per interview.
+
+    The saved-report id lives on the session data (not a top-level Streamlit
+    key), so ``reset_interview`` clears it and a *second* interview saves too.
+    A save failure never breaks the report page: it records a bounded, safe flag
+    so the page can show a friendly warning and offer a retry — the raw DB error
+    is never surfaced.
+    """
+    data = session.data
+    if data.saved_report_id:
         return
     try:
         repo = get_repository(config)
         user_id = _current_user_id(config, repo)
         if user_id is None:
             return
-        interview_id = repo.save_interview(user_id, _interview_payload(session.data))
-        st.session_state["_saved_report_id"] = interview_id
+        interview_id = repo.save_interview(user_id, _interview_payload(data))
+        data.saved_report_id = interview_id
+        data.save_failed = False
     except Exception:  # noqa: BLE001 - persistence must not break the report
-        pass
+        # Record the failure safely (no DB/SQL/credential/stacktrace detail) so
+        # the report page can warn and offer a retry.
+        data.save_failed = True
+        logger.warning("Interview persistence failed", exc_info=True)
 
 
 # =============================================================================
@@ -1843,7 +1815,6 @@ def _page_settings(config: AppConfig) -> None:
     confirm = st.checkbox("I understand this permanently deletes all my interviews")
     if st.button("Delete all my interview data", disabled=not confirm):
         removed = repo.delete_all_for_user(user_id)
-        st.session_state.pop("_saved_report_id", None)
         st.success(f"Deleted {removed} interview(s).")
 
 

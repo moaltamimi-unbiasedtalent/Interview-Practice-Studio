@@ -146,6 +146,12 @@ class SessionData:
     previous_state: SessionState | None = None
     interview_start_time: float | None = None
     active_operation: str | None = None
+    # Persistence identity for this interview: the saved report id (set once the
+    # completed interview is written to history) and a bounded, safe flag for a
+    # save that failed so the report page can offer a retry. Both are
+    # session-owned so ``reset_interview`` clears them for the next interview.
+    saved_report_id: Any | None = None
+    save_failed: bool = False
 
     # Harmless developer preferences (survive a reset).
     preferences: dict[str, Any] = field(default_factory=dict)
