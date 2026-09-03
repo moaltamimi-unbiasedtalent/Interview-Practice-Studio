@@ -51,6 +51,17 @@ export class TurnMachine {
     this.state = "candidate_speaking";
   }
 
+  // Idempotent barge-in from the provider's interruption event. Interrupts only
+  // while the interviewer is speaking; any later call is a no-op (so repeated
+  // provider events, or stray audio, never double-interrupt). Returns whether an
+  // interruption actually occurred. This is the ONLY interruption entry point —
+  // mere microphone audio never calls it.
+  onProviderInterrupt(): boolean {
+    if (this.state !== "interviewer_speaking") return false;
+    this.interrupt();
+    return true;
+  }
+
   beginQuestion(): void {
     this.interrupted = false;
     this.discardStaleAudio = false;
