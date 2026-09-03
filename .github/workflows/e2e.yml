@@ -1,11 +1,14 @@
-name: Browser E2E (manual)
+name: Browser E2E
 
 # Playwright browser smoke for the unified Home → Interview Practice journey.
-# Manual only (workflow_dispatch) — it starts a real Streamlit app and installs
-# a browser, so it is intentionally NOT run on every push/PR. No paid provider
-# calls: the app runs without an API key and the smoke exercises navigation,
-# the mode cards and the setup form only.
+# Runs on pull requests (a review gate) and on demand. It starts two real
+# Streamlit apps (Live OFF on :8501, Live ON on :8502 via INTERVIEW_LIVE_ENABLED,
+# both configured in e2e/playwright.config.ts) and installs a browser, so it is a
+# separate job from the fast Python/frontend CI. No paid provider calls: the app
+# runs without an API key and the smoke exercises navigation, the mode cards
+# (including the Live feature flag), the setup form, and a camera-access spy only.
 on:
+  pull_request:
   workflow_dispatch:
 
 jobs:

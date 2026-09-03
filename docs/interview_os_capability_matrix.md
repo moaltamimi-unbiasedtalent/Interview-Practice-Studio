@@ -72,8 +72,8 @@ Interview Practice **691 (+1 skipped)**.
 | Auth + health | `src/auth.py`, `src/health.py` | ✅ |
 | Pricing / usage | `src/pricing_service.py` | ✅ |
 | Voice recording + STT | `src/speech_service.py` (`[speech]`, google-cloud-speech) | ✅ |
-| Gemini Live | `src/live_interview.py` + `components/live_interviewer/` (frontend, `@google/genai`) | ✅ |
-| Delivery / pacing coach | `src/timing.py`, `src/visual_coach.py`, `src/avatar.py` | ✅ |
+| Gemini Live | `src/live_interview.py` + `components/live_interviewer/` (frontend, `@google/genai`) | ⚙️ experimental, OFF by default (`INTERVIEW_LIVE_ENABLED`) |
+| Delivery / pacing coach | `src/timing.py`, `src/avatar.py` | ✅ (timing/pacing only; no camera/visual coaching) |
 | OpenRouter (direct HTTPX) | `src/openrouter_client.py` | ✅ (rule 3) |
 | Interview security | `src/security.py` | ✅ |
 | Prompt-comparison / jailbreak experiments | `render_prompt_lab` in `app.py`, `tests/test_jailbreak_runner.py`, `test_prompt_comparison.py` | ✅ |

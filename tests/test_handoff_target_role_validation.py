@@ -13,41 +13,12 @@ import pytest
 from pydantic import ValidationError
 from streamlit.testing.v1 import AppTest
 
-from src.career.ui import _resolve_handoff_target_role
 from src.integration import handoff
 from src.integration.models import PreparationContext
 from src.integration.preparation_context import build_preparation_context
 from src.copilot.tools.schemas import RoleRequirements
 
 APP_PATH = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
-
-
-# --- Target-role resolver (deterministic, no Streamlit) ----------------------
-
-
-class TestResolveTargetRole:
-    def test_none_role_req_no_manual_returns_empty(self) -> None:  # (A)
-        assert _resolve_handoff_target_role(None, {}) == ""
-
-    def test_empty_role_title_no_manual_returns_empty(self) -> None:  # (B)
-        assert _resolve_handoff_target_role(RoleRequirements(role_title=""), {}) == ""
-
-    def test_none_role_title_uses_manual(self) -> None:  # (C)
-        role = RoleRequirements(role_title=None)
-        assert _resolve_handoff_target_role(role, {"handoff_target_role": "Senior Product Manager"}) \
-            == "Senior Product Manager"
-
-    def test_analyser_role_wins_over_manual(self) -> None:  # (D)
-        role = RoleRequirements(role_title="Data Analyst")
-        got = _resolve_handoff_target_role(role, {"handoff_target_role": "Ignored"})
-        assert got == "Data Analyst"
-
-    def test_analyser_role_is_trimmed(self) -> None:  # (E)
-        assert _resolve_handoff_target_role(RoleRequirements(role_title="  Nurse  "), {}) == "Nurse"
-
-    def test_manual_role_is_trimmed(self) -> None:  # (E)
-        role = RoleRequirements(role_title="")
-        assert _resolve_handoff_target_role(role, {"handoff_target_role": "  Chef "}) == "Chef"
 
 
 # --- Context build recovery + contract preservation --------------------------

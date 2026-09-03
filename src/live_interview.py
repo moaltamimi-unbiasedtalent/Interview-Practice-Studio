@@ -12,9 +12,11 @@ interview engine; it:
   delegates all substantive work to the OpenRouter services
   (:class:`LiveInterviewService`);
 * models the live turn lifecycle as an explicit state machine
-  (:class:`LiveInterviewSession`);
-* bounds reconnection so a failing session can never loop forever
-  (:class:`ReconnectPolicy`).
+  (:class:`LiveInterviewSession`).
+
+Reconnection is bounded in the browser component (the ``ReconnectController`` in
+``components/live_interviewer/frontend``), which owns the retry timer and budget;
+the server only supplies the ``max_reconnects`` bound in the session config.
 
 Privacy: neither the permanent key nor any token is ever logged.
 """
@@ -40,7 +42,6 @@ __all__ = [
     "GeminiLiveTokenService",
     "LiveInterviewService",
     "LiveInterviewSession",
-    "ReconnectPolicy",
 ]
 
 _LOGGER = logging.getLogger(__name__)
@@ -253,6 +254,18 @@ class EphemeralToken:
 TokenMinter = Callable[..., dict[str, Any]]
 
 
+def token_needs_refresh(expires_at: float, now: float, skew_seconds: float = 30.0) -> bool:
+    """Whether a cached ephemeral token should be re-minted.
+
+    True when the token is at/past expiry, or within ``skew_seconds`` of it, so a
+    Streamlit rerun reuses a still-valid token instead of minting a new one every
+    time (1E), while never handing the browser a token about to expire.
+    """
+    if not expires_at:
+        return True
+    return now >= (expires_at - skew_seconds)
+
+
 class GeminiLiveTokenService:
     """Mints short-lived ephemeral tokens from the permanent Gemini key.
 
@@ -349,30 +362,6 @@ class GeminiLiveTokenService:
             "new_session_expires_at": now
             + constants.LIVE_NEW_SESSION_WINDOW_SECONDS,
         }
-
-
-# --- Reconnect policy --------------------------------------------------------
-
-
-class ReconnectPolicy:
-    """Bounded exponential backoff for live reconnects (never infinite)."""
-
-    def __init__(
-        self,
-        *,
-        max_reconnects: int = constants.LIVE_MAX_RECONNECTS,
-        base_delay: float = constants.LIVE_RECONNECT_BASE_DELAY_SECONDS,
-        max_delay: float = constants.LIVE_RECONNECT_MAX_DELAY_SECONDS,
-    ) -> None:
-        self.max_reconnects = max_reconnects
-        self.base_delay = base_delay
-        self.max_delay = max_delay
-
-    def next_delay(self, attempt: int) -> float | None:
-        """Delay before ``attempt`` (1-based), or None once the bound is passed."""
-        if attempt < 1 or attempt > self.max_reconnects:
-            return None
-        return min(self.base_delay * (2 ** (attempt - 1)), self.max_delay)
 
 
 # --- Live interview service --------------------------------------------------

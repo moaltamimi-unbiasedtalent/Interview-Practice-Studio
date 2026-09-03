@@ -145,17 +145,11 @@ boundaries of the tool.
 
 ---
 
-## Visual Engagement Coach (Phase 19, optional)
+## Visual Engagement Coach — withdrawn
 
-- **Opt-in and browser-only.** Requires the built live component and a camera;
-  off by default. The interview works fully without it.
-- **Coaching, not assessment.** It does not measure attention or suitability and
-  never affects any score.
-- **Confidence-gated.** Poor lighting, distance, a partly-out-of-frame face or
-  multiple faces yield a "confidence too low" message instead of metrics.
-- **Frontend not built/exercised in CI.** MediaPipe integration ships as source;
-  automated tests cover the Python coaching/aggregation/privacy logic and the
-  pure JS accumulator (vitest); live camera behaviour is covered by manual QA.
+- The camera/visual-engagement coach was **removed**. The product no longer
+  captures video, ships no MediaPipe, and never requests camera access (asserted
+  by an e2e test). Delivery coaching is now timing/pacing only.
 
 ---
 

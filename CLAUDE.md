@@ -38,7 +38,13 @@ assumptions in core logic, prompts, scoring or examples.
   Chroma/LangChain/DB objects cross the boundary.
 - **Providers.** Career Intelligence uses LangChain over OpenRouter; the
   Interview module uses a direct OpenRouter HTTPX client. Optional speech
-  (`[speech]`) and Live (`[live]`) backends are lazily imported.
+  (`[speech]`) and Live (`[live]`) backends are lazily imported. **Live is
+  experimental and OFF by default** — it surfaces only when
+  `INTERVIEW_LIVE_ENABLED=true`, and its lifecycle (provider-driven barge-in,
+  token-expiry refresh, bounded reconnect) lives in the browser component
+  (`components/live_interviewer/frontend`, unit-tested via `lifecycle.ts`). There
+  is **no camera/visual coaching**: the product never requests camera access
+  (asserted by an e2e test); delivery coaching is timing/pacing only.
 - **Retrieval.** Structured stores (SQLite: roles, competency, compensation,
   labour-market, credentials) + a Chroma vector store with a local-hash embedder
   fallback; a deterministic router picks lanes; hybrid (vector + BM25) fusion.
@@ -77,7 +83,7 @@ assumptions in core logic, prompts, scoring or examples.
   (mock the boundaries). Do not weaken tests to pass or silently swallow errors.
 - Tests must not mutate committed artifacts (write to `tmp_path`).
 - `ruff check .` (conservative `F`/`E9` rules) must pass.
-- Current measured suite on this branch: **1281 passed, 2 skipped** (the skips are
+- Current measured suite on this branch: **1261 passed, 2 skipped** (the skips are
   the RAGAS installed/absent guards). Re-measure with `pytest -q` rather than
   hard-coding a number in multiple places.
 

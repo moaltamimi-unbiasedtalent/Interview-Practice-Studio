@@ -43,8 +43,9 @@ python scripts/manual_live_check.py --openrouter --confirm
   in browser config, safe failure logging, and **cross-user isolation**.
 - **Persistence:** round-trip, delete, delete-all, export, dashboard, and
   strict per-user scoping.
-- **Delivery & visual coaching:** timing maths, pause segmentation, aggregation;
-  visual confidence gating and privacy (no frames retained).
+- **Delivery coaching:** timing maths, pause segmentation, aggregation (timing/
+  pacing only — camera/visual coaching was withdrawn). An e2e test asserts the
+  product never requests camera access.
 
 ## Experiments (offline, no live calls)
 

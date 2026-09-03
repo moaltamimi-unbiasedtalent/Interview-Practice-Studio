@@ -12,7 +12,7 @@ import pathlib
 
 from streamlit.testing.v1 import AppTest
 
-from src.career import ui as career_ui
+from src.career import ragas_panel
 from src.copilot.evaluation import ragas_adapter as ra
 from src.copilot.evaluation import ragas_runner as runner
 
@@ -32,7 +32,7 @@ _NOT_READY = {**_READY, "evaluator_configured": False, "can_run": False,
 def _eval_page(monkeypatch, *, config=None, latest=None):
     """Build an AppTest on the Evaluation page with RAGAS helpers mocked."""
     monkeypatch.setattr(runner, "check_configuration", lambda **k: config or _READY)
-    monkeypatch.setattr(career_ui, "_latest_ragas_run", lambda: latest)
+    monkeypatch.setattr(ragas_panel, "_latest_ragas_run", lambda: latest)
     at = AppTest.from_file(APP_PATH, default_timeout=60)
     at.session_state["os_active_page"] = "Evaluation"
     return at
@@ -90,7 +90,7 @@ def test_D_no_secret_shown(monkeypatch) -> None:
     monkeypatch.setenv("RAGAS_EVAL_API_KEY", secret)
     monkeypatch.setenv("RAGAS_EVAL_BASE_URL", "https://openrouter.ai/api/v1")
     # Use the REAL check_configuration so we exercise its safe redaction.
-    monkeypatch.setattr(career_ui, "_latest_ragas_run", lambda: None)
+    monkeypatch.setattr(ragas_panel, "_latest_ragas_run", lambda: None)
     at = AppTest.from_file(APP_PATH, default_timeout=60)
     at.session_state["os_active_page"] = "Evaluation"
     at.run()
@@ -114,7 +114,7 @@ def _click_run_capturing(monkeypatch, preset_label):
                                      score_coverage=1.0, output_directory="x/y")
 
     monkeypatch.setattr(runner, "run_live_ragas", _fake_run)
-    monkeypatch.setattr(career_ui, "_ragas_evaluator_config",
+    monkeypatch.setattr(ragas_panel, "_ragas_evaluator_config",
                         lambda: ra.EvaluatorConfig(api_key="x"))
     at = _eval_page(monkeypatch, config=_READY)
     at.run()

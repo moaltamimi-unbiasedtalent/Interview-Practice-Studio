@@ -193,6 +193,15 @@ precedence (1.0) and coverage — without touching the 11R / 11R-A baseline.
 a lexical offline embedder (semantic quality needs an OpenAI key), best-effort
 injection defence, and live LLM/speech/live paths that need credentials.
 
+**What about Live mode?** Live (Gemini) is **experimental and OFF by default**;
+it appears only with `INTERVIEW_LIVE_ENABLED=true` plus the `[live]` extra, a
+Gemini key and the built frontend. Its browser lifecycle — provider-driven
+barge-in, token-expiry refresh and bounded reconnect — is hardened and covered by
+the frontend unit suite (`components/live_interviewer/frontend`, `lifecycle.ts`),
+and a Playwright test confirms the mode card only appears when the flag is on. No
+paid provider calls are made in CI. There is **no camera/visual coaching**: the
+product never requests camera access (asserted by an e2e test).
+
 ## RAGAS — generation-quality evaluation (optional, secondary)
 
 **Talk track.** "I evaluate Career Intelligence at two levels. First,

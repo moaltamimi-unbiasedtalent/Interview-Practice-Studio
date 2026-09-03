@@ -323,10 +323,10 @@ LIVE_AUDIO_CHUNK_MS = 30
 # Ephemeral tokens are short-lived; the browser only ever receives one of these.
 LIVE_EPHEMERAL_TOKEN_TTL_SECONDS = 1_800  # 30 minutes
 LIVE_NEW_SESSION_WINDOW_SECONDS = 60  # window to start a session with the token
-# Bounded reconnect so a failing session can never loop forever.
+# Bounded reconnect so a failing session can never loop forever. The retry timer
+# and backoff live in the browser component's ReconnectController; the server only
+# passes this bound into the session config.
 LIVE_MAX_RECONNECTS = 3
-LIVE_RECONNECT_BASE_DELAY_SECONDS = 1.0
-LIVE_RECONNECT_MAX_DELAY_SECONDS = 8.0
 LIVE_FALLBACK_MESSAGE = "Live interview is temporarily unavailable."
 
 # --- Answer timing & delivery coaching ---------------------------------------
@@ -374,37 +374,8 @@ DIFFICULTY_LENGTH_MULTIPLIER: dict[str, float] = {
     "hard": 1.2,
 }
 
-# --- Visual engagement coach (optional, camera; local-only) ------------------
-# A practice/coaching feature only. It NEVER decides whether a candidate is
-# attentive, truthful or suitable, is NEVER part of any hiring score, and makes
-# no psychological/medical/personality judgements. Camera is off by default;
-# all frame processing happens locally in the browser and no video, screenshot,
-# frame or biometric template is sent anywhere or stored — only aggregated
-# coaching metrics are returned.
-VISUAL_COACH_CALIBRATION_SECONDS = 3
-# "Away" only counts as an extended period once it lasts at least this long.
-VISUAL_EXTENDED_AWAY_SECONDS = 5.0
-# Below these, feedback is withheld rather than invented (low confidence).
-VISUAL_MIN_LANDMARK_CONFIDENCE = 0.5
-VISUAL_MIN_FACE_PRESENT_PERCENT = 60.0
-VISUAL_DISCLAIMER = (
-    "Visual Engagement Coach analyses camera-facing behaviour locally on your "
-    "device to help you practise video interviews. It does not determine whether "
-    "you are attentive, truthful or suitable for a job."
-)
-VISUAL_LOW_CONFIDENCE_MESSAGE = (
-    "Camera coaching confidence is too low for useful feedback."
-)
-VISUAL_STATUS_ACTIVE = "Camera coaching active"
-# Allowed values for the clearly-named gaze proxy (never an "attention score").
-GAZE_DIRECTION_PROXY_VALUES = (
-    "toward_screen",
-    "left",
-    "right",
-    "up",
-    "down",
-    "unknown",
-)
+# The camera/visual-engagement coach was withdrawn: no camera capture, no
+# MediaPipe, no visual metrics. Its constants were removed with the feature.
 
 # --- Candidate experience (avatar, modes, presentation) ----------------------
 # The candidate-facing screen should feel like a remote interview, not a demo.

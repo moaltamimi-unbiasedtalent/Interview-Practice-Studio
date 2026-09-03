@@ -1,23 +1,20 @@
 // Streamlit component glue: wires the audio pipeline, the Gemini Live client and
 // the turn state machine, and reports events back to Python via
 // Streamlit.setComponentValue. Interview intelligence stays in Python/OpenRouter;
-// this file only handles the real-time interface.
+// this file only handles the real-time interface. Lifecycle policy (session
+// identity, token expiry, bounded reconnect) lives in the unit-tested
+// ./lifecycle module; barge-in is driven by the provider's interruption event,
+// never by the mere presence of microphone audio.
 
 import { Streamlit, RenderData } from "streamlit-component-lib";
 import { GeminiLiveClient } from "./gemini";
 import { TurnMachine, LiveTurnState } from "./state";
-
-interface SessionConfig {
-  model: string;
-  ephemeral_token: string;
-  token_expires_at: number;
-  input_sample_rate: number;
-  output_sample_rate: number;
-  chunk_ms: number;
-  max_reconnects: number;
-  question?: string; // canonical question (authored by OpenRouter)
-  system_instruction?: string;
-}
+import {
+  LiveConfig,
+  ReconnectController,
+  isTokenExpired,
+  sessionIdentity,
+} from "./lifecycle";
 
 const machine = new TurnMachine();
 let client: GeminiLiveClient | null = null;
@@ -25,11 +22,11 @@ let audioContext: AudioContext | null = null;
 let micStream: MediaStream | null = null;
 let workletNode: AudioWorkletNode | null = null;
 let playbackQueue: AudioBufferSourceNode[] = [];
-let reconnects = 0;
+let reconnect: ReconnectController | null = null;
 let muted = false;
 let candidateTranscript = "";
 let resumptionHandle: string | undefined;
-let currentConfig: SessionConfig | null = null;
+let currentIdentity: string | null = null;
 
 const root = document.getElementById("root")!;
 const statusEl = document.createElement("div");
@@ -41,7 +38,7 @@ function report(extra: Record<string, unknown> = {}): void {
     state: machine.state,
     interrupted: machine.interrupted,
     candidate_transcript: candidateTranscript,
-    reconnects,
+    reconnects: reconnect?.attempts ?? 0,
     muted,
     ...extra,
   });
@@ -69,6 +66,17 @@ function stopInterviewerAudio(): void {
   playbackQueue = [];
 }
 
+// Authoritative barge-in: the provider's server-side VAD reports a real
+// interruption. Guarded by state so it fires at most once per interviewer turn.
+function onProviderInterrupted(): void {
+  stopInterviewerAudio();
+  if (machine.onProviderInterrupt()) {
+    // → candidate_speaking (fires at most once per interviewer turn)
+    setStatus("candidate_speaking");
+    report({ discard_stale_audio: true });
+  }
+}
+
 async function startMic(sampleRate: number, chunkMs: number): Promise<void> {
   micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
   audioContext = new AudioContext();
@@ -78,15 +86,11 @@ async function startMic(sampleRate: number, chunkMs: number): Promise<void> {
     processorOptions: { targetRate: sampleRate, chunkMs },
   });
   workletNode.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
+    // Forward audio only. Mere PCM presence (silence, room noise, a continuous
+    // stream) must NOT interrupt the interviewer — barge-in comes from the
+    // provider's interruption event (onProviderInterrupted).
     if (muted || !client) return;
     client.sendAudioChunk(event.data);
-    // Barge-in: the candidate started talking while the interviewer was speaking.
-    if (machine.state === "interviewer_speaking") {
-      machine.interrupt();
-      stopInterviewerAudio();
-      setStatus("candidate_speaking");
-      report({ discard_stale_audio: true });
-    }
   };
   source.connect(workletNode);
 }
@@ -107,7 +111,7 @@ function playInterviewerAudio(pcm: ArrayBuffer, outRate: number): void {
   node.start();
 }
 
-async function connect(cfg: SessionConfig): Promise<void> {
+async function connect(cfg: LiveConfig): Promise<void> {
   client = new GeminiLiveClient(
     {
       model: cfg.model,
@@ -127,7 +131,7 @@ async function connect(cfg: SessionConfig): Promise<void> {
         if (isFinal) report({ transcript_final: true });
         else report();
       },
-      onInterrupted: () => stopInterviewerAudio(),
+      onInterrupted: onProviderInterrupted,
       onGenerationComplete: () => {
         if (machine.state === "interviewer_speaking") setState("candidate_thinking");
       },
@@ -143,25 +147,45 @@ async function connect(cfg: SessionConfig): Promise<void> {
     },
   );
   await client.connect();
-  reconnects = 0;
+  reconnect?.onConnected(); // cancel any pending retry; KEEP the attempt budget
 }
 
-function scheduleReconnect(cfg: SessionConfig): void {
-  if (reconnects >= cfg.max_reconnects) {
+function enterNeedsTokenRefresh(): void {
+  // Controlled state: the token is gone. Do not connect/reconnect; wait for
+  // Python to mint a fresh token (a new config identity restarts the session).
+  stopInterviewerAudio();
+  setStatus("Session expired — waiting for a refreshed session.");
+  machine.state = "error";
+  report({ needs_token_refresh: true });
+}
+
+function scheduleReconnect(cfg: LiveConfig): void {
+  if (!reconnect) return;
+  const outcome = reconnect.schedule(
+    () => connect(cfg).catch(() => scheduleReconnect(cfg)),
+    { tokenExpired: isTokenExpired(cfg, Date.now()) },
+  );
+  if (outcome === "token_expired") {
+    enterNeedsTokenRefresh();
+  } else if (outcome === "exhausted") {
     setStatus("error: gave up after max reconnects");
     machine.state = "error";
     report({ fatal: true });
-    return; // bounded — never an infinite loop
+  } else if (outcome === "scheduled") {
+    setStatus(`reconnecting (${reconnect.attempts}/${cfg.max_reconnects})`);
+    report();
   }
-  reconnects += 1;
-  const delay = Math.min(1000 * 2 ** (reconnects - 1), 8000);
-  setStatus(`reconnecting (${reconnects}/${cfg.max_reconnects})`);
-  report();
-  window.setTimeout(() => connect(cfg).catch(() => scheduleReconnect(cfg)), delay);
+  // "already_pending" / "stopped": no-op (one timer maximum).
 }
 
-async function begin(cfg: SessionConfig): Promise<void> {
-  currentConfig = cfg;
+async function begin(cfg: LiveConfig): Promise<void> {
+  currentIdentity = sessionIdentity(cfg);
+  reconnect = new ReconnectController(cfg.max_reconnects); // fresh budget per session
+  // Never open a session with an already-expired ephemeral token.
+  if (isTokenExpired(cfg, Date.now())) {
+    enterNeedsTokenRefresh();
+    return;
+  }
   try {
     setStatus("preparing");
     await startMic(cfg.input_sample_rate, cfg.chunk_ms);
@@ -178,6 +202,7 @@ async function begin(cfg: SessionConfig): Promise<void> {
 }
 
 function cleanup(): void {
+  reconnect?.stop(); // cancel any pending reconnect timer
   stopInterviewerAudio();
   workletNode?.disconnect();
   micStream?.getTracks().forEach((t) => t.stop());
@@ -189,10 +214,24 @@ function cleanup(): void {
   client = null;
 }
 
+// Restart the Live session for a genuinely new config (new question / refreshed
+// token / changed settings). Exactly one controlled teardown + start.
+function restart(cfg: LiveConfig): void {
+  cleanup();
+  machine.beginQuestion(); // reset turn state for the new session
+  begin(cfg);
+}
+
 function onRender(event: Event): void {
   const data = (event as CustomEvent<RenderData>).detail;
-  const cfg = data.args["session_config"] as SessionConfig;
-  if (!currentConfig) begin(cfg);
+  const cfg = data.args["session_config"] as LiveConfig;
+  const identity = sessionIdentity(cfg);
+  if (currentIdentity === null) {
+    begin(cfg); // first render
+  } else if (identity !== currentIdentity) {
+    restart(cfg); // materially-changed config → one controlled restart
+  }
+  // Unchanged effective config on an unrelated rerender → no restart.
   Streamlit.setFrameHeight();
 }
 

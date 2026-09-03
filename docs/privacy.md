@@ -3,15 +3,14 @@
 A consolidated statement of what the product does and does not do with personal
 data, with the guarantees backed by automated tests.
 
-## Camera / video (Visual Engagement Coach)
+## Camera / video
 
-- **Off by default; explicit opt-in** with a disclaimer that the feature is
-  coaching-only and does not judge attentiveness/truthfulness/suitability.
-- **Raw video is never stored** and **never sent for engagement analysis** to
-  any backend — all frame processing is local in the browser (MediaPipe). Only
-  small **aggregated** metrics cross to Python (`build_metrics` retains no frame/
-  image data — asserted by test).
-- No screenshots, face landmarks or biometric templates are persisted.
+- **The product never requests camera access.** The visual-engagement coach was
+  withdrawn: there is no camera capture, no frame processing, and no MediaPipe in
+  the running product. An end-to-end test asserts that normal Interview Practice
+  never calls `getUserMedia` for video.
+- No screenshots, face landmarks, biometric templates or visual metrics are
+  produced or persisted.
 
 ## Audio (Voice / Live)
 
@@ -27,9 +26,9 @@ data, with the guarantees backed by automated tests.
   **delete** individual interviews or everything (Settings). Deletion issues a
   real `DELETE` (cascade) — verified by tests.
 - Only **appropriate** data is stored: identity, configuration, questions,
-  answers/evaluations, timing metrics, aggregated visual metrics, report and
-  usage/cost. Never: camera video, face frames, biometric templates, permanent
-  API keys, or raw audio.
+  answers/evaluations, timing metrics, report and usage/cost. Never: camera
+  video, face frames, biometric templates, visual metrics, permanent API keys, or
+  raw audio.
 
 ## Logging
 
