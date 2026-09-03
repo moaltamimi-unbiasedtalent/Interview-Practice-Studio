@@ -32,7 +32,7 @@ Interview OS Coach
 │   │   ├── prompts/            # prompt_registry, prompts, structured_output, response_parser
 │   │   ├── speech/             # speech_service
 │   │   ├── live/               # live_interview (+ components/live_interviewer)
-│   │   ├── timing/             # timing, visual_coach, avatar (delivery/pacing)
+│   │   ├── timing/             # timing, avatar (delivery/pacing; no camera coaching)
 │   │   ├── security.py  openrouter_client.py  auth.py  health.py  persistence.py
 │   │   └── ui/                 # = today's app.py page renderers
 │   │

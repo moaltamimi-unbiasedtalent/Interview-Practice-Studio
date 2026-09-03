@@ -336,8 +336,13 @@ One process, one URL. Everything (both modules) lives here.
 
 - **Record** (voice answers) needs `pip install -e ".[speech]"` + a Google Speech
   project; without it, Record degrades to text.
-- **Live** (Gemini) needs `pip install -e ".[live]"` + a Gemini key + the built
-  frontend; without it, Live degrades to voice/text.
+- **Live** (Gemini) is **experimental and OFF by default**. It appears only when
+  `INTERVIEW_LIVE_ENABLED=true` and also needs `pip install -e ".[live]"` + a
+  Gemini key + the built frontend; without any of these, Live is hidden and the
+  app runs on Text/Record. The browser component owns the hardened live lifecycle
+  (provider-driven barge-in, token-expiry refresh, bounded reconnect), covered by
+  the frontend unit suite. There is **no camera/visual coaching** — the product
+  never requests camera access (asserted by an e2e test).
 
 ## Testing
 
@@ -388,12 +393,15 @@ Reviewer-facing: [docs/reviewer_guide.md](docs/reviewer_guide.md),
 
 **Prepare for any role. Practise realistically. Improve every answer.**
 
-> **Status note (feature completion during the capstone).** **Text Practice is
-> complete and fully working.** The **Voice** (Google Speech-to-Text) and
-> **Live** (Gemini Live) modes are **wired end to end in code but ship as
-> placeholders**: I will finish and verify them live during the capstone once the
-> required cloud credentials are in place. Until then, the app runs on Text and
-> shows a graceful fallback for Voice/Live (no crashes, no lost progress). See
+> **Status note (mode readiness).** **Text Practice is complete and fully
+> working.** **Record** (Google Speech-to-Text) is wired end to end and degrades
+> to Text without the `[speech]` extra + credentials. **Live** (Gemini Live) is
+> **experimental and hidden by default** behind `INTERVIEW_LIVE_ENABLED`; its
+> browser lifecycle (barge-in, token expiry, bounded reconnect) is hardened and
+> unit-tested, but it is not exposed publicly and makes no paid calls in CI. There
+> is **no camera/visual coaching** — that feature was withdrawn and the product
+> never requests camera access. Voice/Live always fall back gracefully (no
+> crashes, no lost progress). See
 > [docs/product_readiness_report.md](docs/product_readiness_report.md).
 
 ---
