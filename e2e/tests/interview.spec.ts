@@ -29,10 +29,11 @@ test("interview setup shows Text/Voice modes (Live hidden) and the setup form", 
   await expect(page.getByText("How would you like to practise?")).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText("Text", { exact: false })).toBeVisible();
-  await expect(page.getByText("Voice", { exact: false })).toBeVisible();
+  // Match the exact mode-card titles (avoid substring collisions like "context").
+  await expect(page.getByText("💬 Text", { exact: true })).toBeVisible();
+  await expect(page.getByText("🎙️ Voice", { exact: true })).toBeVisible();
   // Live is experimental and hidden by default.
-  await expect(page.getByText("Live", { exact: false })).toHaveCount(0);
+  await expect(page.getByText("🎥 Live", { exact: true })).toHaveCount(0);
 
   await expect(page.getByText("Set up your interview")).toBeVisible();
   await expect(page.getByText("Target role", { exact: false }).first()).toBeVisible();
@@ -43,4 +44,31 @@ test("interview sidebar menu is available after navigating", async ({ page }) =>
   await page.getByRole("button", { name: /Start practising/i }).click();
   const menu = page.getByText("New Practice", { exact: false });
   await expect(menu.first()).toBeVisible({ timeout: 20_000 });
+});
+
+test("normal Interview Practice never requests camera access", async ({ page }) => {
+  // Spy on getUserMedia BEFORE any app script runs; record any VIDEO request.
+  await page.addInitScript(() => {
+    (window as unknown as { __camRequested: boolean }).__camRequested = false;
+    const md = navigator.mediaDevices;
+    if (md && md.getUserMedia) {
+      const orig = md.getUserMedia.bind(md);
+      md.getUserMedia = (constraints?: MediaStreamConstraints) => {
+        if (constraints && constraints.video) {
+          (window as unknown as { __camRequested: boolean }).__camRequested = true;
+        }
+        return orig(constraints as MediaStreamConstraints);
+      };
+    }
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: /Start practising/i }).click();
+  await expect(page.getByText("How would you like to practise?")).toBeVisible({
+    timeout: 20_000,
+  });
+  // Camera coaching is withdrawn: the product must never ask for video.
+  const requested = await page.evaluate(
+    () => (window as unknown as { __camRequested: boolean }).__camRequested,
+  );
+  expect(requested).toBe(false);
 });
