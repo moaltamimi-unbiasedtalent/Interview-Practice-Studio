@@ -257,14 +257,14 @@ def test_M_second_run_does_not_overwrite_first(tmp_path) -> None:
 
 
 def test_N_ui_handles_no_ragas_runs(monkeypatch, tmp_path) -> None:
-    from src.career import ui as career_ui
+    from src.career import ragas_panel
 
     monkeypatch.chdir(tmp_path)  # no evaluations/ragas/runs here
-    assert career_ui._latest_ragas_run() is None
+    assert ragas_panel._latest_ragas_run() is None
 
 
 def test_O_ui_loads_latest_run(monkeypatch, tmp_path) -> None:
-    from src.career import ui as career_ui
+    from src.career import ragas_panel
 
     runs = tmp_path / "evaluations" / "ragas" / "runs"
     (runs / "20260101_000000").mkdir(parents=True)
@@ -274,7 +274,7 @@ def test_O_ui_loads_latest_run(monkeypatch, tmp_path) -> None:
     (runs / "20260102_000000" / "results.json").write_text(
         json.dumps({"metrics": {"faithfulness": 0.9}, "run_config": {"timestamp": "new"}}))
     monkeypatch.chdir(tmp_path)
-    latest = career_ui._latest_ragas_run()
+    latest = ragas_panel._latest_ragas_run()
     assert latest is not None
     assert latest["run_config"]["timestamp"] == "new"  # newest by directory name
 
@@ -288,9 +288,9 @@ def test_O_evaluation_page_shows_not_run_state(monkeypatch) -> None:
 
     from streamlit.testing.v1 import AppTest
 
-    from src.career import ui as career_ui
+    from src.career import ragas_panel
 
-    monkeypatch.setattr(career_ui, "_latest_ragas_run", lambda: None)
+    monkeypatch.setattr(ragas_panel, "_latest_ragas_run", lambda: None)
     app_path = str(pathlib.Path(__file__).resolve().parent.parent / "app.py")
     at = AppTest.from_file(app_path, default_timeout=60)
     at.session_state["os_active_page"] = "Evaluation"
@@ -461,7 +461,7 @@ def test_cli_written_json_is_strict_no_nan(monkeypatch, tmp_path) -> None:
 
 
 def test_ui_skips_all_nan_legacy_run(monkeypatch, tmp_path) -> None:
-    from src.career import ui as career_ui
+    from src.career import ragas_panel
 
     runs = tmp_path / "evaluations" / "ragas" / "runs"
     (runs / "20260101_000000").mkdir(parents=True)   # older, valid
@@ -472,18 +472,18 @@ def test_ui_skips_all_nan_legacy_run(monkeypatch, tmp_path) -> None:
         {"metrics": {"faithfulness": None, "response_relevancy": None},
          "run_config": {"timestamp": "failed"}}))
     monkeypatch.chdir(tmp_path)
-    latest = career_ui._latest_ragas_run()
+    latest = ragas_panel._latest_ragas_run()
     assert latest is not None
     assert latest["run_config"]["timestamp"] == "valid"  # skipped the newer invalid run
     assert latest["_invalid_ignored"] is True
 
 
 def test_ui_returns_none_when_only_invalid_runs(monkeypatch, tmp_path) -> None:
-    from src.career import ui as career_ui
+    from src.career import ragas_panel
 
     runs = tmp_path / "evaluations" / "ragas" / "runs"
     (runs / "20260101_000000").mkdir(parents=True)
     (runs / "20260101_000000" / "results.json").write_text(json.dumps(
         {"metrics": {"faithfulness": None}, "run_config": {"status": "FAILED"}}))
     monkeypatch.chdir(tmp_path)
-    assert career_ui._latest_ragas_run() is None
+    assert ragas_panel._latest_ragas_run() is None
