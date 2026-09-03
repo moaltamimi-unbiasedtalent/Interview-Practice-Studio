@@ -1,0 +1,36 @@
+name: Browser E2E (manual)
+
+# Playwright browser smoke for the unified Home → Interview Practice journey.
+# Manual only (workflow_dispatch) — it starts a real Streamlit app and installs
+# a browser, so it is intentionally NOT run on every push/PR. No paid provider
+# calls: the app runs without an API key and the smoke exercises navigation,
+# the mode cards and the setup form only.
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install the app
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install E2E deps (reproducible)
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run Playwright smoke (Playwright starts the app)
+        working-directory: e2e
+        env:
+          CI: "true"
+        run: npm test
