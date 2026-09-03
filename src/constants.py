@@ -323,10 +323,10 @@ LIVE_AUDIO_CHUNK_MS = 30
 # Ephemeral tokens are short-lived; the browser only ever receives one of these.
 LIVE_EPHEMERAL_TOKEN_TTL_SECONDS = 1_800  # 30 minutes
 LIVE_NEW_SESSION_WINDOW_SECONDS = 60  # window to start a session with the token
-# Bounded reconnect so a failing session can never loop forever.
+# Bounded reconnect so a failing session can never loop forever. The retry timer
+# and backoff live in the browser component's ReconnectController; the server only
+# passes this bound into the session config.
 LIVE_MAX_RECONNECTS = 3
-LIVE_RECONNECT_BASE_DELAY_SECONDS = 1.0
-LIVE_RECONNECT_MAX_DELAY_SECONDS = 8.0
 LIVE_FALLBACK_MESSAGE = "Live interview is temporarily unavailable."
 
 # --- Answer timing & delivery coaching ---------------------------------------

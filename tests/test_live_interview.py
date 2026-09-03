@@ -20,7 +20,6 @@ from src.live_interview import (
     LiveInterviewService,
     LiveInterviewSession,
     LiveTurnState,
-    ReconnectPolicy,
 )
 from src.models import ExternalServiceUsage
 
@@ -183,18 +182,9 @@ class TestTurnStateMachine:
 # --- Reconnect policy --------------------------------------------------------
 
 
-class TestReconnectPolicy:
-    def test_bounded_and_backoff(self) -> None:
-        policy = ReconnectPolicy(max_reconnects=3, base_delay=1.0, max_delay=8.0)
-        assert policy.next_delay(1) == 1.0
-        assert policy.next_delay(2) == 2.0
-        assert policy.next_delay(3) == 4.0
-        assert policy.next_delay(4) is None  # bound reached — no infinite loop
-        assert policy.next_delay(0) is None
-
-    def test_delay_is_capped(self) -> None:
-        policy = ReconnectPolicy(max_reconnects=10, base_delay=1.0, max_delay=3.0)
-        assert policy.next_delay(9) == 3.0
+# Reconnect bounding now lives in the browser component's ReconnectController
+# (components/live_interviewer/frontend/src/lifecycle.ts), covered by the frontend
+# unit suite; the server only supplies the max_reconnects bound in the config.
 
 
 # --- Delegation to OpenRouter (single engine) --------------------------------

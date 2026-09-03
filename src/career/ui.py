@@ -1156,20 +1156,6 @@ def _page_tools() -> None:
     _render_tools_used()
 
 
-def _resolve_handoff_target_role(role_req, session_state) -> str:
-    """Career Tools target-role resolution: analyser role first, then a confirmed
-    role. Delegates to the shared :func:`resolve_target_role`; kept because the
-    Career Tools tests target this precedence directly.
-    """
-    from src.integration.preparation_context import resolve_target_role
-
-    role_title = (getattr(role_req, "role_title", None) or "").strip() if role_req else ""
-    if role_title:
-        return resolve_target_role(role_requirements=role_req)
-    return resolve_target_role(
-        user_confirmed_role=(session_state or {}).get("handoff_target_role"))
-
-
 def _handoff_role_source(target_role, *, user_confirmed_role, role_requirements,
                          resolved_occupation) -> str:
     """Label where the resolved target role came from (mirrors resolve precedence)."""
