@@ -271,3 +271,30 @@ class TestAvailability:
         )
         with pytest.raises(LiveInterviewError):
             service.start_session()
+
+
+# --- 1E: token refresh decision (mint only when needed) ---------------------
+
+
+class TestTokenRefreshDecision:
+    def test_valid_token_is_reused(self):
+        from src.live_interview import token_needs_refresh
+
+        assert token_needs_refresh(10_000_000_000.0, now=1000.0) is False
+
+    def test_expired_token_needs_refresh(self):
+        from src.live_interview import token_needs_refresh
+
+        assert token_needs_refresh(100.0, now=1000.0) is True
+
+    def test_within_skew_needs_refresh(self):
+        from src.live_interview import token_needs_refresh
+
+        # 980 is within 30s of a 1000 expiry → refresh proactively.
+        assert token_needs_refresh(1000.0, now=980.0, skew_seconds=30.0) is True
+        assert token_needs_refresh(1000.0, now=960.0, skew_seconds=30.0) is False
+
+    def test_absent_expiry_needs_refresh(self):
+        from src.live_interview import token_needs_refresh
+
+        assert token_needs_refresh(0.0, now=1000.0) is True

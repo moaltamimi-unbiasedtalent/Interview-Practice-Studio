@@ -878,6 +878,31 @@ def _live_fallback(ns: str) -> None:
         st.rerun()
 
 
+def _live_session_config(ns: str, token_service) -> dict:
+    """Return the browser session config, minting an ephemeral token only when
+    needed (1E).
+
+    A valid token is reused across unrelated Streamlit reruns instead of minting a
+    new one every render. The config is held in bounded session state (never
+    persisted, never logged), and carries a stable ``session_id`` so the frontend
+    treats a rerun as the same session; a re-mint yields a new id (a controlled
+    frontend restart).
+    """
+    import time
+    import uuid
+
+    from src.live_interview import token_needs_refresh
+
+    key = f"{ns}_live_session_config"
+    cached = st.session_state.get(key)
+    if cached and not token_needs_refresh(cached.get("token_expires_at", 0), time.time()):
+        return dict(cached)  # reuse the still-valid token; no re-mint
+    _token, cfg = LiveInterviewService(token_service=token_service).start_session()
+    cfg["session_id"] = uuid.uuid4().hex
+    st.session_state[key] = cfg
+    return dict(cfg)
+
+
 def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
     """Experimental live interviewer; falls back cleanly when unavailable."""
     config = load_config()
@@ -890,9 +915,7 @@ def _render_live_answer(session, *, on_submit, ns: str, guidance=None) -> None:
         return
 
     try:
-        _token, session_config = LiveInterviewService(
-            token_service=token_service
-        ).start_session()
+        session_config = _live_session_config(ns, token_service)
     except LiveInterviewError:
         _live_fallback(ns)
         return

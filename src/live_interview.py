@@ -253,6 +253,18 @@ class EphemeralToken:
 TokenMinter = Callable[..., dict[str, Any]]
 
 
+def token_needs_refresh(expires_at: float, now: float, skew_seconds: float = 30.0) -> bool:
+    """Whether a cached ephemeral token should be re-minted.
+
+    True when the token is at/past expiry, or within ``skew_seconds`` of it, so a
+    Streamlit rerun reuses a still-valid token instead of minting a new one every
+    time (1E), while never handing the browser a token about to expire.
+    """
+    if not expires_at:
+        return True
+    return now >= (expires_at - skew_seconds)
+
+
 class GeminiLiveTokenService:
     """Mints short-lived ephemeral tokens from the permanent Gemini key.
 
