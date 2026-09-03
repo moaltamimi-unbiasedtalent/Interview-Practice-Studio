@@ -213,6 +213,17 @@ DEFAULT_CHUNKING_STRATEGY = "baseline"
 # cheap mode caps retrieval breadth to reduce synthesis context (and cost).
 CHEAP_MODE_TOP_K = 3
 
+# --- Company-context upload limits (Phase 4) ---------------------------------
+# Conservative, documented bounds for the optional company-materials upload so a
+# large or malformed file can never exhaust memory or stall the demo. Per-file
+# size is checked BEFORE the bytes are read; extracted text is capped after load.
+MAX_COMPANY_FILES = 5
+MAX_FILE_BYTES = 10 * 1024 * 1024          # 10 MB per file
+MAX_TOTAL_UPLOAD_BYTES = 25 * 1024 * 1024  # 25 MB across all files
+MAX_PDF_PAGES = 100                        # pages parsed from one PDF
+MAX_CSV_ROWS = 5000                        # rows parsed from one CSV
+MAX_EXTRACTED_CHARS = 200_000              # characters kept from one document
+
 # --- Domain tool calling -----------------------------------------------------
 
 # Registered tool names (the ONLY functions the model may invoke). Anything else

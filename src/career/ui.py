@@ -138,26 +138,80 @@ def _render_sources(results, citations) -> None:
                     st.markdown(f"[Open source ↗]({url})")
 
 
+def validate_company_uploads(uploads) -> tuple[list, list[str]]:
+    """Bound company uploads BEFORE any bytes are read (Phase 4).
+
+    Returns ``(accepted, errors)``. Enforces the file count, per-file size and
+    total size limits using ``upload.size`` (checked before ``getvalue()``), so an
+    oversized upload is rejected early and never copied into memory.
+    """
+    accepted: list = []
+    errors: list[str] = []
+    total = 0
+    items = list(uploads or [])
+    if len(items) > constants.MAX_COMPANY_FILES:
+        errors.append(
+            f"Too many files ({len(items)}). Up to {constants.MAX_COMPANY_FILES} "
+            "are allowed; extra files were ignored."
+        )
+        items = items[: constants.MAX_COMPANY_FILES]
+    for up in items:
+        size = getattr(up, "size", None) or 0
+        if size > constants.MAX_FILE_BYTES:
+            errors.append(
+                f"“{up.name}” is {size // (1024 * 1024)} MB — over the "
+                f"{constants.MAX_FILE_BYTES // (1024 * 1024)} MB per-file limit. Skipped."
+            )
+            continue
+        if total + size > constants.MAX_TOTAL_UPLOAD_BYTES:
+            errors.append(
+                f"“{up.name}” skipped — total upload would exceed "
+                f"{constants.MAX_TOTAL_UPLOAD_BYTES // (1024 * 1024)} MB."
+            )
+            continue
+        total += size
+        accepted.append(up)
+    return accepted, errors
+
+
+def _cap_extracted_units(units, suffix: str) -> list:
+    """Apply per-document page/row caps to loaded units (company-upload boundary)."""
+    suffix = suffix.lower()
+    if suffix == ".pdf":
+        return units[: constants.MAX_PDF_PAGES]
+    if suffix == ".csv":
+        return units[: constants.MAX_CSV_ROWS]
+    return units
+
+
 def _extract_upload_text(upload) -> tuple[str, str] | None:
-    """Extract (title, text) from a Streamlit upload via the ingestion loaders."""
+    """Extract (title, text) from a Streamlit upload via the ingestion loaders.
+
+    The caller must first pass uploads through :func:`validate_company_uploads`
+    (size/count guard). Here we additionally cap parsed pages/rows and truncate
+    the extracted text to ``MAX_EXTRACTED_CHARS`` so downstream processing is
+    bounded regardless of document contents.
+    """
     import os
     import tempfile
 
     from src.copilot.ingestion.loaders import LoaderError, load_document
 
     suffix = os.path.splitext(upload.name)[1] or ".txt"
+    path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(upload.getvalue())
             path = tmp.name
-        units = load_document(path)
-        text = "\n".join(u.text for u in units)
+        units = _cap_extracted_units(load_document(path), suffix)
+        text = "\n".join(u.text for u in units)[: constants.MAX_EXTRACTED_CHARS]
         return (upload.name, text)
     except (LoaderError, Exception):  # noqa: BLE001 - a bad upload never breaks the page
         return None
     finally:
         try:
-            os.unlink(path)
+            if path:
+                os.unlink(path)
         except Exception:  # noqa: BLE001
             pass
 
@@ -184,10 +238,18 @@ def _render_company_context_input():
         uploads = st.file_uploader(
             "Upload company materials (annual report, investor deck, press release)",
             type=["pdf", "txt", "md", "csv"], accept_multiple_files=True, key="co_docs")
+        st.caption(
+            f"Up to {constants.MAX_COMPANY_FILES} files · "
+            f"{constants.MAX_FILE_BYTES // (1024 * 1024)} MB each · "
+            f"{constants.MAX_TOTAL_UPLOAD_BYTES // (1024 * 1024)} MB total."
+        )
         if not name.strip():
             return None
+        accepted, upload_errors = validate_company_uploads(uploads)
+        for message in upload_errors:
+            st.warning(message)
         docs = []
-        for up in uploads or []:
+        for up in accepted:
             got = _extract_upload_text(up)
             if got:
                 docs.append(got)
