@@ -281,7 +281,7 @@ class TestRagChain:
 
 class TestChromaStore:
     def test_persist_dedup_and_query(self, tmp_path) -> None:
-        chromadb = pytest.importorskip("chromadb")
+        pytest.importorskip("chromadb")
         from src.copilot.vectorstore import ChromaStore
 
         embedder = LocalHashEmbedder()

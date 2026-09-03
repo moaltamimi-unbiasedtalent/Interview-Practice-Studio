@@ -58,7 +58,7 @@ class TestLifecycle:
         assert kstatus._lifecycle(s, e) == kstatus.MANUAL
 
     def test_summary_excludes_locally_present_from_outstanding(self) -> None:
-        e = self._entry(manual_acquisition_required=True)
+        self._entry(manual_acquisition_required=True)
         present = kstatus.SourceStatus(
             source_id="a", needs_manual_acquisition=True, local_file_found=True
         )

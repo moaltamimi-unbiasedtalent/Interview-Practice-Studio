@@ -8,7 +8,6 @@ import os
 
 import pytest
 
-from src.copilot import constants
 from src.copilot.ingestion import indexer, loaders
 from src.copilot.ingestion.chunking import chunk_units, source_id_for_text
 from src.copilot.ingestion.cleaners import clean_text

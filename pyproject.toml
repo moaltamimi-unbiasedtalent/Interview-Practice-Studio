@@ -30,6 +30,7 @@ dev = [
     "pytest>=8.3,<9.0",
     "pytest-mock>=3.14,<4.0",
     "fpdf2>=2.7,<3.0",
+    "ruff>=0.6,<1.0",
 ]
 # Speech-to-text (recorded voice answers). Optional: the base app runs without
 # it, and the provider lazily imports it so a missing SDK degrades gracefully.
@@ -70,3 +71,11 @@ evaluation = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.ruff]
+# Conservative, correctness-focused lint (no style churn): pyflakes (F) +
+# pycodestyle runtime errors (E9). Run:  ruff check .
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["F", "E9"]

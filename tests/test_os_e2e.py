@@ -23,7 +23,6 @@ from src.copilot.service import CareerIntelligenceService
 from src.copilot.tools import ToolInvoker, build_tool_registry
 from src.copilot.tools.schemas import (
     GapAnalyzerArgs,
-    JobAnalyzerArgs,
     PrepPlanArgs,
     PriorityGap,
     RoleRequirements,

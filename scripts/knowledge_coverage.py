@@ -106,7 +106,7 @@ def main() -> int:
         lines.append("")
 
     # Four acquisition lists.
-    available, outdated, not_found, recommended = [], [], [], []
+    available, outdated, not_found, _recommended = [], [], [], []
     for sid, s in statuses.items():
         e = entries.get(sid)
         latest = _LATEST_KNOWN.get(sid)

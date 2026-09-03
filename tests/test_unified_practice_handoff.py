@@ -20,7 +20,6 @@ from src.copilot.rag.translation import QueryTranslator
 from src.copilot.retrieval import build_retriever
 from src.copilot.service import (
     CareerIntelligenceService,
-    OrchestrationResult,
     PreparationArtifacts,
 )
 from src.copilot.tools import ToolInvoker, build_tool_registry

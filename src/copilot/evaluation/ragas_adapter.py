@@ -316,7 +316,6 @@ def run_ragas(
         else (None, None)
 
     with_ref = [c for c in cases if c.has_reference]
-    no_ref = [c for c in cases if not c.has_reference]
 
     per_case: dict[str, dict] = {c.case_id: {"case_id": c.case_id,
                                              "category": c.metadata.get("category", "")}

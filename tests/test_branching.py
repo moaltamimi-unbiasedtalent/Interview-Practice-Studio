@@ -10,7 +10,7 @@ import json
 import pytest
 
 from src.evaluation_service import EvaluationService
-from src.interview_service import InterviewService, ModelResponseError
+from src.interview_service import InterviewService
 from src.models import (
     AnswerEvaluation,
     BranchQuestion,
@@ -24,7 +24,6 @@ from src.pricing_service import PricingService
 from src.report_service import ReportService
 from src.session_manager import (
     BranchError,
-    DuplicateSubmissionError,
     InvalidStateTransitionError,
     SessionManager,
     SessionState,
@@ -368,7 +367,7 @@ class TestBranchPersistenceAndReset:
     def test_branch_state_survives_rerun(self) -> None:
         store: dict = {}
         sm = SessionManager(store, clock=lambda: 1.0)
-        sm2 = _seed_branch(sm)
+        _seed_branch(sm)
         # A new manager over the same store = a Streamlit rerun.
         fresh = SessionManager(store, clock=lambda: 1.0)
         assert fresh.data.branch_active is True

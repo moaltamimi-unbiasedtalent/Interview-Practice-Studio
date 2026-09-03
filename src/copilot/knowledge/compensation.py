@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 __all__ = ["CompensationRecord", "CompensationRepository"]
 

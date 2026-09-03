@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-import pytest
 
 from src.interview import studio_app
 from src.models import AnswerEvaluation

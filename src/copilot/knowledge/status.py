@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import os
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 from src.copilot import constants
 from src.copilot.knowledge import manifest as km

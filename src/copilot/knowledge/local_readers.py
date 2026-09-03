@@ -251,7 +251,6 @@ def read_oews(path: str = "data/raw/oesm25nat/oesm25nat/national_M2025_dl.xlsx",
     """Read BLS OEWS national annual wages into CompensationRecords."""
     if not os.path.isfile(path):
         return []
-    import pandas as pd
 
     df = _df(path)
 
@@ -424,7 +423,7 @@ def read_bls_ep_characteristics(path: str = "data/raw/occupation.xlsx",
     exp_c = col("work experience")
     ojt_c = col("on-the-job training")
     growth_c = col("employment change", "percent")
-    wage_c = col("median annual wage")
+    col("median annual wage")
 
     def _s(v):
         return None if v is None or (isinstance(v, float) and v != v) else str(v).strip() or None
@@ -521,7 +520,7 @@ def read_bls_projections(path: str = "data/raw/occupation.xlsx",
     df = pd.read_excel(xl, "Table 1.10", header=1)
     cols = {c: c for c in df.columns}
     title_c = next((c for c in cols if "title" in str(c).lower()), None)
-    code_c = next((c for c in cols if "code" in str(c).lower()), None)
+    next((c for c in cols if "code" in str(c).lower()), None)
     type_c = next((c for c in cols if "occupation type" in str(c).lower()), None)
     pct_c = next((c for c in cols if "percent" in str(c).lower()), None)
     open_c = next((c for c in cols if "openings" in str(c).lower()), None)

@@ -33,7 +33,6 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from src import constants
 from src.models import (
     AnswerEvaluation,
     BranchQuestion,

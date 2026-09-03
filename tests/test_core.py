@@ -1,6 +1,5 @@
 """OS-3 tests: the consolidated shared core (infrastructure only)."""
 
-import logging
 
 import pytest
 

@@ -210,7 +210,6 @@ class InterviewRepository:
 
             scores = [e.get("overall_score") for e in evaluations if e.get("overall_score") is not None]
             improvement_counts: dict[str, int] = {}
-            competency_scores: dict[str, list[int]] = {}
             for e in evaluations:
                 for area in e.get("improvement_areas", []) or []:
                     improvement_counts[area] = improvement_counts.get(area, 0) + 1

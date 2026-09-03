@@ -27,7 +27,6 @@ from src.copilot.models import (
     Citation,
     KnowledgeEvidence,
     RetrievalResult,
-    ToolExecution,
     TranslatedQuery,
 )
 from src.copilot.rag.responder import Responder

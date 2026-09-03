@@ -11,6 +11,16 @@ export default defineConfig({
     baseURL: process.env.BASE_URL || "http://localhost:8501",
     trace: "on-first-retry",
   },
+  // Start the Streamlit app for the run (reused locally if already up). The app
+  // and its Python env must be installed first (see .github/workflows/e2e.yml).
+  webServer: {
+    command:
+      "python -m streamlit run ../app.py --server.headless true " +
+      "--server.port 8501 --browser.gatherUsageStats false",
+    url: process.env.BASE_URL || "http://localhost:8501",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
   ],
