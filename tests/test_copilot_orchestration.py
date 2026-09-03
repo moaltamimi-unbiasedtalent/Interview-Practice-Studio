@@ -6,7 +6,6 @@ fakes — no network, no paid API calls. Scenarios A–J mirror the phase spec.
 
 import json
 
-import pytest
 
 from src.copilot import constants
 from src.copilot.config import CopilotConfig

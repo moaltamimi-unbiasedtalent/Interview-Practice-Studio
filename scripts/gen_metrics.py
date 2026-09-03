@@ -25,7 +25,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from src.copilot import constants  # noqa: E402
-from src.copilot.knowledge import manifest as km  # noqa: E402
 from src.copilot.knowledge import status as st  # noqa: E402
 
 METRICS_JSON = Path("data/metrics.json")
@@ -53,7 +52,7 @@ def _origin_records(statuses):
 def _readiness(statuses) -> list[dict]:
     """READY / PARTIAL / MISSING per coverage area, from measured data."""
     by = {s.source_id: s for s in statuses}
-    R, C, CO = constants.ROLE_DB_PATH, constants.COMPENSATION_DB_PATH, constants.COMPETENCY_DB_PATH
+    R, _C, CO = constants.ROLE_DB_PATH, constants.COMPENSATION_DB_PATH, constants.COMPETENCY_DB_PATH
     LM, CR = constants.LABOUR_MARKET_DB_PATH, constants.CREDENTIAL_DB_PATH
 
     def real(sid) -> bool:
@@ -223,7 +222,7 @@ def main() -> int:
     METRICS_JSON.write_text(json.dumps(m, indent=2), encoding="utf-8")
     SNAPSHOT_MD.parent.mkdir(parents=True, exist_ok=True)
     SNAPSHOT_MD.write_text(_snapshot_md(m), encoding="utf-8")
-    rb = {a["status"] for a in m["readiness_by_area"]}
+    {a["status"] for a in m["readiness_by_area"]}
     print(f"Wrote {METRICS_JSON} and {SNAPSHOT_MD}")
     print(f"Sources: {m['sources']}")
     print(f"Readiness areas: {len(m['readiness_by_area'])} "

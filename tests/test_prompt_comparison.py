@@ -8,7 +8,6 @@ refusal paths. Nothing touches the network.
 import json
 import pathlib
 
-import pytest
 from streamlit.testing.v1 import AppTest
 
 from scripts import compare_model_settings as cm

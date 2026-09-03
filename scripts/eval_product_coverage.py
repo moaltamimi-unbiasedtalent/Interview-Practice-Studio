@@ -27,7 +27,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.copilot import constants  # noqa: E402
 from src.copilot.config import load_config  # noqa: E402
 from src.copilot.knowledge.retrieval import build_default_coordinator  # noqa: E402
 from src.copilot.knowledge.router import detect_country, route_question  # noqa: E402

@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import re
 import sys
 from pathlib import Path
@@ -196,7 +195,6 @@ def _fmt_size(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024 or unit == "GB":
             return f"{n:.0f}{unit}" if unit == "B" else f"{n/1024**(['B','KB','MB','GB'].index(unit)):.1f}{unit}"
-        n_prev = n
     return f"{n}B"
 
 

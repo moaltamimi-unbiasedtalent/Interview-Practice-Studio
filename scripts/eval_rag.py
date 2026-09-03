@@ -136,7 +136,7 @@ def _write_markdown(config, embedder, ingest_report, top_k, n_cases, retrieval, 
         _md_table(
             [[m.mode, m.hit_rate_at_k, m.mrr, m.recall_at_k, m.term_recall_at_k, m.avg_latency_ms]
              for m in retrieval.values()],
-            [f"mode", f"Hit@{top_k}", "MRR", f"Recall@{top_k}", f"TermRecall@{top_k}", "Latency (ms)"],
+            ["mode", f"Hit@{top_k}", "MRR", f"Recall@{top_k}", f"TermRecall@{top_k}", "Latency (ms)"],
         ),
         "",
         f"Best by MRR then Hit@{top_k}: **{best.mode}**.",
@@ -146,7 +146,7 @@ def _write_markdown(config, embedder, ingest_report, top_k, n_cases, retrieval, 
         _md_table(
             [[m.mode, m.hit_rate_at_k, m.mrr, m.recall_at_k, m.avg_latency_ms]
              for m in translation.values()],
-            [f"query", f"Hit@{top_k}", "MRR", f"Recall@{top_k}", "Latency (ms)"],
+            ["query", f"Hit@{top_k}", "MRR", f"Recall@{top_k}", "Latency (ms)"],
         ),
         "",
         "> Translation ran with the **offline heuristic** translator, which returns "

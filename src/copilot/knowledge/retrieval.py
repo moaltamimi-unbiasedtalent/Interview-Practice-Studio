@@ -393,13 +393,13 @@ class StructuredRetrievalCoordinator:
             if not occ:
                 continue
             emitted = False
-            for field, etype in want:
-                val = occ.get(field)
+            for field_key, etype in want:
+                val = occ.get(field_key)
                 if val:
                     emitted = True
-                    label = field.replace("_", " ")
+                    label = field_key.replace("_", " ")
                     out.evidence.append(self._evidence(
-                        eid=f"{cand.occupation_code}:{field}", source_id=cand.source_id,
+                        eid=f"{cand.occupation_code}:{field_key}", source_id=cand.source_id,
                         lane=lane, etype=etype, occ_title=occ.get("title"),
                         occ_code=cand.occupation_code, score=2.5,
                         text=f"{label.capitalize()}: {val}"))

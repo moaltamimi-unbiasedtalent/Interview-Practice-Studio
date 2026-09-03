@@ -23,8 +23,6 @@ from src.copilot.config import load_config  # noqa: E402
 from src.copilot.embeddings import LocalHashEmbedder, embedding_status  # noqa: E402
 from src.copilot.evaluation.rag_eval import (  # noqa: E402
     RagCase,
-    _ranked_sources,
-    _term_hit,
     evaluate_retrieval,
 )
 from src.copilot.ingestion import indexer  # noqa: E402

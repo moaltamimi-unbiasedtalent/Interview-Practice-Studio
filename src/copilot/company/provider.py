@@ -10,7 +10,7 @@ and is injected — its returned text is still treated as untrusted.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from src.copilot.company import (
-    CompanyContext,
     build_company_context,
     classify_source,
     validate_url,
