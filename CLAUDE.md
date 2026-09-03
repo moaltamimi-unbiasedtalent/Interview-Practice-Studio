@@ -1,97 +1,98 @@
-# CLAUDE.md — Interview Practice Studio
+# CLAUDE.md — Interview OS Coach
 
-Guidance for AI-assisted development in this repository. All work must follow
-these rules.
+Guidance for AI-assisted development in this repository. These describe the
+**current** architecture and constraints (the project has grown well beyond its
+original Sprint 1 scope). Historical Sprint 1 notes live in git history and the
+`docs/` write-ups — do not treat them as current constraints.
 
-## Project scope
+## Product
 
-Turing College Sprint 1 project: **Foundations of LLM Application
-Development — Build an Interview Practice App.**
+**Interview OS Coach** — one Streamlit application (`streamlit run app.py`, one
+URL) combining two modules:
 
-Proposition: *"Prepare for any role. Practise realistically. Improve every
-answer."*
+- **Career Intelligence** — evidence-grounded career guidance and interview
+  preparation using retrieval-augmented generation over a labour-market/careers
+  knowledge base. Backend in `src/copilot/*` (LangChain over OpenRouter,
+  embeddings, Chroma vector search, BM25 + hybrid retrieval, query translation,
+  structured multi-lane retrieval, domain tool calling, citations, prompt-
+  injection security); Streamlit UI adapter in `src/career/ui.py`.
+- **Interview Practice** — realistic interview simulation, rubric evaluation,
+  Interview Deep Dive, final report, voice (recorded) practice, and an
+  experimental Live mode. Domain services in `src/*.py`; UI in
+  `src/interview/studio_app.py`.
 
-The product is **generic across professions**. It must support candidates in
-any domain (software, engineering, finance, sales, healthcare, legal, trades,
-public sector, education, and more), at any career level, for any interview
-type. No HR-specific assumptions may appear in core logic, prompts, scoring
-or examples.
+The product is **generic across professions** (software, healthcare, finance,
+trades, public sector, …), any level, any interview type. No profession-specific
+assumptions in core logic, prompts, scoring or examples.
 
-### In scope (Sprint 1)
+## Architecture
 
-- Streamlit interface with a full conversational chatbot (session state)
-- OpenRouter Chat Completions integration via HTTPX
-- Correct system / user / assistant message separation
-- At least five system prompts using different prompting techniques
-- At least one meaningful security guard
-- Adjustable model settings; job-description context
-- At least two structured JSON output types (Pydantic)
-- Token and cost reporting
-- Prompt-comparison experiment; jailbreak/invalid-input experiment → Excel
-- Automated tests (pytest), documentation, project-review notes
+- **Modular Streamlit monolith.** `app.py` owns page config + top-level
+  navigation and delegates to the two modules; business logic lives in `src/`.
+- **Career backend/UI split.** `src/copilot/*` is the domain backend (no
+  Streamlit import); `src/career/ui.py` renders it. The backend is unit-testable
+  without a UI.
+- **Typed integration handoff.** `src/integration/*` is the only cross-module
+  surface — a plain `PreparationContext` carries a target role, requirements,
+  gaps and grounding sources from Career Intelligence to Interview Practice. No
+  Chroma/LangChain/DB objects cross the boundary.
+- **Providers.** Career Intelligence uses LangChain over OpenRouter; the
+  Interview module uses a direct OpenRouter HTTPX client. Optional speech
+  (`[speech]`) and Live (`[live]`) backends are lazily imported.
+- **Retrieval.** Structured stores (SQLite: roles, competency, compensation,
+  labour-market, credentials) + a Chroma vector store with a local-hash embedder
+  fallback; a deterministic router picks lanes; hybrid (vector + BM25) fusion.
+- **Persistence & auth.** SQLAlchemy ORM over SQLite (dev/tests) or PostgreSQL
+  (production, schema owned by Alembic — see `docs/operations_deployment.md`);
+  interview history is per-user with strict isolation. Auth in `src/auth.py`.
+- **Evaluation.** Deterministic, offline retrieval/coverage evaluations are the
+  primary CI gate (11R, 11R-A, KB-2, product coverage, quality_v2,
+  faithfulness_v2). **RAGAS** is an *optional* secondary generation-quality layer
+  (`[evaluation]`), never in normal CI — see `docs/ragas_evaluation.md`.
+- Constants live in `src/constants.py` (interview) and `src/copilot/constants.py`
+  (career). Configuration is loaded via config modules: secrets/env first, never
+  a hard-coded key, controlled missing-configuration results — never a crash.
+- Prefer explicit, readable Python. Type hints on functions; docstrings on public
+  functions and classes.
 
-### Explicitly excluded
-
-LangChain, LangGraph, RAG, embeddings, vector databases, autonomous agents,
-databases, authentication, persistent candidate data, production deployment
-infrastructure.
-
-## Stack and models
-
-Python, Streamlit, OpenRouter Chat Completions API, Pydantic, HTTPX, Pytest,
-Pandas, OpenPyXL.
-
-Approved models only (defined centrally in `src/constants.py`):
-
-- `openai/gpt-5-mini` — default
-- `openai/gpt-5-nano` — lower cost
-- `openai/gpt-5` — higher capability
-
-## Architecture rules
-
-- `app.py` renders the UI only. Business logic lives in `src/`.
-- Constants (models, limits, defaults) live in `src/constants.py` only.
-- Configuration is loaded via `src/config.py`: Streamlit secrets first,
-  environment variable fallback, never a default key, controlled
-  missing-configuration result — never a crash.
-- Prefer explicit, readable Python over abstraction. A Sprint 1 learner must
-  be able to understand every file.
-- Type hints on all functions; docstrings on public functions and classes.
-
-## Security constraints
+## Security & privacy constraints
 
 - Never hard-code, print, log or commit an API key or any secret.
-- Treat job descriptions, candidate backgrounds and answers as untrusted
-  content; enforce input length limits from `src/constants.py`.
-- Never expose the full system prompt through the UI.
-- Never request hidden chain-of-thought; use structured evaluation
-  procedures with concise explanations instead.
-- Never fabricate candidate achievements, credentials, examples or metrics.
-- Do not store protected demographic characteristics.
-- Do not make personality, health or psychological diagnoses.
-- Do not claim interview scores are objective hiring decisions — they are
-  practice feedback only.
+- Treat job descriptions, candidate backgrounds, answers, retrieved documents and
+  uploaded files as **untrusted** content: enforce input length/size limits,
+  scan for prompt injection, and place retrieved/tool content in trust-separated
+  blocks that are never followed as instructions.
+- Never expose a full system prompt through the UI; never request hidden
+  chain-of-thought (use structured evaluation with concise explanations).
+- Never fabricate candidate achievements, credentials, examples, metrics or
+  evaluation scores. Never store protected demographic characteristics or make
+  personality/health diagnoses. Interview scores are practice feedback, not a
+  hiring decision.
+- RAGAS and other evaluators run only on public benchmark data, never on private
+  candidate/company content, and only when their credentials are configured.
 
-## Testing requirements
+## Testing
 
-- Pytest for all automated tests; `tests/` mirrors `src/`.
-- Never make live API calls in tests — mock HTTPX.
-- Do not weaken tests to make them pass; do not silently swallow errors.
+- Pytest for all automated tests; never make live/paid provider calls in tests
+  (mock the boundaries). Do not weaken tests to pass or silently swallow errors.
+- Tests must not mutate committed artifacts (write to `tmp_path`).
+- `ruff check .` (conservative `F`/`E9` rules) must pass.
+- Current measured suite on this branch: **1281 passed, 2 skipped** (the skips are
+  the RAGAS installed/absent guards). Re-measure with `pytest -q` rather than
+  hard-coding a number in multiple places.
 
 ## Git rules
 
-- Work directly on `main`; push to
-  `moaltamimi-unbiasedtalent/Interview-Practice-Studio`.
-- Commit and push only when a phase prompt instructs it.
-- Never commit `.env`, `.streamlit/secrets.toml`, virtual environments,
-  caches or generated local files.
-- Do not modify files outside this repository.
+- Remote: `moaltamimi-unbiasedtalent/Interview-OS-Coach` (`origin`). Turing
+  submissions are pushed to the `TuringCollegeSubmissions/*` remote.
+- Work on a feature branch; open a PR. **Do not auto-merge.** Commit and push only
+  when a phase/prompt instructs it.
+- End commit messages with `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+- Never commit `.env`, `.streamlit/secrets.toml`, virtual environments, caches,
+  generated evaluation runs, or `node_modules`.
 
-## Academic explainability
+## Explainability
 
-The repository owner must be able to explain every line in a project review.
-Therefore: keep code simple, comment the *why* where it is not obvious, and
-maintain `docs/learning_notes.md` with concepts introduced, decisions made
-and review questions after every phase. At the end of every implementation
-phase, report files changed, functionality delivered, commands run, test
-results, remaining risks, manual checks, review concepts, and git status.
+The owner must be able to explain every line in a review: keep code simple,
+comment the *why* where non-obvious, and keep `docs/` current after each phase
+(files changed, functionality, commands, test results, risks, review concepts).
