@@ -10,6 +10,7 @@ view and never fires a duplicate API call.
 from __future__ import annotations
 
 import json
+import logging
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -45,6 +46,8 @@ from src.live_interview import (
 from components.live_interviewer import is_available as live_component_available
 from components.live_interviewer import live_interviewer
 from src.integration import handoff  # career → interview preparation handoff
+
+logger = logging.getLogger(__name__)
 
 _METADATA_CACHE_KEY = "_model_supported_params"
 
@@ -1290,6 +1293,17 @@ def render_report(session: SessionManager) -> None:
     except Exception:  # pragma: no cover - export channel must never break the UI
         pass
     st.subheader("Interview readiness report")
+    # If saving to history failed, warn (safely) and offer a retry — the report
+    # itself stays fully usable.
+    if session.data.save_failed and not session.data.saved_report_id:
+        st.warning(
+            "Your report was generated, but it could not be saved to Interview "
+            "History. Please try again."
+        )
+        if st.button("Retry saving to history", key="retry_save_history"):
+            session.data.save_failed = False
+            _persist_if_new(session, load_config())
+            st.rerun()
     st.metric("Readiness score", f"{report.overall_readiness_score}/100")
     st.caption("Practice guidance only — not an employment decision.")
 
@@ -1628,31 +1642,47 @@ def _interview_payload(data) -> dict:
                 ),
             }
         )
+    # Deep Dive branches. Completed branches are archived into ``data.branches``
+    # (and the active lists cleared) when the candidate returns to the main
+    # interview, so serialise BOTH the archived branches and any still-active one
+    # — otherwise finished Deep Dives are silently dropped from history.
     base = len(data.questions)
-    parent = base - 1 if base else None
-    for j, branch in enumerate(data.branch_questions):
-        answer_text = data.branch_answers[j] if j < len(data.branch_answers) else ""
-        evaluation = (
-            data.branch_evaluations[j].model_dump()
-            if j < len(data.branch_evaluations)
-            else None
-        )
-        questions.append(
-            {
-                "position": base + j,
-                "canonical_question": branch.question,
-                "question_type": getattr(branch, "question_type", "behavioural"),
-                "difficulty": branch.difficulty,
-                "timing_guidance": None,
-                "is_deep_dive": True,
-                "parent_position": parent,
-                "answer": (
-                    {"text": answer_text, "evaluation": evaluation}
-                    if (answer_text or evaluation)
-                    else None
-                ),
-            }
-        )
+    default_parent = base - 1 if base else None
+    position = base
+
+    def _branch_records(questions_list, answers, evaluations, parent_id):
+        nonlocal position
+        parent_pos = parent_id if isinstance(parent_id, int) else default_parent
+        for j, branch in enumerate(questions_list):
+            answer_text = answers[j] if j < len(answers) else ""
+            evaluation = evaluations[j] if j < len(evaluations) else None
+            evaluation = evaluation.model_dump() if evaluation is not None else None
+            questions.append(
+                {
+                    "position": position,
+                    "canonical_question": branch.question,
+                    "question_type": getattr(branch, "question_type", "behavioural"),
+                    "difficulty": branch.difficulty,
+                    "timing_guidance": None,
+                    "is_deep_dive": True,
+                    "parent_position": parent_pos,
+                    "answer": (
+                        {"text": answer_text, "evaluation": evaluation}
+                        if (answer_text or evaluation)
+                        else None
+                    ),
+                }
+            )
+            position += 1
+
+    for archived in getattr(data, "branches", []):
+        _branch_records(
+            archived.get("questions", []), archived.get("answers", []),
+            archived.get("evaluations", []), archived.get("parent_question_id"))
+    # Any branch still active at completion (not yet returned to main).
+    _branch_records(
+        data.branch_questions, data.branch_answers, data.branch_evaluations,
+        data.branch_parent_question_id)
     report = None
     if data.report is not None:
         report = {
@@ -1673,18 +1703,30 @@ def _interview_payload(data) -> dict:
 
 
 def _persist_if_new(session: SessionManager, config: AppConfig) -> None:
-    """Save a completed interview once. Best-effort — never breaks the view."""
-    if st.session_state.get("_saved_report_id"):
+    """Save a completed interview once per interview.
+
+    The saved-report id lives on the session data (not a top-level Streamlit
+    key), so ``reset_interview`` clears it and a *second* interview saves too.
+    A save failure never breaks the report page: it records a bounded, safe flag
+    so the page can show a friendly warning and offer a retry — the raw DB error
+    is never surfaced.
+    """
+    data = session.data
+    if data.saved_report_id:
         return
     try:
         repo = get_repository(config)
         user_id = _current_user_id(config, repo)
         if user_id is None:
             return
-        interview_id = repo.save_interview(user_id, _interview_payload(session.data))
-        st.session_state["_saved_report_id"] = interview_id
+        interview_id = repo.save_interview(user_id, _interview_payload(data))
+        data.saved_report_id = interview_id
+        data.save_failed = False
     except Exception:  # noqa: BLE001 - persistence must not break the report
-        pass
+        # Record the failure safely (no DB/SQL/credential/stacktrace detail) so
+        # the report page can warn and offer a retry.
+        data.save_failed = True
+        logger.warning("Interview persistence failed", exc_info=True)
 
 
 # =============================================================================
@@ -1843,7 +1885,6 @@ def _page_settings(config: AppConfig) -> None:
     confirm = st.checkbox("I understand this permanently deletes all my interviews")
     if st.button("Delete all my interview data", disabled=not confirm):
         removed = repo.delete_all_for_user(user_id)
-        st.session_state.pop("_saved_report_id", None)
         st.success(f"Deleted {removed} interview(s).")
 
 
